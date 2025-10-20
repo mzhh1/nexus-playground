@@ -1,0 +1,29 @@
+{
+  "name": "autolab-oauth-example-app",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "AutoLab OAuth 示例应用 - 使用 @autolabz/oauth-sdk (PKCE)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@autolabz/data-sdk": "latest",
+    "@autolabz/llmapi-sdk": "latest",
+    "@autolabz/oauth-sdk": "latest",
+    "@autolabz/points-sdk": "latest",
+    "nrm": "^2.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.21.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.47",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11"
+  }
+}
