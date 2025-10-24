@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "module": "CommonJS",
+    "moduleResolution": "bundler",
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "references": [
+    {
+      "path": "../packages/shared-types"
+    },
+    {
+      "path": "../packages/game-sdk"
+    },
+    {
+      "path": "../packages/platform-core"
+    }
+  ]
+}
+

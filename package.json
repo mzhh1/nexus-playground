@@ -1,0 +1,24 @@
+{
+  "name": "nexus-playground",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LLM原生游戏平台 - Monorepo根目录",
+  "scripts": {
+    "dev": "pnpm --parallel --filter './core-framework/**' --filter './portal' --filter './games/**' dev",
+    "build": "pnpm --filter './core-framework/packages/**' build && pnpm --filter './core-framework/api-server' build && pnpm --filter './portal' build && pnpm --filter './games/**' build",
+    "clean": "pnpm --parallel clean && rm -rf node_modules",
+    "test": "pnpm --parallel test",
+    "lint": "pnpm --parallel lint",
+    "type-check": "pnpm --parallel type-check"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "packageManager": "pnpm@8.15.0"
+}
+

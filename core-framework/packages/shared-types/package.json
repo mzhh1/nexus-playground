@@ -1,0 +1,30 @@
+{
+  "name": "@nexus/shared-types",
+  "version": "1.0.0",
+  "description": "Nexus Playground - 共享类型定义 (USADL核心类型)",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsup --watch",
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
+}
+

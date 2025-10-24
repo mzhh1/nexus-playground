@@ -1,0 +1,11 @@
+packages:
+  # Core framework packages
+  - 'core-framework/packages/*'
+  - 'core-framework/api-server'
+  
+  # Portal application
+  - 'portal'
+  
+  # Game projects
+  - 'games/**'
+

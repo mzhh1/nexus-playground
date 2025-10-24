@@ -1,0 +1,44 @@
+{
+  "name": "@nexus/platform-core",
+  "version": "1.0.0",
+  "description": "Nexus Playground - 平台核心服务",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./llm-adapter": {
+      "types": "./dist/llm-adapter/index.d.ts",
+      "import": "./dist/llm-adapter/index.mjs",
+      "require": "./dist/llm-adapter/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsup --watch",
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nexus/shared-types": "workspace:*",
+    "@nexus/game-sdk": "workspace:*",
+    "@autolabz/oauth-sdk": "latest",
+    "@autolabz/llmapi-sdk": "latest",
+    "pg": "^8.11.3",
+    "redis": "^4.6.12"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.10.9",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
+}
+

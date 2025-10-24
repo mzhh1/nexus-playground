@@ -209,7 +209,7 @@ function AppContent() {
         <h1>AutoLab OAuth 示例应用</h1>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <AuthAvatar
-            redirectUri={(import.meta as any).env?.VITE_OAUTH_REDIRECT_URI}
+            redirectUri={((import.meta as any).env?.VITE_OAUTH_REDIRECT_URI) || `${window.location.origin}/oauth-app/callback`}
             scope={(import.meta as any).env?.VITE_OAUTH_SCOPE ?? 'openid profile email data points llmapi'}
             additionalParams={{ prompt: 'consent' }}
             profileUrl={(import.meta as any).env?.VITE_OAUTH_PROFILE_URL}
@@ -314,11 +314,34 @@ function AppContent() {
 }
 
 function App() {
-  const authServiceUrl = (import.meta as any).env?.VITE_AUTH_API_BASE_URL;
+  const rawAuthServiceUrl = (import.meta as any).env?.VITE_AUTH_API_BASE_URL;
   const clientId = (import.meta as any).env?.VITE_OAUTH_CLIENT_ID
     || new URLSearchParams(window.location.search).get('client_id')
     || sessionStorage.getItem('autolab_client_id')
     || undefined;
+
+  // Normalize to absolute or rooted path
+  const authServiceUrl = (() => {
+    try {
+      if (!rawAuthServiceUrl) return '/api';
+      if (/^https?:\/\//i.test(rawAuthServiceUrl)) return rawAuthServiceUrl.replace(/\/$/, '');
+      const path = rawAuthServiceUrl.startsWith('/') ? rawAuthServiceUrl : `/${rawAuthServiceUrl}`;
+      return path;
+    } catch (e) {
+      console.warn('[oauth-example] failed to normalize VITE_AUTH_API_BASE_URL:', e);
+      return rawAuthServiceUrl;
+    }
+  })();
+
+  const redirectUri = (import.meta as any).env?.VITE_OAUTH_REDIRECT_URI
+    || `${window.location.origin}/oauth-app/callback`;
+
+  // Expose runtime debug for port 51001
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).__OAUTH_EXAMPLE_DEBUG__ = { authServiceUrl, clientId, redirectUri, href: window.location.href };
+  console.info('[oauth-example] OAuth env', { rawAuthServiceUrl, authServiceUrl, clientId, redirectUri });
+  if (!clientId) console.error('[oauth-example] VITE_OAUTH_CLIENT_ID missing - login will fail.');
+
   return (
     <OAuthProvider authServiceUrl={authServiceUrl} clientId={clientId}>
       <BrowserRouter basename="/oauth-app">
