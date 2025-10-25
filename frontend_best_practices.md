@@ -19,7 +19,7 @@
 - 使用统一回调页（例如 `/oauth/callback`），在回调页调用 `handleRedirect` 完成令牌交换。
 - 登录前通过自定义 `state` 携带回跳信息（如 `returnTo`），回调后解析 `state` 并跳回原页面。
 - 在提供登录入口/用户菜单的页面挂载 `AuthAvatar` 和 `OAuthProvider`；其他页面仅需 `OAuthProvider`。
- - 会话共享自动依赖存储介质（同源 `localStorage` 或推荐的 httpOnly Cookie），而不是依赖 React 上下文。
+ - 会话共享自动依赖存储介质，而不是依赖 React 上下文。
  - 下游 `data/points/llm` 客户端建议“每页创建、页内复用”，不跨页共享实例（会话会跨页共享）。
  - 自定义 `state` 建议使用 base64(JSON) 且包含唯一 `nonce`。
  - 不要在 `state` 放敏感信息；仅放导航类数据（如 `returnTo`）。
@@ -223,7 +223,6 @@ await llm.chatStream({ model: 'gpt-4o-mini', messages: [], stream: true }, {
 
 ### 6) 安全与合规
 
-- 令牌存储：当前实现将 `refresh_token` 存储于 `localStorage`，存在 XSS 风险。生产推荐迁移到 httpOnly Cookie（需要后端配合）。
 - 跨域策略：通过网关将前端与认证/数据/积分/LLM 服务置于同源或同顶级域名路径下，或确保后端正确配置 CORS。
 - Scope 最小化：仅请求业务所需的 scope，例如 `openid profile email data points llmapi`，避免过宽权限。
 
@@ -316,7 +315,6 @@ const llm = createLLMClient({ baseURL: import.meta.env.VITE_LLMAPI_BASE_URL, aut
 ### 附：常见问题（FAQ）
 
 - ClientId 从哪里来？由 AutoLab 组织分配并作为固定配置注入生产；不要依赖 URL 查询解析。
-- Token 放哪？前端由 `oauth-sdk` 存于本地存储并自动刷新；生产推荐迁到 httpOnly Cookie。
 - 能否自带 axios 实例？建议直接用各 SDK 客户端以获得统一的注入/刷新/重试。自定义时需确保 401 可触发刷新或回落登出。
 
 ---

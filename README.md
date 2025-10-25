@@ -1,981 +1,717 @@
-# Nexus Playground - LLM原生游戏平台
+# 星枢沙盒 (Nexus Playground)
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
-[![Node](https://img.shields.io/badge/Node-20+-green.svg)](https://nodejs.org/)
-
-> 一个具有高度可扩展性的 LLM 原生在线游戏平台，让 AI 和人类玩家能够无缝协作，参与各类游戏。
-
-## 📖 项目愿景
-
-Nexus Playground 旨在构建一个生态系统，让开发者能够快速、低成本地将新游戏规则转化为可供人类与 AI 共同参与的在线游戏。通过将大型语言模型（LLM）作为原生参与者深度集成到游戏逻辑中，创造前所未有的动态、智能和拟人化的游戏体验。
-
-## 🎯 核心设计原则
-
-### 1. 快速开发 (Rapid Development)
-开发者在理解一个新游戏的规则后，能迅速将其转化为平台上可运行的游戏项目，而无需关心底层通用服务的复杂性。
-
-### 2. LLM原生适配性 (LLM-Native Adaptability)
-LLM 能无缝地理解任何接入平台的游戏规则，并作为任何角色（玩家、NPC）参与其中，优雅地处理完美信息和不完美信息游戏。
-
-### 3. 可复现与可介入性 (Reproducibility & Intervenability)
-平台原生支持从任意一个有效的游戏局面启动一局游戏，并允许玩家（人类或 LLM）在游戏过程中的任意时刻无缝接管或切换角色。
-
-## 🏗️ 核心架构
-
-### USADL 体系 (Universal State and Action Description Language)
-
-平台架构的核心是 USADL 统一描述体系，由三个核心数据实体驱动：
-
-#### 1. **全局状态 (Global State)**
-- 游戏在服务器端的唯一真实数据源（"上帝视角"）
-- 包含游戏的所有权威信息
-- 由平台后端的游戏状态管理器维护
-- 永远不会直接发送给任何玩家
-
-```json
-{
-  "game_rules": "游戏规则的自然语言描述",
-  "history": ["历史行动日志"],
-  "current_state": {
-    "棋盘状态": "...",
-    "玩家状态": "..."
-  }
-}
-```
-
-#### 2. **角色视角 (Role Perspective)**
-- 根据全局状态为特定角色生成的"客户端视图"
-- 只包含该角色应该知道的信息
-- 平台与玩家（人类/LLM）之间通信的核心协议
-
-```json
-{
-  "global_rules": "游戏规则描述",
-  "whole_history": ["完整历史"],
-  "diff_history": ["差异历史"],
-  "current_state": {"角色视角下的游戏状态"},
-  "your_role": {"角色身份和目标"},
-  "action_space_definition": {"可执行动作定义"}
-}
-```
-
-#### 3. **角色映射 (Role Mapping)**
-- 定义游戏内每个逻辑角色由谁扮演
-- 支持人类玩家和 LLM 玩家的动态绑定
-- 实现人机协作、动态难度和无缝切换的关键
-
-```json
-{
-  "role_mapping": {
-    "player_1": { "type": "human", "uid": "user_12345" },
-    "player_2": {
-      "type": "llm",
-      "model_name": "gemini-pro",
-      "system_prompt": "你是一个谨慎的玩家..."
-    }
-  }
-}
-```
-
-### 游戏核心流程
-
-```
-1. 游戏实例化 (全局状态 + 角色映射)
-   ↓
-2. 进入回合/阶段 (确定当前行动角色)
-   ↓
-3. 生成视角 (为当前角色生成专属视角)
-   ↓
-4. 路由与决策 (查询角色映射，确定扮演者)
-   ↓
-5. 提交行动 (玩家提交行动 JSON)
-   ↓
-6. 验证与执行 (验证合法性，更新全局状态)
-   ↓
-7. 广播更新 (为所有玩家重新生成最新视角)
-   ↓
-8. 检查结束条件 (判断游戏是否结束)
-```
-
-## 📁 项目结构
-
-```
-nexus-playground/
-├── portal/                     # 游戏门户入口（主应用）
-│   ├── src/
-│   │   ├── pages/
-│   │   │   ├── home/          # 首页
-│   │   │   ├── lobby/         # 游戏大厅
-│   │   │   └── game-list/     # 游戏列表
-│   │   ├── components/        # 共享组件
-│   │   └── layouts/           # 布局组件
-│   ├── Dockerfile
-│   └── nginx.conf
-│
-├── core-framework/              # 主框架
-│   ├── packages/
-│   │   ├── game-sdk/           # 游戏开发套件
-│   │   │   ├── state-manager/  # 统一状态管理器
-│   │   │   ├── event-bus/      # 事件总线
-│   │   │   ├── game-loop/      # 游戏循环模板
-│   │   │   └── types/          # 核心类型定义
-│   │   ├── platform-core/      # 平台核心服务
-│   │   │   ├── auth/           # 用户认证（基于 oauth-sdk）
-│   │   │   ├── matchmaking/    # 匹配系统
-│   │   │   ├── room/           # 房间管理
-│   │   │   ├── llm-adapter/    # LLM 适配器（基于 llmapi-sdk）
-│   │   │   └── storage/        # 数据存储
-│   │   └── shared-types/       # 共享类型定义
-│   ├── api-server/             # API 服务器
-│   ├── websocket-server/       # WebSocket 服务器
-│   └── web-client/             # 通用 Web 客户端框架
-│
-├── games/                      # 游戏子项目
-│   ├── tic-tac-toe/           # 示例：井字棋
-│   ├── card-battle/           # 示例：暗牌对战
-│   └── go/                    # 示例：围棋
-│
-├── oauth-example-app/          # OAuth 和 LLM API 使用示例
-│
-├── docker-compose.yml          # Docker Compose 配置
-├── nginx.conf                  # 主 Nginx 配置（路由分发）
-├── design.md                   # 详细设计文档
-└── README.md                   # 本文件
-```
-
-## 🌐 统一门户架构
-
-### 整体架构概览
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    nexus.example.com                        │
-│                    (Nginx 反向代理)                          │
-└─────────────────────────────────────────────────────────────┘
-              │
-              ├─── /                  → 游戏门户 (Portal)
-              ├─── /lobby             → 游戏大厅
-              ├─── /api/*             → API 服务器
-              ├─── /ws                → WebSocket 服务器
-              ├─── /games/tic-tac-toe → 井字棋应用
-              ├─── /games/card-battle → 暗牌对战应用
-              └─── /games/go          → 围棋应用
-                     │
-                     ├─ 共享登录状态（localStorage，由 oauth-sdk 管理）
-                     ├─ 共享后端 API & WebSocket
-                     └─ 可选：Redis Session（用于 WebSocket 等场景）
-```
-
-### 域名与路由设计
-
-平台采用统一域名架构，通过 Nginx 反向代理实现路由分发：
-
-```
-nexus.example.com/                    → 游戏门户（首页、游戏列表）
-nexus.example.com/lobby               → 游戏大厅
-nexus.example.com/profile             → 用户资料
-nexus.example.com/games/tic-tac-toe   → 井字棋游戏
-nexus.example.com/games/card-battle   → 暗牌对战游戏
-nexus.example.com/games/go            → 围棋游戏
-nexus.example.com/api/*               → 后端 API
-nexus.example.com/ws                  → WebSocket 连接
-```
-
-### 登录状态共享（基于 @autolabz/oauth-sdk）
-
-**重要说明**：`@autolabz/oauth-sdk` 已经完整实现了登录状态管理，**无需手动实现 Session/Cookie 共享**！
-
-#### SDK 自动管理的功能
-
-所有应用（门户 + 子游戏）通过 `@autolabz/oauth-sdk` 自动共享登录状态：
-
-1. **状态持久化到 localStorage**：
-   - `access_token` → `autolab_oauth_access_token`
-   - `refresh_token` → `autolab_oauth_refresh_token`
-   - 用户信息 (`user`) → `autolab_oauth_state`
-
-2. **同源策略自动共享**：
-   - 所有应用部署在同一域名的不同路径下（如 `/`, `/games/tic-tac-toe`）
-   - 根据浏览器同源策略，它们**共享同一个 `localStorage`**
-   - 用户在任意应用登录，其他应用自动获得登录状态
-
-3. **自动 Token 刷新**：
-   - `OAuthAPIClient` 在 401 响应时自动刷新 token
-   - 无需手动处理 token 过期
-
-4. **跨标签页同步**：
-   - 监听 `storage` 事件
-   - 在一个标签页登录/登出，其他标签页实时同步
-
-#### 前端集成示例
-
-所有应用（Portal、Game 1、Game 2...）使用相同配置：
-
-```tsx
-// App.tsx - 每个应用的根组件
-import { OAuthProvider, useOAuth, AuthAvatar } from '@autolabz/oauth-sdk';
-
-function App() {
-  return (
-    <OAuthProvider
-      authServiceUrl={import.meta.env.VITE_AUTH_API_BASE_URL}  
-      clientId={import.meta.env.VITE_OAUTH_CLIENT_ID}
-    >
-      <MainApp />
-    </OAuthProvider>
-  );
-}
-
-function MainApp() {
-  const { isAuthenticated, user } = useOAuth();
-  
-  return (
-    <div>
-      {/* 自动登录/登出的头像组件 */}
-      <AuthAvatar
-        redirectUri={import.meta.env.VITE_OAUTH_REDIRECT_URI}
-        scope="openid profile email llmapi"
-        profileUrl="/profile"
-      />
-      
-      {isAuthenticated && <p>欢迎，{user?.nickname}</p>}
-    </div>
-  );
-}
-```
-
-#### 登录状态共享原理
-
-```
-https://nexus.example.com/               ┐
-https://nexus.example.com/lobby          │
-https://nexus.example.com/games/xxx     ├─ 同源，共享 localStorage
-https://nexus.example.com/profile        │
-https://nexus.example.com/api/*          ┘
-```
-
-**用户体验**：
-- ✅ 在门户登录 → 访问任意子游戏自动保持登录
-- ✅ 在子游戏登出 → 返回门户自动退出
-- ✅ 在一个标签页登录 → 其他标签页实时同步
-
-#### 后端 Session 配置（可选）
-
-**对于纯前端应用，oauth-sdk 的 localStorage 机制已经足够！**
-
-如果需要后端 Session 支持（如 WebSocket 连接、服务端渲染等场景），可配置 Redis Session Store：
-
-```typescript
-// API Server - 用于 WebSocket/长连接场景
-app.use(session({
-  store: new RedisStore({
-    client: redisClient,
-    prefix: 'nexus:session:'
-  }),
-  secret: process.env.SESSION_SECRET,
-  cookie: {
-    domain: '.nexus.example.com',  // 跨子域名共享（如有需要）
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000
-  }
-}));
-```
-
-### Nginx 路由配置
-
-```nginx
-# 主 Nginx 配置结构
-upstream portal {
-    server portal:3000;
-}
-
-upstream api_server {
-    server api-server:4000;
-}
-
-upstream game_tic_tac_toe {
-    server game-tic-tac-toe:3001;
-}
-
-server {
-    listen 80;
-    server_name nexus.example.com;
-
-    # 游戏门户（根路径）
-    location / {
-        proxy_pass http://portal;
-    }
-
-    # API 服务
-    location /api/ {
-        proxy_pass http://api_server;
-    }
-
-    # WebSocket 服务
-    location /ws {
-        proxy_pass http://api_server;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-
-    # 子游戏路由
-    location /games/tic-tac-toe/ {
-        proxy_pass http://game_tic_tac_toe/;
-    }
-
-    location /games/card-battle/ {
-        proxy_pass http://game_card_battle/;
-    }
-
-    location /games/go/ {
-        proxy_pass http://game_go/;
-    }
-}
-```
-
-### 游戏门户功能
-
-门户应用是用户的主入口，提供：
-
-1. **首页**: 平台介绍、特色游戏展示
-2. **游戏列表**: 展示所有可用游戏，支持搜索和筛选
-3. **游戏大厅**: 在线房间列表、匹配队列(未来实现)
-
-### 应用间导航
-
-```typescript
-// 从门户跳转到游戏
-<Link to="/games/tic-tac-toe/room/abc123">
-  进入井字棋房间
-</Link>
-
-// 从游戏返回门户
-<Link to="/lobby">
-  返回大厅
-</Link>
-
-// 登录状态自动同步，无需重新登录
-```
-
-## 🛠️ 技术栈
-
-### 后端
-- **运行时**: Node.js 20+
-- **语言**: TypeScript 5.0+
-- **框架**: Express.js / Fastify
-- **WebSocket**: Socket.IO
-- **数据库**: PostgreSQL / MongoDB
-- **缓存**: Redis（可选，用于数据缓存和 WebSocket Session）
-- **认证**: autolabsdk/oauth-sdk
-- **LLM 集成**: autolabsdk/llmapi-sdk
-
-### 前端
-- **框架**: React 18+ / Vue 3+
-- **构建工具**: Vite
-- **状态管理**: Zustand / Pinia
-- **UI 库**: TailwindCSS + shadcn/ui
-- **实时通信**: Socket.IO Client
-
-### 部署
-- **容器化**: Docker & Docker Compose
-- **反向代理**: Nginx（统一路由分发）
-- **构建方式**: 多阶段构建（与 oauth-example-app 一致）
-  - Stage 1: Node.js builder（pnpm/npm 构建）
-  - Stage 2: Nginx alpine（静态资源服务）
-- **CI/CD**: GitHub Actions
-
-## 🔐 OAuth SDK 集成说明
-
-### OAuth SDK 核心功能
-
-`@autolabz/oauth-sdk` 提供了完整的 OAuth 2.0 + PKCE 登录解决方案，**无需手动管理登录状态**。
-
-#### 已实现的功能
-
-✅ **登录状态管理**：
-- 自动持久化 `access_token`、`refresh_token` 和用户信息到 `localStorage`
-- 应用启动时自动验证并恢复登录状态
-- Token 过期时自动刷新
-
-✅ **跨应用共享**：
-- 基于同源策略，所有子路径应用自动共享 `localStorage`
-- 在任意应用登录，其他应用自动同步
-- 跨标签页实时状态同步（通过 `storage` 事件）
-
-✅ **自动 Token 管理**：
-- `OAuthAPIClient` 自动在请求中注入 `Authorization` header
-- 401 响应时自动刷新 token 并重试
-- 登出时自动撤销 token
-
-✅ **开箱即用的 UI 组件**：
-- `AuthAvatar`：头像组件（未登录时自动触发登录）
-- `OAuthLoginButton`：登录按钮
-- `useOAuth` Hook：访问登录状态和用户信息
-
-### 快速集成
-
-#### 1. 安装依赖
-
-```bash
-npm install @autolabz/oauth-sdk
-```
-
-#### 2. 配置环境变量
-
-```bash
-# .env
-VITE_AUTH_API_BASE_URL=http://nexus.example.com/api
-VITE_OAUTH_CLIENT_ID=your_client_id
-VITE_OAUTH_REDIRECT_URI=http://nexus.example.com/callback
-VITE_OAUTH_PROFILE_URL=http://nexus.example.com/profile
-```
-
-#### 3. 在应用根组件使用 OAuthProvider
-
-```tsx
-// App.tsx - 所有应用（Portal、各子游戏）都使用相同配置
-import { OAuthProvider } from '@autolabz/oauth-sdk';
-
-function App() {
-  return (
-    <OAuthProvider
-      authServiceUrl={import.meta.env.VITE_AUTH_API_BASE_URL}
-      clientId={import.meta.env.VITE_OAUTH_CLIENT_ID}
-    >
-      <YourApp />
-    </OAuthProvider>
-  );
-}
-```
-
-#### 4. 使用 UI 组件或 Hook
-
-```tsx
-import { AuthAvatar, useOAuth } from '@autolabz/oauth-sdk';
-
-function Header() {
-  return (
-    <AuthAvatar
-      redirectUri={import.meta.env.VITE_OAUTH_REDIRECT_URI}
-      scope="openid profile email"
-      profileUrl="/profile"
-    />
-  );
-}
-
-function UserGreeting() {
-  const { isAuthenticated, user } = useOAuth();
-  
-  if (!isAuthenticated) return null;
-  return <p>欢迎，{user?.nickname || user?.email}</p>;
-}
-```
-
-#### 5. 处理 OAuth 回调
-
-```tsx
-// CallbackPage.tsx
-import { useEffect } from 'react';
-import { useOAuth } from '@autolabz/oauth-sdk';
-import { useNavigate } from 'react-router-dom';
-
-function CallbackPage() {
-  const { handleRedirect } = useOAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    handleRedirect({
-      redirectUri: import.meta.env.VITE_OAUTH_REDIRECT_URI,
-      fetchUserinfo: true
-    })
-      .then(() => navigate('/'))
-      .catch(err => console.error('登录失败:', err));
-  }, [handleRedirect, navigate]);
-
-  return <div>正在登录...</div>;
-}
-```
-
-### localStorage 存储结构
-
-SDK 自动管理以下数据：
-
-```javascript
-// localStorage keys
-localStorage.getItem('autolab_oauth_access_token')   // Access Token
-localStorage.getItem('autolab_oauth_refresh_token')  // Refresh Token
-localStorage.getItem('autolab_oauth_state')          // { isAuthenticated, user }
-```
-
-**同源共享示例**：
-
-```
-https://nexus.example.com/               ┐
-https://nexus.example.com/games/chess    ├─ 共享同一个 localStorage
-https://nexus.example.com/profile        ┘
-```
-
-### 登录流程图
-
-```
-1. 用户点击登录按钮（任意应用）
-   ↓
-2. SDK 生成 PKCE verifier/challenge
-   ↓
-3. 跳转到 OAuth 授权端点
-   ↓
-4. 用户同意授权
-   ↓
-5. 回调到 redirect_uri
-   ↓
-6. SDK 使用 code + verifier 交换 token
-   ↓
-7. SDK 获取 userinfo 并存储到 localStorage
-   ↓
-8. 所有应用自动获得登录状态（同源策略）
-```
-
-### 注意事项
-
-⚠️ **安全提示**：
-- `refresh_token` 存储在 `localStorage`，存在 XSS 风险
-- 生产环境建议配合 CSP（Content Security Policy）和其他安全措施
-- 未来版本可能迁移到 httpOnly Cookie 方案
-
-⚠️ **部署要求**：
-- 所有应用必须部署在**同一域名**的不同路径下（如 `/`, `/games/*`）
-- 如果使用子域名（如 `game1.nexus.com`），需要使用后端 Session 方案
-
-## 🚀 开发路线图
-
-### Phase 1: 核心框架开发 ✅ **已完成！**
-
-#### 1.1 基础设施 ✅
-- [x] 项目初始化与 monorepo 配置
-- [x] Docker & Docker Compose 设置
-- [x] Nginx 反向代理配置（统一域名路由）
-- [x] 用户认证系统（基于 oauth-sdk，自动管理登录状态）
-- [x] Redis 配置（可选，用于缓存和 WebSocket Session）
-- [x] 数据库架构设计
-
-#### 1.2 游戏门户开发 ✅
-- [x] 门户应用架构搭建
-- [x] 首页与游戏列表页面
-- [x] 用户登录/注册界面
-- [x] 游戏大厅（房间列表）
-- [x] 用户中心（个人资料、游戏历史）
-- [x] 统一导航与布局组件
-- [x] 与各子游戏的路由集成
-
-#### 1.3 Game SDK 开发 ✅
-- [x] 核心类型定义（Global State, Role Perspective, Role Mapping）
-- [x] 统一状态管理器
-- [x] 事件总线系统
-- [x] 游戏循环模板
-- [x] 视角生成器 (Perspective Generator)
-- [x] 行动验证器 (Action Validator)
-
-#### 1.4 平台核心服务 ✅
-- [x] 房间管理系统
-- [x] 匹配系统
-- [x] LLM 适配器（基于 llmapi-sdk）
-- [x] WebSocket 实时通信
-- [x] 游戏状态持久化
-
-#### 1.5 通用客户端框架 ✅
-- [x] React 组件库
-- [x] 游戏渲染引擎
-- [x] 实时状态同步
-- [x] 行动提交接口
-
-### Phase 2: 示例游戏开发 (部分完成)
-
-#### 2.1 井字棋 (Tic-Tac-Toe) ✅
-- [x] 游戏逻辑实现
-- [x] UI 界面
-
-#### 2.2 暗牌对战 (Card Battle) 🔜
-- [ ] 不完美信息处理
-- [ ] 游戏逻辑实现
-- [ ] UI 界面
-- [ ] 多种 AI 难度
-
-#### 2.3 围棋 (Go) 🔜
-- [ ] 巨大行动空间处理（模板模式）
-- [ ] 游戏逻辑实现
-- [ ] UI 界面
-- [ ] AI 对手集成
-
-### Phase 3: 高级功能 🔜
-
-- [ ] 游戏回放系统
-- [ ] 从任意局面启动游戏
-- [ ] 中途切换玩家/AI
-- [ ] 观战模式
-- [ ] 游戏分析与统计
-- [ ] 社交功能（聊天、好友）
-
-### Phase 4: 生态系统 🔜
-
-- [ ] 游戏市场
-- [ ] 开发者文档与教程
-- [ ] SDK 插件系统
-- [ ] 社区贡献指南
-- [ ] 示例游戏模板
-
-## 🎮 快速开始
-
-### 前置要求
-
-- Docker & Docker Compose 2.0+
-- Node.js 20+ (仅开发模式需要)
-- pnpm 8+ (仅开发模式需要)
-
-### 🚢 生产环境部署（推荐）
-
-使用 Docker Compose 一键部署所有服务：
-
-```bash
-# 1. 克隆仓库
-git clone <repository-url>
-cd nexus-playground
-
-# 2. 配置环境变量
-cp .env.example .env
-# 编辑 .env 文件，填入必要的配置（OAuth、数据库密码等）
-
-# 3. 启动所有服务
-docker-compose up -d --build
-
-# 4. 检查服务状态
-docker-compose ps
-
-# 5. 查看日志
-docker-compose logs -f
-```
-
-#### 访问应用
-
-- **🏠 游戏门户（主入口）**: http://localhost
-- **🎯 游戏大厅**: http://localhost/lobby
-- **🎲 井字棋**: http://localhost/games/tic-tac-toe
-- **📡 API服务**: http://localhost/api
-- **💓 健康检查**: http://localhost/health
-
-#### 运行测试
-
-```bash
-chmod +x scripts/test-e2e.sh
-./scripts/test-e2e.sh
-```
-
-### 🛠️ 本地开发模式
-
-```bash
-# 1. 安装依赖
-pnpm install
-
-# 2. 构建核心包
-pnpm build
-
-# 3. 启动基础服务（PostgreSQL, Redis）
-docker-compose up -d postgres redis
-
-# 4. 启动API Server（终端1）
-cd core-framework/api-server
-pnpm dev
-
-# 5. 启动门户（终端2）
-cd portal
-pnpm dev
-
-# 6. 启动井字棋（终端3）
-cd games/tic-tac-toe/ui
-pnpm dev
-```
-
-本地开发访问地址：
-- Portal: http://localhost:3000
-- Tic-Tac-Toe: http://localhost:3001
-- API Server: http://localhost:4000
-
-### 📚 详细文档
-
-- **快速开始**: [docs/QUICK_START.md](docs/QUICK_START.md)
-- **API文档**: [docs/API.md](docs/API.md)
-- **游戏开发指南**: [docs/GAME_DEVELOPMENT.md](docs/GAME_DEVELOPMENT.md)
-- **架构设计**: [design.md](design.md)
-- **项目状态**: [PROJECT_STATUS.md](PROJECT_STATUS.md)
-
-## 🏗️ 部署架构详解
-
-### Docker 多阶段构建
-
-所有前端应用（门户和子游戏）采用与 oauth-example-app 一致的构建方式：
-
-```dockerfile
-# Stage 1: 构建阶段
-FROM node:20-alpine AS builder
-WORKDIR /app
-
-# 复制依赖文件并安装
-COPY package*.json ./
-RUN npm ci
-
-# 复制源代码并构建
-COPY . .
-ARG VITE_API_BASE_URL
-ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
-RUN npm run build
-
-# Stage 2: 生产阶段
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-```
-
-### Docker Compose 配置结构
-
-```yaml
-version: '3.8'
-
-services:
-  # 主反向代理
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-    depends_on:
-      - portal
-      - api-server
-      - game-tic-tac-toe
-
-  # 游戏门户
-  portal:
-    build:
-      context: .
-      dockerfile: portal/Dockerfile
-    environment:
-      - VITE_API_BASE_URL=/api
-      - VITE_WS_URL=/ws
-
-  # API 服务器
-  api-server:
-    build:
-      context: .
-      dockerfile: core-framework/api-server/Dockerfile
-    environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/nexus
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - postgres
-      - redis
-
-  # 子游戏服务
-  game-tic-tac-toe:
-    build:
-      context: .
-      dockerfile: games/tic-tac-toe/Dockerfile
-
-  # 数据库
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_DB=nexus
-      - POSTGRES_PASSWORD=password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  # Redis（缓存和 WebSocket Session，可选）
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-
-volumes:
-  postgres_data:
-  redis_data:
-```
-
-### 环境变量配置
-
-创建 `.env` 文件：
-
-```bash
-# 数据库配置
-DATABASE_URL=postgresql://postgres:password@postgres:5432/nexus
-
-# Redis 配置
-REDIS_URL=redis://redis:6379
-
-# OAuth 配置（autolabsdk/oauth-sdk）
-OAUTH_CLIENT_ID=your_client_id
-OAUTH_CLIENT_SECRET=your_client_secret
-OAUTH_REDIRECT_URI=http://localhost/auth/callback
-
-# LLM API 配置（autolabsdk/llmapi-sdk）
-LLMAPI_BASE_URL=https://api.example.com/llm
-LLMAPI_API_KEY=your_api_key
-
-# Session 密钥
-SESSION_SECRET=your_session_secret
-
-# JWT 密钥
-JWT_SECRET=your_jwt_secret
-
-# Cookie Domain（用于跨子路径共享登录状态）
-COOKIE_DOMAIN=.localhost
-```
-
-## 📝 如何创建新游戏
-
-### 1. 使用 CLI 创建游戏模板
-
-```bash
-pnpm create-game my-awesome-game
-```
-
-### 2. 定义游戏规则
-
-```typescript
-// games/my-awesome-game/rules.ts
-export const gameRules = {
-  name: "My Awesome Game",
-  description: "游戏规则描述...",
-  minPlayers: 2,
-  maxPlayers: 4,
-  // ...
-};
-```
-
-### 3. 实现游戏逻辑
-
-```typescript
-// games/my-awesome-game/game.ts
-import { GameSDK } from '@nexus/game-sdk';
-
-export class MyAwesomeGame extends GameSDK {
-  onGameStart() {
-    // 游戏开始时的逻辑
-  }
-  
-  onTurnStart(roleId: string) {
-    // 回合开始时的逻辑
-  }
-  
-  handleAction(action: Action) {
-    // 处理玩家行动
-  }
-  
-  generatePerspective(roleId: string): RolePerspective {
-    // 生成角色视角
-  }
-  
-  checkWinCondition(): GameResult | null {
-    // 检查胜利条件
-  }
-}
-```
-
-### 4. 创建 UI 界面
-
-```typescript
-// games/my-awesome-game/ui/GameBoard.tsx
-import { useGameState } from '@nexus/web-client';
-
-export function GameBoard() {
-  const { state, submitAction } = useGameState();
-  
-  return (
-    <div>
-      {/* 你的游戏界面 */}
-    </div>
-  );
-}
-```
-
-### 5. 注册游戏
-
-```typescript
-// games/my-awesome-game/index.ts
-import { registerGame } from '@nexus/platform-core';
-import { MyAwesomeGame } from './game';
-
-registerGame({
-  id: 'my-awesome-game',
-  name: 'My Awesome Game',
-  description: '一个精彩的游戏',
-  thumbnail: '/assets/my-awesome-game-thumb.jpg',
-  minPlayers: 2,
-  maxPlayers: 4,
-  gameClass: MyAwesomeGame,
-  uiComponent: () => import('./ui/GameBoard'),
-});
-```
-
-### 6. 集成到门户
-
-注册后的游戏将自动出现在游戏门户的游戏列表中：
-
-- **路由**: 游戏将在 `/games/my-awesome-game` 路径下可访问
-- **游戏卡片**: 在门户首页和游戏列表页展示
-- **房间创建**: 用户可以在大厅创建该游戏的房间
-- **匹配系统**: 自动接入平台匹配系统
-
-```typescript
-// 门户会自动展示所有已注册的游戏
-<GameGrid>
-  {registeredGames.map(game => (
-    <GameCard
-      key={game.id}
-      title={game.name}
-      description={game.description}
-      thumbnail={game.thumbnail}
-      playersRange={`${game.minPlayers}-${game.maxPlayers}人`}
-      onPlay={() => navigate(`/games/${game.id}`)}
-    />
-  ))}
-</GameGrid>
-```
-
-## 🤝 贡献指南
-
-我们欢迎所有形式的贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
-
-### 贡献方式
-
-- 🐛 报告 Bug
-- 💡 提出新功能建议
-- 📝 改进文档
-- 🎮 创建新游戏
-- 🔧 改进核心框架
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
-
-## 🔗 相关资源
-
-- [详细设计文档](design.md)
-- [API 文档](docs/api.md)
-- [游戏开发指南](docs/game-development.md)
-- [OAuth 示例应用](oauth-example-app/README.md)
-
-## 📧 联系方式
-
-- 项目主页: [GitHub Repository]
-- 问题反馈: [GitHub Issues]
-- 讨论区: [GitHub Discussions]
+**可扩展的 LLM 原生游戏平台 · 让 AI 与人类共同游戏**
 
 ---
 
-**让 AI 和人类一起玩耍！** 🎮🤖👨‍👩‍👧‍👦
+## 📖 项目简介
+
+星枢沙盒是一个高度可扩展的在线游戏平台，将大型语言模型（LLM）作为原生玩家深度集成到游戏逻辑中。平台采用"运行时 + 纯逻辑插件"的架构，让开发者能够快速将新游戏规则转化为可供人类与 AI 共同参与的在线游戏。
+
+### 核心特性
+
+- 🎮 **游戏逻辑插件化**：游戏开发者只需提供纯函数式的游戏逻辑，平台接管所有运行时服务
+- 🤖 **LLM 原生适配**：AI 玩家通过标准化的"角色视角"无缝理解并参与任何游戏
+- 🔄 **完全可复现**：支持从任意游戏状态启动，允许玩家在任意时刻无缝接管或切换角色
+- 🔐 **企业级鉴权**：基于 AutoLab SDK 族的 OAuth 2.0 + PKCE 认证与多服务鉴权链
+- 🎯 **信息完整性**：原生支持不完美信息游戏，严格隔离权威状态与角色视角
+
+---
+
+## 🏗️ 架构设计
+
+### 技术栈
+
+#### 前端
+- **React 18** + **TypeScript**：MPA（多页应用）架构，每页独立挂载认证上下文
+- **Vite**：快速开发与构建
+- **AutoLab SDK 前端族**：
+  - `@autolabz/oauth-sdk`：OAuth 2.0 认证与会话管理
+  - `@autolabz/llmapi-sdk`：LLM 调用（非流式/SSE 流式）
+
+#### 后端
+- **Node.js 20** + **Fastify**：高性能 API 服务
+- **TypeScript**：类型安全与开发体验
+- **AutoLab SDK 后端族**：
+  - `@autolabz/service-auth-middleware`：统一鉴权中间件（SIMPLE JWT + OAuth userinfo 回落）
+  - `@autolabz/llmapi-sdk`：后端调用 LLM（代 AI 玩家决策）
+
+#### 数据层
+- **Redis 7**：星枢（房间）实时状态、玩家列表、角色映射、游戏状态缓存
+- **PostgreSQL 15**：持久化数据（用户→星枢映射、保存的游戏快照、历史记录、审计日志）
+
+#### 基础设施
+- **Nginx**：静态资源服务 + 反向代理 + 统一网关
+- **Docker Compose**：一键编排所有服务
+- **Makefile**：标准化开发与部署命令
+
+---
+
+## 🗂️ 项目结构
+
+```
+nexus-playground/
+├── frontend/                 # React 前端（MPA）
+│   ├── src/
+│   │   ├── pages/           # 页面：首页、星枢、房间、回调
+│   │   │   ├── index/       # 登录引导页（未登录）
+│   │   │   ├── my-nexus/    # 我的星枢（主人视角）：游戏选择、玩家管理、角色映射、游戏区
+│   │   │   ├── room/        # 他人星枢（访客视角）：观战、加入、游戏区
+│   │   │   └── callback/    # OAuth 统一回调页
+│   │   ├── components/      # 通用组件：AuthAvatar、RoomCard
+│   │   ├── hooks/           # React Hooks：useRoom、usePerspective
+│   │   ├── lib/             # 工具：API 客户端封装、桥接
+│   │   └── main.tsx         # 各页面入口（由 Vite 多页配置生成）
+│   ├── public/              # 静态资源
+│   ├── vite.config.ts       # Vite 多页配置
+│   ├── .env.example         # 环境变量模板
+│   └── package.json
+│
+├── backend/                  # Fastify 后端
+│   ├── src/
+│   │   ├── index.ts         # 入口：注册插件、启动服务
+│   │   ├── plugins/         # Fastify 插件
+│   │   │   ├── auth.ts      # 鉴权插件（@autolabz/service-auth-middleware）
+│   │   │   ├── redis.ts     # Redis 客户端插件
+│   │   │   └── postgres.ts  # PostgreSQL 客户端插件
+│   │   ├── routes/          # API 路由
+│   │   │   ├── my-nexus.ts  # 我的星枢：自动创建、游戏选择、玩家管理、角色映射、开始/暂停
+│   │   │   ├── rooms.ts     # 星枢访问：查询他人星枢、加入、观战
+│   │   │   ├── actions.ts   # 行动提交与验证（通用，适用于自己或他人星枢）
+│   │   │   ├── perspectives.ts # 视角拉取与 SSE 订阅
+│   │   │   └── snapshots.ts # 快照保存与加载
+│   │   ├── runtime/         # 游戏运行时核心
+│   │   │   ├── state-manager.ts      # 权威状态管理（Redis + 版本控制）
+│   │   │   ├── action-processor.ts   # 行动队列与串行执行
+│   │   │   ├── perspective-generator.ts # 视角生成与缓存
+│   │   │   ├── event-bus.ts          # 事件总线（SSE/WS 推送）
+│   │   │   └── llm-executor.ts       # LLM 玩家执行器
+│   │   ├── games/           # 游戏逻辑插件目录
+│   │   │   ├── registry.ts  # 游戏注册表
+│   │   │   ├── types.ts     # GameLogic 接口定义
+│   │   │   └── tic-tac-toe/ # 示例：井字棋
+│   │   │       └── index.ts
+│   │   ├── db/              # 数据库访问层
+│   │   │   ├── schema.sql   # PostgreSQL 表结构
+│   │   │   ├── rooms.ts     # 房间持久化 DAO
+│   │   │   └── snapshots.ts # 快照 DAO
+│   │   └── utils/           # 工具函数
+│   ├── .env.example
+│   └── package.json
+│
+├── nginx/                    # Nginx 配置
+│   ├── nginx.conf           # 主配置：统一网关 + 静态服务
+│   └── Dockerfile
+│
+├── database/                 # 数据库初始化
+│   └── init.sql             # PostgreSQL 初始化脚本
+│
+├── docker-compose.yml        # 服务编排
+├── Makefile                  # 开发与部署命令
+├── .env.example              # 全局环境变量模板
+├── platform_design.md        # 平台设计文档
+├── sdk_concept.md            # SDK 接入理念
+├── frontend_best_practices.md # 前端集成最佳实践
+├── backend_best_practices.md  # 后端鉴权最佳实践
+└── README.md                 # 本文档
+```
+
+---
+
+## 🚀 快速开始
+
+### 前置要求
+
+- **Docker** >= 24.0
+- **Docker Compose** >= 2.20
+- **Make** 工具（macOS/Linux 自带，Windows 可用 WSL）
+- **Node.js** >= 20（本地开发时需要，Docker 内已包含）
+
+### 1. 克隆仓库
+
+```bash
+git clone https://github.com/your-org/nexus-playground.git
+cd nexus-playground
+```
+
+### 2. 配置环境变量
+
+```bash
+# 复制模板并编辑
+cp .env.example .env
+
+# 关键配置项（示例）
+# AUTH_BASE_URL=http://114.132.91.247/api              # AutoLab 认证服务地址
+# LLMAPI_BASE_URL=http://114.132.91.247/llmapi        # LLM API 服务地址
+# OAUTH_CLIENT_ID=your-assigned-client-id              # 由 AutoLab 组织分配
+# REDIS_URL=redis://redis:6379                         # Redis 连接
+# DATABASE_URL=postgresql://nexus:password@postgres:5432/nexus # PostgreSQL 连接
+```
+
+### 3. 一键启动
+
+```bash
+# 构建所有镜像并启动服务
+make build
+make up
+
+# 或一步完成
+make build up
+```
+
+服务启动后访问：
+- **前端首页**：http://localhost（OAuth 登录后自动跳转到 `/my-nexus`）
+- **我的星枢**：http://localhost/my-nexus（需登录）
+- **访问他人星枢**：http://localhost/room/{roomId}（示例：`http://localhost/room/abc123xy`）
+- **API 文档**：http://localhost/api/docs（Fastify Swagger，若启用）
+- **健康检查**：http://localhost/api/health
+
+### 4. 开发模式（热重载）
+
+```bash
+# 前端开发（Vite HMR）
+cd frontend
+npm install
+npm run dev  # 访问 http://localhost:5173
+
+# 后端开发（nodemon）
+cd backend
+npm install
+npm run dev  # 监听 http://localhost:3000
+```
+
+### 5. 停止与清理
+
+```bash
+# 停止所有容器
+make down
+
+# 清理容器 + 网络（保留数据卷）
+make clean
+
+# 完全清理（包括数据卷，谨慎使用）
+make clean-all
+```
+
+---
+
+## 🎮 核心概念
+
+### 星枢（Nexus/Room）
+
+星枢是与用户一一对应的游戏容器。每个用户首次登录后自动拥有一个专属星枢，用户主页即为自己的星枢。
+
+- **用户访问自己的星枢**：登录后直接进入 `/my-nexus`（或首页）
+- **访问他人的星枢**：通过 Room ID 访问 `/room/{roomId}`（如观战、加入游戏）
+
+每个星枢具有：
+
+| 属性 | 说明 | 存储位置 |
+|------|------|----------|
+| **Owner ID** | 星枢主人的 `uid`（唯一） | PostgreSQL |
+| **Room ID** | 固定长度随机字符串，用于生成访问网址 `yourdomain.com/room/{roomId}`，**不等于 User ID** | PostgreSQL + Redis |
+| **Player List** | 玩家列表（人类/LLM），包含 `room_player_id`、`type`、`display_name`、`status` | Redis (`room:{roomId}:players`) |
+| **Room State** | `open`（开放阶段）或 `playing`（游戏中） | Redis (`room:{roomId}:meta`) |
+| **Game ID** | 当前选择的游戏 ID | Redis + PostgreSQL |
+| **Game State** | 权威游戏状态（上帝视角，**永不直接发送给客户端**） | Redis (`room:{roomId}:state`) |
+| **Role Mapping** | 游戏角色 → 房间玩家的映射 | Redis (`room:{roomId}:roles`) |
+
+### 状态与视角分离
+
+- **Game State（权威状态）**：包含所有玩家手牌、私密信息，仅后端持有，是游戏的唯一真实数据源。
+- **Role Perspective（角色视角）**：为特定角色过滤后的视图，包含该角色应知信息、合法行动空间、历史日志，发送给前端 UI 与 LLM。
+
+### 游戏逻辑插件
+
+游戏开发者提供的**无状态纯函数**集合（`GameLogic` 接口）：
+
+```typescript
+export interface GameLogic {
+  getMetadata(): { id: string; name: string; minPlayers: number; maxPlayers: number };
+  initState(ctx: { players: string[]; options?: any }): GameState;
+  getCurrentRole(state: GameState): string;
+  getLegalActions(state: GameState, roleId: string): ActionSpec;
+  applyAction(state: GameState, action: Action): { nextState: GameState; events?: any[] } | { error: string };
+  isTerminal(state: GameState): boolean;
+  getWinners(state: GameState): string[] | null;
+  toRolePerspective(state: GameState, roleId: string, wholeHistory: any[], diffHistory: any[]): RolePerspective;
+}
+```
+
+平台调用这些函数完成状态推演，游戏逻辑本身**绝不持有任何长效状态**。
+
+---
+
+## 🔐 认证与鉴权流程
+
+### 前端（MPA 模式）
+
+1. **每页挂载** `OAuthProvider`，用于恢复/管理会话（依赖 localStorage/sessionStorage）
+2. **统一回调页**：`/oauth/callback` 处理 `handleRedirect`，解析自定义 `state.returnTo` 并跳回来源页
+3. **桥接下游 SDK**：使用 `createAuthBridgeFromContext(auth)` 创建 `llmapi-sdk`、`points-sdk` 客户端
+
+```tsx
+// 每页入口：PageShell.tsx
+<OAuthProvider authServiceUrl={import.meta.env.VITE_AUTH_API_BASE_URL} clientId={import.meta.env.VITE_OAUTH_CLIENT_ID}>
+  {children}
+</OAuthProvider>
+
+// 需要登录入口的页面：挂 AuthAvatar
+<AuthAvatar
+  redirectUri={import.meta.env.VITE_OAUTH_REDIRECT_URI}
+  scope="openid profile email llmapi"
+  state={() => makeState({ returnTo: window.location.href })}
+/>
+
+// 桥接客户端
+const auth = useOAuth();
+const authBridge = useMemo(() => createAuthBridgeFromContext(auth), [auth]);
+const llm = useMemo(() => createLLMClient({ baseURL: import.meta.env.VITE_LLMAPI_BASE_URL, auth: authBridge }), [authBridge]);
+```
+
+### 后端（统一鉴权中间件）
+
+```typescript
+import { authPlugin, makeAuthBridgeFromRequest } from '@autolabz/service-auth-middleware';
+import { createLLMClient } from '@autolabz/llmapi-sdk';
+
+// 注册鉴权插件（SIMPLE JWT 优先 + OAuth userinfo 回落）
+app.register(authPlugin, {
+  authConfig: {
+    jwtAlg: 'HS256',
+    jwtAccessSecret: process.env.JWT_ACCESS_SECRET,
+    authBaseUrl: process.env.AUTH_BASE_URL!,
+    oauthUserinfoPath: '/oauth/userinfo',
+    oauthUserinfoTimeoutMs: 2000,
+  },
+  clientId: {},
+  enforce: { requiredScopes: ['llmapi'] }, // 根据服务需求调整
+});
+
+// 访问下游服务（透传鉴权）
+app.post('/v1/rooms/:roomId/actions', async (req, reply) => {
+  const auth = makeAuthBridgeFromRequest(req);
+  const llm = createLLMClient({ baseURL: process.env.LLMAPI_BASE_URL!, auth });
+  // ... 使用 llm 调用 LLM
+});
+```
+
+---
+
+## 📊 数据存储策略
+
+### Redis（实时状态，支持 TTL）
+
+| Key 模式 | 数据类型 | 内容 | TTL |
+|----------|----------|------|-----|
+| `room:{roomId}:meta` | Hash | 房间元数据（owner、gameId、status、version） | 7天（无活动） |
+| `room:{roomId}:players` | Hash | 玩家列表（room_player_id → player JSON） | 同上 |
+| `room:{roomId}:roles` | Hash | 角色映射（role_id → room_player_id） | 同上 |
+| `room:{roomId}:state` | String | 权威 Game State（JSON） | 同上 |
+| `room:{roomId}:perspective:{roleId}` | String | 角色视角缓存（按 stateVersion 失效） | 5分钟 |
+| `room:{roomId}:lock` | String | 行动处理锁（防止并发冲突） | 30秒 |
+
+### PostgreSQL（持久化，支持复杂查询）
+
+#### 表结构
+
+**rooms**
+```sql
+CREATE TABLE rooms (
+  room_id VARCHAR(32) PRIMARY KEY,
+  owner_uid VARCHAR(64) NOT NULL UNIQUE, -- 一个用户只能有一个星枢
+  game_id VARCHAR(64),  -- NULL 表示未选择游戏
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  INDEX idx_owner (owner_uid)
+);
+```
+
+**snapshots**
+```sql
+CREATE TABLE snapshots (
+  snapshot_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  room_id VARCHAR(32) REFERENCES rooms(room_id),
+  game_state JSONB NOT NULL,
+  description TEXT,
+  created_by VARCHAR(64) NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  INDEX idx_room (room_id)
+);
+```
+
+**history**（可选：事件溯源）
+```sql
+CREATE TABLE history (
+  event_id BIGSERIAL PRIMARY KEY,
+  room_id VARCHAR(32) REFERENCES rooms(room_id),
+  state_version INT NOT NULL,
+  event_type VARCHAR(32) NOT NULL, -- 'action', 'turn_change', 'game_end'
+  event_data JSONB NOT NULL,
+  timestamp TIMESTAMP DEFAULT NOW(),
+  INDEX idx_room_version (room_id, state_version)
+);
+```
+
+---
+
+## 🔄 核心工作流程
+
+### 1. 用户首次登录（自动创建星枢）
+
+```
+前端: 用户完成 OAuth 登录 → 跳转到首页/my-nexus
+  ↓
+后端: GET /api/v1/my-nexus
+      1. 验证用户鉴权（req.auth.userId）
+      2. 查询 PostgreSQL: SELECT * FROM rooms WHERE owner_uid = userId
+      3. 若不存在：
+         - 生成唯一 roomId（随机字符串，如 8 位 base62）
+         - 插入 rooms 表（owner_uid、room_id、created_at）
+         - Redis 初始化 room:{roomId}:meta（包含 owner、status="open"）
+         - Redis 初始化 room:{roomId}:players（自动添加主人为第一个玩家）
+      4. 返回 { roomId, ownerId, status, playerList, ... }
+  ↓
+前端: 渲染星枢主页（游戏选择、玩家列表、邀请链接）
+```
+
+### 2. 访问他人星枢与加入游戏
+
+```
+场景 A: 主人邀请其他玩家
+  前端: 主人复制邀请链接 → https://yourdomain.com/room/{roomId}?invite=true
+  
+场景 B: 其他用户访问星枢
+  前端: GET /room/{roomId}
+    ↓
+  后端: GET /api/v1/rooms/{roomId}
+        1. 验证星枢存在（Redis/PostgreSQL）
+        2. 检查当前用户是否已在玩家列表
+        3. 若未加入且星枢状态为 "open"，允许加入
+        4. 返回星枢信息（隐藏敏感数据，如其他玩家手牌）
+    ↓
+  前端: 渲染星枢页面（游戏区、玩家列表、加入/观战按钮）
+
+场景 C: 用户请求加入
+  前端: POST /api/v1/rooms/{roomId}/join
+    ↓
+  后端: 1. 验证用户鉴权
+        2. 检查星枢状态（open 才能加入）
+        3. 生成 room_player_id = {roomId}_{随机字符串}
+        4. Redis HSET room:{roomId}:players
+        5. 广播事件（SSE/WS 通知主人与其他玩家）
+```
+
+### 3. 选择游戏与开始
+
+```
+前端: 主人在星枢主页选择游戏
+  POST /api/v1/my-nexus/select-game { gameId: "tic-tac-toe" }
+    ↓
+  后端: 1. 验证主人权限（req.auth.userId === room.owner）
+        2. 验证星枢状态为 "open"
+        3. 更新 PostgreSQL rooms.game_id
+        4. Redis 更新 room:{roomId}:meta.gameId
+        5. 返回游戏元数据（minPlayers、maxPlayers、规则描述）
+
+前端: 主人配置角色映射并开始游戏
+  POST /api/v1/my-nexus/start { roleMapping: { "player_X": "room_player_id_1", ... } }
+    ↓
+  后端: 1. 验证玩家数量满足 game.minPlayers
+        2. 调用 game.initState() 生成初始 GameState
+        3. Redis 更新 meta.status="playing"、roles、state
+        4. 为所有角色生成初始视角并推送（SSE）
+```
+
+### 4. 提交行动
+
+```
+前端: POST /api/v1/rooms/{roomId}/actions { action_id: "place_1_1", roleId: "player_X", requestId: "uuid", expectedStateVersion: 5 }
+  ↓
+后端: 1. 获取分布式锁（Redis SETNX room:{roomId}:lock）
+      2. 验证 roleId 是否当前行动方（game.getCurrentRole(state)）
+      3. 验证 expectedStateVersion === state.version（可选：乐观锁）
+      4. 幂等检查（requestId 是否已处理）
+      5. 验证行动合法性（game.getLegalActions 包含该行动）
+      6. 应用行动：result = game.applyAction(state, action)
+      7. 更新 Redis state、version++、记录 history
+      8. 释放锁
+      9. 广播新视角给所有玩家（SSE/WS）
+      10. 若游戏结束（game.isTerminal），广播结果
+  ↓
+前端: 收到新视角 → 重新渲染 UI
+```
+
+### 5. LLM 玩家自动执行
+
+```
+后端: 1. 检测当前 roleId 对应的 room_player 类型为 "llm"
+      2. 调用 perspective-generator 生成视角
+      3. 调用 llm-executor：
+         - 构造 Prompt（系统提示 + 角色视角 JSON + 强约束合法行动）
+         - llmapi-sdk.chat() 调用 LLM（自动计费）
+         - 解析返回 JSON → Action
+      4. 自动提交 Action（复用行动处理流程）
+      5. 出错策略：重试 3 次（指数退避）→ 失败则暂停游戏并通知主
+```
+
+---
+
+## 🛠️ Makefile 命令参考
+
+| 命令 | 说明 |
+|------|------|
+| `make build` | 构建所有 Docker 镜像（frontend、backend、nginx） |
+| `make up` | 启动所有服务（后台运行） |
+| `make down` | 停止所有容器 |
+| `make logs` | 查看所有容器日志（实时） |
+| `make logs-frontend` | 查看前端容器日志 |
+| `make logs-backend` | 查看后端容器日志 |
+| `make restart` | 重启所有服务 |
+| `make clean` | 停止并删除容器、网络（保留数据卷） |
+| `make clean-all` | 完全清理（包括 Redis/PostgreSQL 数据卷，**谨慎使用**） |
+| `make ps` | 查看容器状态 |
+| `make shell-backend` | 进入后端容器 Shell |
+| `make shell-db` | 进入 PostgreSQL 容器 |
+| `make db-migrate` | 运行数据库迁移脚本 |
+| `make db-seed` | 插入测试数据（开发用） |
+| `make test-backend` | 运行后端单元测试 |
+| `make test-frontend` | 运行前端单元测试 |
+
+---
+
+## 🧪 开发与测试
+
+### 本地开发（不使用 Docker）
+
+1. **启动依赖服务（仅 Redis + PostgreSQL）**
+
+```bash
+docker-compose up -d redis postgres
+```
+
+2. **前端开发**
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+# 编辑 .env.local，设置 API 地址为 http://localhost:3000
+npm run dev  # http://localhost:5173
+```
+
+3. **后端开发**
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+# 编辑 .env，设置数据库连接（localhost:5432、localhost:6379）
+npm run dev  # http://localhost:3000
+```
+
+### 单元测试
+
+```bash
+# 后端测试（Jest）
+cd backend
+npm run test
+
+# 前端测试（Vitest）
+cd frontend
+npm run test
+```
+
+### 集成测试
+
+```bash
+# 启动完整环境
+make up
+
+# 运行端到端测试（Playwright，可选）
+cd e2e
+npm run test
+```
+
+---
+
+## 🌐 部署与生产
+
+### 环境变量检查清单
+
+- [ ] `AUTH_BASE_URL`：AutoLab 认证服务外部可达地址
+- [ ] `LLMAPI_BASE_URL`：LLM API 服务地址
+- [ ] `OAUTH_CLIENT_ID`：由 AutoLab 组织分配的固定 Client ID
+- [ ] `JWT_ACCESS_SECRET`：生产强密钥（至少 32 字节随机字符串）
+- [ ] `REDIS_URL`：生产 Redis 连接（建议启用 TLS 与密码）
+- [ ] `DATABASE_URL`：生产 PostgreSQL 连接（建议启用 SSL）
+- [ ] `NGINX_SERVER_NAME`：生产域名（用于 SSL 证书）
+
+### 生产部署步骤
+
+1. **在生产服务器克隆仓库**
+
+```bash
+git clone https://github.com/your-org/nexus-playground.git
+cd nexus-playground
+```
+
+2. **配置生产环境变量**
+
+```bash
+cp .env.example .env
+# 编辑 .env，填入生产配置
+```
+
+3. **启动服务**
+
+```bash
+make build
+make up
+```
+
+4. **配置 SSL（Nginx）**
+
+```bash
+# 使用 Let's Encrypt（示例）
+docker exec -it nexus-nginx certbot --nginx -d yourdomain.com
+```
+
+5. **监控与日志**
+
+```bash
+# 查看日志
+make logs
+
+# 设置日志轮转（生产建议）
+# 编辑 docker-compose.yml，添加 logging 配置
+```
+
+### 备份与恢复
+
+**PostgreSQL 备份**
+
+```bash
+docker exec nexus-postgres pg_dump -U nexus nexus > backup_$(date +%Y%m%d).sql
+```
+
+**Redis 备份**
+
+```bash
+docker exec nexus-redis redis-cli SAVE
+docker cp nexus-redis:/data/dump.rdb ./backup_redis_$(date +%Y%m%d).rdb
+```
+
+**恢复**
+
+```bash
+# PostgreSQL
+cat backup_20241024.sql | docker exec -i nexus-postgres psql -U nexus nexus
+
+# Redis
+docker cp backup_redis_20241024.rdb nexus-redis:/data/dump.rdb
+docker restart nexus-redis
+```
+
+---
+
+## 🎯 开发路线图
+
+### ✅ M0：基础可运行（当前阶段）
+
+- [ ] Docker Compose 编排（Redis + PostgreSQL + Nginx）
+- [ ] OAuth 认证集成（MPA 模式 + 统一回调）
+- [ ] 用户首次登录自动创建星枢（owner_uid → room_id 映射）
+- [ ] 我的星枢页面（`/my-nexus`）：游戏选择、玩家管理
+- [ ] 访问他人星枢页面（`/room/{roomId}`）：加入、观战
+- [ ] 井字棋游戏逻辑插件（示例）
+- [ ] 手动提交行动（人类 vs 人类）
+
+### 🚧 M1：核心运行时（进行中）
+
+- [ ] 行动队列与串行执行（Redis 分布式锁）
+- [ ] 版本控制与幂等（`expectedStateVersion` + `requestId`）
+- [ ] SSE 实时推送（视角更新 + 错误反馈）
+- [ ] 角色映射 UI（拖拽连线交互）
+- [ ] 暂停/推演状态机
+- [ ] 事件历史分页查询
+
+### 🔮 M2：LLM 玩家
+
+- [ ] 视角 → Prompt 适配器
+- [ ] LLM 执行器（非流式/流式两种模式）
+- [ ] LLM 代打（定向到当前 roleId）
+- [ ] 前端流式渲染（增量显示 AI 思考过程）
+- [ ] 错误重试策略（指数退避 + 降级通知）
+
+### 🌟 M3：进阶能力
+
+- [ ] 快照保存/加载（PostgreSQL）
+- [ ] 多房间并发扩容测试
+- [ ] 可插拔多游戏（注册表 + 动态加载）
+- [ ] 不完美信息游戏示例（暗牌对战）
+- [ ] 游戏回放 UI（基于事件溯源）
+- [ ] 管理后台（房间监控、日志审计、用户管理）
+
+---
+
+## 🤝 贡献指南
+
+欢迎贡献新游戏、功能改进或 Bug 修复！
+
+### 添加新游戏
+
+1. 在 `backend/src/games/` 下创建新目录（如 `chess/`）
+2. 实现 `GameLogic` 接口（参考 `tic-tac-toe/index.ts`）
+3. 在 `backend/src/games/registry.ts` 注册游戏
+4. 为前端编写游戏专属 UI 组件（可选，通用 UI 可直接渲染）
+5. 提交 PR 并附上游戏规则说明与测试用例
+
+### 提交规范
+
+```bash
+# Commit 格式
+<type>(<scope>): <subject>
+
+# 类型
+feat: 新功能
+fix: Bug 修复
+docs: 文档更新
+style: 代码格式（不影响功能）
+refactor: 重构
+test: 测试相关
+chore: 构建/工具链
+
+# 示例
+feat(games): add chess game logic
+fix(runtime): resolve race condition in action processor
+docs(readme): update deployment section
+```
+
+---
+
+## 📚 参考文档
+
+- [平台设计文档](./platform_design.md)：完整的架构设计与游戏状态流转
+- [SDK 接入理念](./sdk_concept.md)：关注点分离与核心哲学
+- [前端集成最佳实践](./frontend_best_practices.md)：AutoLab SDK 前端族使用指南
+- [后端鉴权最佳实践](./backend_best_practices.md)：统一鉴权中间件与服务间透传
+
+---
+
+## 📄 许可证
+
+MIT License
+
+---
+
+## 💬 联系与支持
+
+- **问题反馈**：[GitHub Issues](https://github.com/your-org/nexus-playground/issues)
+- **讨论区**：[GitHub Discussions](https://github.com/your-org/nexus-playground/discussions)
+- **邮件**：support@nexus-playground.dev
+
+---
+
+**让 AI 与人类共同游戏，探索 LLM 原生时代的游戏新范式 🎮✨**
 
