@@ -432,8 +432,9 @@ toRolePerspective(state: GameState, roleId: string, ...): RolePerspective {
 // backend/src/games/registry.ts
 
 import { GameLogic } from './types';
-import { TicTacToeLogic } from './tic-tac-toe';
-import { PokerLogic } from './poker';
+// 从顶层 games/ 目录通过别名导入逻辑实现
+import { TicTacToeLogic } from '@games/tic-tac-toe/logic';
+import { PokerLogic } from '@games/poker/logic';
 
 export const gameRegistry: Record<string, GameLogic> = {
   'tic-tac-toe': new TicTacToeLogic(),
@@ -623,9 +624,10 @@ import { lazy } from 'react';
 /**
  * 游戏UI模块映射
  */
+// 使用路径别名从顶层 games/ 加载 UI 模块
 const gameUIModules: Record<string, () => Promise<{ default: GameUIPlugin }>> = {
-  'tic-tac-toe': () => import('../games/tic-tac-toe/ui'),
-  'poker': () => import('../games/poker/ui'),
+  'tic-tac-toe': () => import('@games/tic-tac-toe/ui'),
+  'poker': () => import('@games/poker/ui'),
 };
 
 /**
@@ -1319,7 +1321,7 @@ touch backend/src/games/my-game/index.ts
 ```
 
 ```typescript
-// backend/src/games/my-game/index.ts
+// games/my-game/logic/index.ts
 
 import { GameLogic, GameMetadata, InitContext, ... } from '../types';
 
@@ -1415,7 +1417,7 @@ export class MyGameLogic implements GameLogic {
 ```typescript
 // backend/src/games/registry.ts
 
-import { MyGameLogic } from './my-game';
+import { MyGameLogic } from '@games/my-game/logic';
 
 export const gameRegistry = {
   // ... 其他游戏
@@ -1426,15 +1428,17 @@ export const gameRegistry = {
 #### 步骤3: 实现游戏UI
 
 ```bash
-# 创建前端游戏目录
-mkdir -p frontend/src/games/my-game
+# 创建顶层游戏目录（UI 与 逻辑分离但同一游戏目录）
+mkdir -p games/my-game/logic
+mkdir -p games/my-game/ui
 
-touch frontend/src/games/my-game/ui.tsx
-touch frontend/src/games/my-game/ui.module.css
+touch games/my-game/logic/index.ts
+touch games/my-game/ui/ui.tsx
+touch games/my-game/ui/ui.module.css
 ```
 
 ```tsx
-// frontend/src/games/my-game/ui.tsx
+// games/my-game/ui/ui.tsx
 
 import { GameUIProps } from '../../lib/game-ui-types';
 import styles from './ui.module.css';
@@ -1463,8 +1467,9 @@ export function MyGameUI({
       </div>
       
       <div className={styles.actionButtons}>
-        {perspective.action_space_definition.type === 'explicit_list' &&
-          perspective.action_space_definition.actions.map(action => (
+        {perspective.action_space_definition.actions
+          .filter(action => !action.params_schema) // 仅渲染无需参数的固定选项
+          .map(action => (
             <button
               key={action.action_id}
               onClick={() => handleAction(action.action_id)}
@@ -1473,8 +1478,7 @@ export function MyGameUI({
             >
               {action.description}
             </button>
-          ))
-        }
+          ))}
       </div>
       
       {!isMyTurn && (
@@ -1496,7 +1500,7 @@ export default { render: MyGameUI };
 
 const gameUIModules = {
   // ... 其他游戏
-  'my-game': () => import('../games/my-game/ui'),
+  'my-game': () => import('@games/my-game/ui'),
 };
 ```
 

@@ -60,7 +60,9 @@ nexus-playground/
 │   │   │   └── callback/    # OAuth 统一回调页
 │   │   ├── components/      # 通用组件：AuthAvatar、RoomCard
 │   │   ├── hooks/           # React Hooks：useRoom、usePerspective
-│   │   ├── lib/             # 工具：API 客户端封装、桥接
+│   │   ├── lib/             # 工具：API 客户端封装、桥接、游戏 UI 加载
+│   │   │   ├── game-ui-loader.ts   # 动态加载游戏 UI 插件（与注册映射）
+│   │   │   └── game-ui-types.ts    # 前端 GameUIPlugin 与 Props 定义
 │   │   └── main.tsx         # 各页面入口（由 Vite 多页配置生成）
 │   ├── public/              # 静态资源
 │   ├── vite.config.ts       # Vite 多页配置
@@ -86,11 +88,9 @@ nexus-playground/
 │   │   │   ├── perspective-generator.ts # 视角生成与缓存
 │   │   │   ├── event-bus.ts          # 事件总线（SSE/WS 推送）
 │   │   │   └── llm-executor.ts       # LLM 玩家执行器
-│   │   ├── games/           # 游戏逻辑插件目录
-│   │   │   ├── registry.ts  # 游戏注册表
-│   │   │   ├── types.ts     # GameLogic 接口定义
-│   │   │   └── tic-tac-toe/ # 示例：井字棋
-│   │   │       └── index.ts
+│   │   ├── games/           # （平台侧文件，仅注册与类型定义）
+│   │   │   ├── registry.ts  # 游戏注册表（从顶层 games/*/logic 导入）
+│   │   │   └── types.ts     # GameLogic/ActionSpec 接口定义
 │   │   ├── db/              # 数据库访问层
 │   │   │   ├── schema.sql   # PostgreSQL 表结构
 │   │   │   ├── rooms.ts     # 房间持久化 DAO
@@ -98,6 +98,17 @@ nexus-playground/
 │   │   └── utils/           # 工具函数
 │   ├── .env.example
 │   └── package.json
+│
+├── games/                    # 顶层游戏目录（与平台前后端解耦）
+│   └── tic-tac-toe/
+│       ├── logic/           # 后端纯逻辑实现（被后端注册表导入）
+│       │   └── index.ts
+│       └── ui/              # 前端纯渲染 UI 插件（由前端动态加载）
+│           ├── ui.tsx
+│           └── ui.module.css
+│
+├── e2e/                      # 端到端测试（Playwright 等，若使用）
+│   └── README.md            # 测试说明（可选）
 │
 ├── nginx/                    # Nginx 配置
 │   ├── nginx.conf           # 主配置：统一网关 + 静态服务
@@ -109,8 +120,8 @@ nexus-playground/
 ├── docker-compose.yml        # 服务编排
 ├── Makefile                  # 开发与部署命令
 ├── .env.example              # 全局环境变量模板
+├── game_integration_guide.md # 游戏接入与运行设计文档（规范与示例）
 ├── platform_design.md        # 平台设计文档
-├── sdk_concept.md            # SDK 接入理念
 ├── frontend_best_practices.md # 前端集成最佳实践
 ├── backend_best_practices.md  # 后端鉴权最佳实践
 └── README.md                 # 本文档
@@ -226,19 +237,48 @@ make clean-all
 游戏开发者提供的**无状态纯函数**集合（`GameLogic` 接口）：
 
 ```typescript
+export interface GameMetadata {
+  id: string;
+  name: string;
+  description: string;
+  minPlayers: number;
+  maxPlayers: number;
+  getStatusText?: (perspective: RolePerspective) => string;
+}
+
+export type ActionResult =
+  | { success: true; nextState: GameState; events?: HistoryEvent[] }
+  | { success: false; error: string; errorCode?: string };
+
 export interface GameLogic {
-  getMetadata(): { id: string; name: string; minPlayers: number; maxPlayers: number };
+  getMetadata(): GameMetadata;
   initState(ctx: { players: string[]; options?: any }): GameState;
   getCurrentRole(state: GameState): string;
   getLegalActions(state: GameState, roleId: string): ActionSpec;
-  applyAction(state: GameState, action: Action): { nextState: GameState; events?: any[] } | { error: string };
+  applyAction(state: GameState, action: Action): ActionResult;
   isTerminal(state: GameState): boolean;
   getWinners(state: GameState): string[] | null;
-  toRolePerspective(state: GameState, roleId: string, wholeHistory: any[], diffHistory: any[]): RolePerspective;
+  toRolePerspective(state: GameState, roleId: string, wholeHistory: HistoryEvent[], diffHistory: HistoryEvent[]): RolePerspective;
 }
 ```
 
 平台调用这些函数完成状态推演，游戏逻辑本身**绝不持有任何长效状态**。
+
+### 行动规范（ActionSpec）简述
+
+- 固定选项：`params_schema: null`（无需参数，如“停一手”“弃牌”）
+- 参数化模板：`params_schema: { ... }`（需要参数，如“落子(row,col)” “加注(amount)”）
+- 统一以 `ActionSpec.actions` 列表表达，可自由组合；详情参见 `game_integration_guide.md` 第 4 章。
+
+### 运行时核心摘要
+
+- 状态管理器（State Manager）：Redis 持有权威 GameState，版本控制与乐观锁
+- 行动处理器（Action Processor）：分布式锁、幂等校验、回合与合法性验证、应用行动与历史记录
+- 视角生成器（Perspective Generator）：按角色生成 `RolePerspective`，并按版本缓存
+- 事件总线（Event Bus）：SSE 广播视角更新与错误信息
+- LLM 执行器（LLM Executor）：将 `RolePerspective` 适配为 Prompt，调用 LLM 并提交行动
+
+完整机制与生命周期请参考 `game_integration_guide.md` 第 6、7 章。
 
 ---
 
@@ -304,11 +344,13 @@ app.post('/v1/rooms/:roomId/actions', async (req, reply) => {
 
 | Key 模式 | 数据类型 | 内容 | TTL |
 |----------|----------|------|-----|
-| `room:{roomId}:meta` | Hash | 房间元数据（owner、gameId、status、version） | 7天（无活动） |
+| `room:{roomId}:meta` | Hash | 房间元数据（owner、gameId、status） | 7天（无活动） |
 | `room:{roomId}:players` | Hash | 玩家列表（room_player_id → player JSON） | 同上 |
 | `room:{roomId}:roles` | Hash | 角色映射（role_id → room_player_id） | 同上 |
 | `room:{roomId}:state` | String | 权威 Game State（JSON） | 同上 |
-| `room:{roomId}:perspective:{roleId}` | String | 角色视角缓存（按 stateVersion 失效） | 5分钟 |
+| `room:{roomId}:version` | String | 状态版本号（自增整型） | 同上 |
+| `room:{roomId}:perspective:{roleId}:v{version}` | String | 角色视角缓存（按版本自动失效） | 5分钟 |
+| `room:{roomId}:history` | String | 历史事件列表（JSON） | 同上 |
 | `room:{roomId}:lock` | String | 行动处理锁（防止并发冲突） | 30秒 |
 
 ### PostgreSQL（持久化，支持复杂查询）
@@ -659,12 +701,12 @@ docker restart nexus-redis
 
 欢迎贡献新游戏、功能改进或 Bug 修复！
 
-### 添加新游戏
+### 添加新游戏（顶层 games/ 目录）
 
-1. 在 `backend/src/games/` 下创建新目录（如 `chess/`）
-2. 实现 `GameLogic` 接口（参考 `tic-tac-toe/index.ts`）
-3. 在 `backend/src/games/registry.ts` 注册游戏
-4. 为前端编写游戏专属 UI 组件（可选，通用 UI 可直接渲染）
+1. 在 `games/<game-id>/logic/` 实现后端逻辑（`index.ts` 导出 `GameLogic`）
+2. 在 `games/<game-id>/ui/` 实现前端 UI（`ui.tsx` 默认导出 `GameUIPlugin`）
+3. 在 `backend/src/games/registry.ts` 中从 `@games/<game-id>/logic` 导入并注册
+4. 在前端 `frontend/src/lib/game-ui-loader.ts` 中映射 `@games/<game-id>/ui`
 5. 提交 PR 并附上游戏规则说明与测试用例
 
 ### 提交规范
@@ -696,6 +738,12 @@ docs(readme): update deployment section
 - [SDK 接入理念](./sdk_concept.md)：关注点分离与核心哲学
 - [前端集成最佳实践](./frontend_best_practices.md)：AutoLab SDK 前端族使用指南
 - [后端鉴权最佳实践](./backend_best_practices.md)：统一鉴权中间件与服务间透传
+
+### 路径别名建议
+
+- 前端（Vite）：在 `frontend/tsconfig.json` 与 `vite.config.ts` 设置 `@games/*` 指向 `../games/*`
+- 后端（ts-node/tsc）：在 `backend/tsconfig.json` 设置 `@games/*` 路径映射到 `../games/*`
+- 这样即可在任意位置通过 `import { TicTacToeLogic } from '@games/tic-tac-toe/logic'` 与 `import ui from '@games/tic-tac-toe/ui'` 引入
 
 ---
 
