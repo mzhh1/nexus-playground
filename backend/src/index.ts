@@ -20,6 +20,7 @@ import logger from './utils/logger';
 import redisPlugin from './plugins/redis';
 import postgresPlugin from './plugins/postgres';
 import corsPlugin from './plugins/cors';
+import authPlugin from './plugins/auth';
 
 // Routes
 import healthRoute from './routes/health';
@@ -44,7 +45,7 @@ async function buildServer() {
     trustProxy: true,
   });
 
-  // Register plugins
+  // Register plugins (not auth - that's per-route)
   await fastify.register(corsPlugin);
   await fastify.register(redisPlugin);
   await fastify.register(postgresPlugin);
@@ -97,11 +98,20 @@ async function buildServer() {
   // Register routes under /api/v1
   await fastify.register(
     async (instance) => {
+      // Public routes (no auth)
       instance.register(healthRoute);
-      instance.register(myNexusRoutes);
-      instance.register(roomsRoutes);
-      instance.register(actionsRoutes);
-      instance.register(perspectivesRoutes);
+      
+      // Protected routes (require auth)
+      instance.register(async (protectedInstance) => {
+        // Register auth plugin only for protected routes
+        await protectedInstance.register(authPlugin);
+        
+        // All routes here require authentication
+        protectedInstance.register(myNexusRoutes);
+        protectedInstance.register(roomsRoutes);
+        protectedInstance.register(actionsRoutes);
+        protectedInstance.register(perspectivesRoutes);
+      });
     },
     { prefix: '/api/v1' }
   );

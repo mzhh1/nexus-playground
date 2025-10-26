@@ -3,8 +3,8 @@
  * Manages room state and operations
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { getApiClient } from '../lib/api-client';
+import { useState, useCallback } from 'react';
+import { useGameAPI } from '../lib/api-client';
 import type { RoomInfo } from '../lib/types';
 
 export function useRoom(roomId?: string) {
@@ -12,7 +12,7 @@ export function useRoom(roomId?: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apiClient = getApiClient();
+  const apiClient = useGameAPI();
 
   /**
    * Fetch room info
@@ -27,7 +27,11 @@ export function useRoom(roomId?: string) {
       const roomInfo = await apiClient.getRoomInfo(roomId);
       setRoom(roomInfo);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch room');
+      // 确保 error 始终是字符串，避免渲染对象导致 React 报错
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to fetch room';
+      setError(errorMsg);
       console.error('Failed to fetch room:', err);
     } finally {
       setLoading(false);
@@ -45,7 +49,11 @@ export function useRoom(roomId?: string) {
       const roomInfo = await apiClient.getMyNexus();
       setRoom(roomInfo);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch nexus');
+      // 确保 error 始终是字符串
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to fetch nexus';
+      setError(errorMsg);
       console.error('Failed to fetch nexus:', err);
     } finally {
       setLoading(false);
@@ -63,7 +71,10 @@ export function useRoom(roomId?: string) {
       // Refresh room info
       await fetchMyNexus();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to select game');
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to select game';
+      setError(errorMsg);
       throw err;
     }
   }, [fetchMyNexus]);
@@ -86,7 +97,10 @@ export function useRoom(roomId?: string) {
       await fetchMyNexus();
       return result;
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to add player');
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to add player';
+      setError(errorMsg);
       throw err;
     }
   }, [fetchMyNexus]);
@@ -102,7 +116,10 @@ export function useRoom(roomId?: string) {
       // Refresh room info
       await fetchMyNexus();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to remove player');
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to remove player';
+      setError(errorMsg);
       throw err;
     }
   }, [fetchMyNexus]);
@@ -122,7 +139,10 @@ export function useRoom(roomId?: string) {
         await fetchMyNexus();
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to start game');
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to start game';
+      setError(errorMsg);
       throw err;
     }
   }, [roomId, fetchRoom, fetchMyNexus]);
@@ -137,7 +157,10 @@ export function useRoom(roomId?: string) {
       await apiClient.pauseGame();
       await fetchMyNexus();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to pause game');
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to pause game';
+      setError(errorMsg);
       throw err;
     }
   }, [fetchMyNexus]);
@@ -152,7 +175,10 @@ export function useRoom(roomId?: string) {
       await apiClient.resumeGame();
       await fetchMyNexus();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to resume game');
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to resume game';
+      setError(errorMsg);
       throw err;
     }
   }, [fetchMyNexus]);
@@ -167,7 +193,10 @@ export function useRoom(roomId?: string) {
       await apiClient.stopGame();
       await fetchMyNexus();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to stop game');
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to stop game';
+      setError(errorMsg);
       throw err;
     }
   }, [fetchMyNexus]);
@@ -188,7 +217,10 @@ export function useRoom(roomId?: string) {
       await fetchRoom();
       return result;
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to join room');
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to join room';
+      setError(errorMsg);
       throw err;
     }
   }, [roomId, fetchRoom]);

@@ -21,8 +21,10 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
    * Get or create user's nexus
    */
   fastify.get('/my-nexus', async (request, reply) => {
-    // M0: Authentication placeholder - in production, get from req.auth.userId
-    const userId = request.headers['x-user-id'] as string || 'test_user_1';
+    const userId = (request as any).auth?.userId;
+    if (!userId) {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
 
     try {
       // Get or create room in PostgreSQL
@@ -63,7 +65,10 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{
     Body: { game_id: string };
   }>('/my-nexus/select-game', async (request, reply) => {
-    const userId = request.headers['x-user-id'] as string || 'test_user_1';
+    const userId = (request as any).auth?.userId;
+    if (!userId) {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
     const { game_id } = request.body;
 
     if (!game_id || !gameExists(game_id)) {
@@ -110,7 +115,10 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
       system_prompt?: string;
     };
   }>('/my-nexus/add-player', async (request, reply) => {
-    const userId = request.headers['x-user-id'] as string || 'test_user_1';
+    const userId = (request as any).auth?.userId;
+    if (!userId) {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
     const { player_type, uid, display_name, model_name, system_prompt } = request.body;
 
     try {
@@ -168,7 +176,10 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{
     Body: { player_id: string };
   }>('/my-nexus/remove-player', async (request, reply) => {
-    const userId = request.headers['x-user-id'] as string || 'test_user_1';
+    const userId = (request as any).auth?.userId;
+    if (!userId) {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
     const { player_id } = request.body;
 
     try {
@@ -202,7 +213,10 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{
     Body: { role_mapping: Record<string, string> };
   }>('/my-nexus/start', async (request, reply) => {
-    const userId = request.headers['x-user-id'] as string || 'test_user_1';
+    const userId = (request as any).auth?.userId;
+    if (!userId) {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
     const { role_mapping } = request.body;
 
     try {
@@ -275,7 +289,10 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
    * Pause the game
    */
   fastify.post('/my-nexus/pause', async (request, reply) => {
-    const userId = request.headers['x-user-id'] as string || 'test_user_1';
+    const userId = (request as any).auth?.userId;
+    if (!userId) {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
 
     try {
       const room = await roomDAO.getByOwnerUid(userId);
@@ -303,7 +320,10 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
    * Resume the game
    */
   fastify.post('/my-nexus/resume', async (request, reply) => {
-    const userId = request.headers['x-user-id'] as string || 'test_user_1';
+    const userId = (request as any).auth?.userId;
+    if (!userId) {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
 
     try {
       const room = await roomDAO.getByOwnerUid(userId);
@@ -331,7 +351,10 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
    * Stop the game
    */
   fastify.post('/my-nexus/stop', async (request, reply) => {
-    const userId = request.headers['x-user-id'] as string || 'test_user_1';
+    const userId = (request as any).auth?.userId;
+    if (!userId) {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
 
     try {
       const room = await roomDAO.getByOwnerUid(userId);

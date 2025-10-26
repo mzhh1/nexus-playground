@@ -66,11 +66,14 @@ services:
       AUTH_ISSUER: ${AUTH_ISSUER}
       OAUTH_USERINFO_PATH: ${OAUTH_USERINFO_PATH}
       OAUTH_USERINFO_TIMEOUT_MS: ${OAUTH_USERINFO_TIMEOUT_MS}
+      # Node.js 使用自定义 CA 证书
+      NODE_EXTRA_CA_CERTS: /app/certs/ca.pem
     ports:
       - "${BACKEND_PORT}:${BACKEND_PORT}"
     volumes:
       - ./backend/src:/app/src
       - ./games:/app/games
+      - ./certs/ca.pem:/app/certs/ca.pem:ro
 
   # Frontend Service
   frontend:

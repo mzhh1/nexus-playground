@@ -105,6 +105,24 @@ export function OAuthCallback() {
 }
 ```
 
+注意：回调页本身也必须挂载 `OAuthProvider`，并且其 `authServiceUrl` 与 `clientId` 与其他页面完全一致。`handleRedirect` 会完成与认证服务的换令牌，并将令牌持久化（当前实现存储于同源 `localStorage`），无需在回调页手工写入。
+
+```tsx
+// 回调页完整示例（页面入口）
+import { OAuthProvider } from '@autolabz/oauth-sdk';
+
+export default function CallbackPage() {
+  return (
+    <OAuthProvider
+      authServiceUrl={import.meta.env.VITE_AUTH_API_BASE_URL}
+      clientId={import.meta.env.VITE_OAUTH_CLIENT_ID}
+    >
+      <OAuthCallback />
+    </OAuthProvider>
+  );
+}
+```
+
 要点：
 - `oauth-sdk` 自动完成 PKCE、回调处理、令牌持久化与 401 刷新。
 - MPA 中每页挂载 `OAuthProvider`，共享同源存储中的登录态。
@@ -112,6 +130,106 @@ export function OAuthCallback() {
 - 生产固定 `clientId`，避免仅依赖 URL 解析；并确保网关允许前端源访问认证域（CORS/同域网关）。
 - `useOAuth()` 提供登录态与用户信息：`isAuthenticated` 表示是否已登录，`user` 形如 `{ id, email, nickname, avatarUrl }`。
   示例：`const { isAuthenticated, user } = useOAuth(); const uid = user?.id;`
+
+### 1A) 典型场景：带 AuthAvatar 的页面（isAuthenticated 门控）
+
+```tsx
+import { OAuthProvider, useOAuth, AuthAvatar } from '@autolabz/oauth-sdk';
+
+export function PageWithAvatar() {
+  const authServiceUrl = import.meta.env.VITE_AUTH_API_BASE_URL;
+  const clientId = import.meta.env.VITE_OAUTH_CLIENT_ID;
+  return (
+    <OAuthProvider authServiceUrl={authServiceUrl} clientId={clientId}>
+      <HeaderBar />
+      <MainArea />
+    </OAuthProvider>
+  );
+}
+
+function HeaderBar() {
+  return (
+    <div className="header">
+      <AuthAvatar
+        redirectUri={import.meta.env.VITE_OAUTH_REDIRECT_URI}
+        scope={import.meta.env.VITE_OAUTH_SCOPE ?? 'openid profile email'}
+        profileUrl={import.meta.env.VITE_OAUTH_PROFILE_URL}
+      />
+    </div>
+  );
+}
+
+function MainArea() {
+  const { isAuthenticated, user } = useOAuth();
+  if (!isAuthenticated) {
+    return <div>请先登录（点击右上角头像）</div>;
+  }
+  return <div>欢迎 {user?.nickname || user?.email}</div>;
+}
+```
+
+### 1B) 典型场景：无 AuthAvatar，未登录自动 startLogin 跳转
+
+```tsx
+import { useEffect } from 'react';
+import { OAuthProvider, useOAuth } from '@autolabz/oauth-sdk';
+
+function makeState(payload: any) {
+  try {
+    const json = JSON.stringify({ ...payload, nonce: crypto.randomUUID?.() || String(Date.now()) });
+    return btoa(encodeURIComponent(json));
+  } catch { return ''; }
+}
+
+export function PageAutoLogin() {
+  const authServiceUrl = import.meta.env.VITE_AUTH_API_BASE_URL;
+  const clientId = import.meta.env.VITE_OAUTH_CLIENT_ID;
+  return (
+    <OAuthProvider authServiceUrl={authServiceUrl} clientId={clientId}>
+      <AutoLoginGate />
+      <ProtectedContent />
+    </OAuthProvider>
+  );
+}
+
+function AutoLoginGate() {
+  const { isInitialized, isAuthenticated, startLogin } = useOAuth();
+
+  useEffect(() => {
+    if (!isInitialized) return; // 等待 Provider 完成初始化
+    // 若 URL 上存在 code/state/error（正在处理回调），避免再次触发登录
+    const url = new URL(window.location.href);
+    const hasAuthParams = url.searchParams.has('code') || url.searchParams.has('state') || url.searchParams.has('error');
+    if (!isAuthenticated && !hasAuthParams) {
+      const redirectUri = import.meta.env.VITE_OAUTH_REDIRECT_URI;
+      const state = makeState({ returnTo: window.location.href });
+      startLogin({
+        redirectUri,
+        state,
+        scope: import.meta.env.VITE_OAUTH_SCOPE ?? 'openid profile email',
+      });
+    }
+  }, [isInitialized, isAuthenticated, startLogin]);
+
+  return null; // 只负责触发跳转
+}
+
+function ProtectedContent() {
+  const { isAuthenticated } = useOAuth();
+  if (!isAuthenticated) return <div>正在跳转登录...</div>;
+  return <div>这是已登录用户可见的内容区域</div>;
+}
+```
+
+#### 避免重定向循环（Checklist）
+
+- 确保回调页挂载了与业务页完全一致的 `OAuthProvider`（相同 `authServiceUrl`、`clientId`）。
+- `redirectUri` 必须与服务端注册值完全一致，`startLogin` 与回调页使用同一地址。
+- 回调页调用 `handleRedirect` 前，URL 中应存在 `code` 和 `state` 参数；若缺失，检查认证网关回跳配置。
+- 回调页与业务页必须同源，以共享 `localStorage`；不同源会导致令牌不可见而反复跳转。
+- 避免在包含 `code/state` 的页面再次调用 `startLogin`（见上方 `hasAuthParams` 保护）。
+- 确认 `state` 携带唯一 `nonce`，并且未被多个并发登录复用。
+- 浏览器未禁用第三方存储/本地存储；隐私/无痕模式下确认 `localStorage` 可用。
 
 ---
 
@@ -223,6 +341,7 @@ await llm.chatStream({ model: 'gpt-4o-mini', messages: [], stream: true }, {
 
 ### 6) 安全与合规
 
+- 令牌存储：当前实现将 `refresh_token` 存储于 `localStorage`
 - 跨域策略：通过网关将前端与认证/数据/积分/LLM 服务置于同源或同顶级域名路径下，或确保后端正确配置 CORS。
 - Scope 最小化：仅请求业务所需的 scope，例如 `openid profile email data points llmapi`，避免过宽权限。
 
@@ -315,6 +434,7 @@ const llm = createLLMClient({ baseURL: import.meta.env.VITE_LLMAPI_BASE_URL, aut
 ### 附：常见问题（FAQ）
 
 - ClientId 从哪里来？由 AutoLab 组织分配并作为固定配置注入生产；不要依赖 URL 查询解析。
+- Token 放哪？前端由 `oauth-sdk` 存于本地存储并自动刷新；生产推荐迁到 httpOnly Cookie。
 - 能否自带 axios 实例？建议直接用各 SDK 客户端以获得统一的注入/刷新/重试。自定义时需确保 401 可触发刷新或回落登出。
 
 ---

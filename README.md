@@ -54,9 +54,9 @@ nexus-playground/
 ├── frontend/                 # React 前端（MPA）
 │   ├── src/
 │   │   ├── pages/           # 页面：首页、星枢、房间、回调
-│   │   │   ├── index/       # 登录引导页（未登录）
-│   │   │   ├── my-nexus/    # 我的星枢（主人视角）：游戏选择、玩家管理、角色映射、游戏区
-│   │   │   ├── room/        # 他人星枢（访客视角）：观战、加入、游戏区
+│   │   │   ├── index/       # 登录引导与重定向
+│   │   │   ├── my-nexus/    # 我的星枢定位：解析/创建 roomId 后重定向至 /room?id=...
+│   │   │   ├── room/        # 统一房间页（访客视角；M0）：观战、加入、游戏区
 │   │   │   └── callback/    # OAuth 统一回调页
 │   │   ├── components/      # 通用组件：AuthAvatar、RoomCard
 │   │   ├── hooks/           # React Hooks：useRoom、usePerspective
@@ -171,9 +171,9 @@ make build up
 ```
 
 服务启动后访问：
-- **前端首页**：http://localhost（OAuth 登录后自动跳转到 `/my-nexus`）
-- **我的星枢**：http://localhost/my-nexus（需登录）
-- **访问他人星枢**：http://localhost/room/{roomId}（示例：`http://localhost/room/abc123xy`）
+- **前端首页**：http://localhost（登录引导，自动跳转 `/my-nexus` → `/room?id=...`）
+- **我的星枢**：http://localhost/my-nexus（定位当前用户的 roomId 并重定向）
+- **访问他人星枢**：http://localhost/room?id={roomId}（示例：`http://localhost/room?id=abc123xy`）
 - **API 文档**：http://localhost/api/docs（Fastify Swagger，若启用）
 - **健康检查**：http://localhost/api/health
 
@@ -286,8 +286,12 @@ export interface GameLogic {
 
 ### 前端（MPA 模式）
 
-1. **每页挂载** `OAuthProvider`，用于恢复/管理会话（依赖 localStorage/sessionStorage）
-2. **统一回调页**：`/oauth/callback` 处理 `handleRedirect`，解析自定义 `state.returnTo` 并跳回来源页
+1. **每页挂载** `OAuthProvider`（页内会话恢复/管理）
+2. **统一回调页**：`/oauth/callback` 处理 `handleRedirect`，按 `state.returnTo` 回跳
+3. **页面职责**：
+   - `index`：轻量展示与快速跳转到 `/my-nexus`
+   - `my-nexus`：请求 `/api/v1/my-nexus`，定位/创建用户专属房间后重定向至 `/room?id=...`
+   - `room`：基于 `?id=` 查询参数渲染房间（M0 以访客视角为主）
 3. **桥接下游 SDK**：使用 `createAuthBridgeFromContext(auth)` 创建 `llmapi-sdk`、`points-sdk` 客户端
 
 ```tsx
@@ -402,7 +406,7 @@ CREATE TABLE history (
 ### 1. 用户首次登录（自动创建星枢）
 
 ```
-前端: 用户完成 OAuth 登录 → 跳转到首页/my-nexus
+前端: 用户完成 OAuth 登录 → 首页 `/` 自动跳转到 `/my-nexus`
   ↓
 后端: GET /api/v1/my-nexus
       1. 验证用户鉴权（req.auth.userId）
@@ -414,17 +418,17 @@ CREATE TABLE history (
          - Redis 初始化 room:{roomId}:players（自动添加主人为第一个玩家）
       4. 返回 { roomId, ownerId, status, playerList, ... }
   ↓
-前端: 渲染星枢主页（游戏选择、玩家列表、邀请链接）
+前端: `my-nexus` 定位后重定向至 `/room?id={roomId}`（统一房间页）
 ```
 
 ### 2. 访问他人星枢与加入游戏
 
 ```
 场景 A: 主人邀请其他玩家
-  前端: 主人复制邀请链接 → https://yourdomain.com/room/{roomId}?invite=true
+前端: 主人复制邀请链接 → https://yourdomain.com/room?id={roomId}&invite=true
   
 场景 B: 其他用户访问星枢
-  前端: GET /room/{roomId}
+前端: GET /room?id={roomId}
     ↓
   后端: GET /api/v1/rooms/{roomId}
         1. 验证星枢存在（Redis/PostgreSQL）
@@ -444,10 +448,10 @@ CREATE TABLE history (
         5. 广播事件（SSE/WS 通知主人与其他玩家）
 ```
 
-### 3. 选择游戏与开始
+### 3. 选择游戏与开始（主人在 my-nexus 流程中完成）
 
 ```
-前端: 主人在星枢主页选择游戏
+前端: 主人在 my-nexus 定位后（自动跳至 `/room?id=...` 前）选择游戏
   POST /api/v1/my-nexus/select-game { gameId: "tic-tac-toe" }
     ↓
   后端: 1. 验证主人权限（req.auth.userId === room.owner）

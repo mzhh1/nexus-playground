@@ -4,31 +4,12 @@
  */
 
 import React, { useEffect } from 'react';
-import { getApiClient } from '../../lib/api-client';
 import '../../styles/global.css';
 
 export const Index: React.FC = () => {
-  const apiClient = getApiClient();
-
   useEffect(() => {
-    // M0: Simplified - redirect to my-nexus directly
-    // In production, check authentication status first
-    const userId = apiClient.getUserId();
-    
-    if (!userId || userId === 'test_user_1') {
-      // For testing, allow setting user ID
-      const urlParams = new URLSearchParams(window.location.search);
-      const userIdParam = urlParams.get('userId');
-      
-      if (userIdParam) {
-        apiClient.setUserId(userIdParam);
-      }
-    }
-
-    // Redirect to my-nexus
-    setTimeout(() => {
-      window.location.href = '/my-nexus.html';
-    }, 1000);
+    // Redirect quickly to my-nexus to resolve roomId and jump to /room
+    window.location.replace('/my-nexus.html');
   }, []);
 
   return (

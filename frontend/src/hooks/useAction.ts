@@ -4,14 +4,14 @@
  */
 
 import { useState, useCallback } from 'react';
-import { getApiClient } from '../lib/api-client';
+import { useGameAPI } from '../lib/api-client';
 import type { Action } from '../lib/types';
 
 export function useAction(roomId: string | null) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apiClient = getApiClient();
+  const apiClient = useGameAPI();
 
   /**
    * Submit an action

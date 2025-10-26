@@ -48,6 +48,14 @@ export const MyNexus: React.FC = () => {
     fetchMyNexus();
   }, []);
 
+  // Redirect to unified room page when room is ready
+  useEffect(() => {
+    if (room?.room_id) {
+      const target = `/room?id=${encodeURIComponent(room.room_id)}`;
+      window.location.replace(target);
+    }
+  }, [room?.room_id]);
+
   // Determine current role for this user
   useEffect(() => {
     if (!room) return;
