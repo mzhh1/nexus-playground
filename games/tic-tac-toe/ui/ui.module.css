@@ -1,0 +1,138 @@
+/* Tic-Tac-Toe UI Styles */
+
+.tic-tac-toe-ui {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-xl);
+}
+
+/* Game Status */
+.game-status {
+  font-size: 1.25rem;
+  font-weight: 600;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.game-status.your-turn {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.game-status.waiting {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.game-status.winner {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.game-status.draw {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+/* Board */
+.tic-tac-toe-board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.board-row {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.board-cell {
+  width: 100px;
+  height: 100px;
+  font-size: 3rem;
+  font-weight: bold;
+  background-color: var(--color-bg);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: not-allowed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-base);
+  color: var(--color-text);
+}
+
+.board-cell.clickable {
+  cursor: pointer;
+  border-color: var(--color-primary);
+}
+
+.board-cell.clickable:hover {
+  background-color: var(--color-bg-secondary);
+  transform: scale(1.05);
+  box-shadow: var(--shadow-md);
+}
+
+.board-cell.clickable:active {
+  transform: scale(0.98);
+}
+
+.board-cell.x {
+  color: #3b82f6;
+}
+
+.board-cell.o {
+  color: #ef4444;
+}
+
+.board-cell:disabled {
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+/* Game Info */
+.game-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  width: 100%;
+  max-width: 400px;
+}
+
+.role-info,
+.goal-info {
+  font-size: 0.875rem;
+}
+
+.role-info strong,
+.goal-info strong {
+  color: var(--color-text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .board-cell {
+    width: 80px;
+    height: 80px;
+    font-size: 2.5rem;
+  }
+
+  .game-status {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .board-cell {
+    width: 60px;
+    height: 60px;
+    font-size: 2rem;
+  }
+}
+

@@ -1,0 +1,11 @@
+# Exclude host dependencies and build outputs from Docker context
+oauth-example-app/node_modules
+oauth-example-app/dist
+
+# Common junk
+.git
+.gitignore
+.DS_Store
+npm-debug.log*
+yarn-error.log*
+**/.env*

@@ -170,10 +170,10 @@ docker-compose logs -f portal
 
 ### 端口冲突
 
-如果80端口被占用，修改 `.env`：
+如果默认端口被占用，修改 `.env`：
 
 ```bash
-NEXUS_PORT=8080
+NGINX_PORT=8080  # 修改 Nginx 对外暴露的端口
 ```
 
 然后重新启动：
