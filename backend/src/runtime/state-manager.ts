@@ -26,7 +26,12 @@ export class StateManager {
         return null;
       }
       
-      const state = JSON.parse(data) as RoomState;
+      const parsed = JSON.parse(data) as RoomState & { resume_locked?: boolean; is_public?: boolean };
+      const state: RoomState = {
+        ...parsed,
+        resume_locked: typeof parsed.resume_locked === 'boolean' ? parsed.resume_locked : false,
+        is_public: typeof parsed.is_public === 'boolean' ? parsed.is_public : true,
+      };
       logger.debug({ roomId, version: state.version }, 'Room state retrieved');
       return state;
     } catch (error) {
@@ -70,6 +75,8 @@ export class StateManager {
       owner_uid: ownerUid,
       game_id: gameId,
       room_status: 'open',
+      is_public: true,
+      resume_locked: false,
       player_list: {},
       role_mapping: {},
       game_state: null,
@@ -109,6 +116,10 @@ export class StateManager {
         
         // Apply update
         const newState = await updateFn(currentState);
+
+        if (typeof newState.resume_locked !== 'boolean') {
+          newState.resume_locked = false;
+        }
         
         // Increment version
         newState.version = currentState.version + 1;
@@ -297,15 +308,39 @@ export class StateManager {
    */
   async updateRoomStatus(
     roomId: string,
-    status: RoomState['room_status']
+    status: RoomState['room_status'],
+    options: { resumeLocked?: boolean } = {}
   ): Promise<{ success: boolean; error?: string }> {
     return this.updateRoomState(roomId, (state) => {
+      const resumeLocked =
+        typeof options.resumeLocked === 'boolean'
+          ? options.resumeLocked
+          : status === 'playing' || status === 'open'
+            ? false
+            : state.resume_locked;
+
       // Return a new object to avoid mutating the original state
       return {
         ...state,
         room_status: status,
+        resume_locked: resumeLocked,
       };
     });
+  }
+
+  async resetGameState(
+    roomId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    return this.updateRoomState(roomId, (state) => ({
+      ...state,
+      room_status: 'open',
+      resume_locked: false,
+      is_public: state.is_public, // 保留公开状态
+      game_id: null,
+      role_mapping: {},
+      game_state: null,
+      history: [],
+    }));
   }
 
   /**

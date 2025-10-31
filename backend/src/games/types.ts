@@ -13,6 +13,13 @@ export interface GameMetadata {
   maxPlayers: number;
 
   /**
+   * List of role IDs required by the game
+   * Example: ["player_X", "player_O"] for tic-tac-toe
+   * Example: ["player_1", "player_2", "player_3", "player_4"] for 4-player poker
+   */
+  roleIds: string[];
+
+  /**
    * Extract status text from perspective for display in control bar
    * Example: "Turn 3 - Player X's turn" or "Game Over - Player O wins"
    */
@@ -232,7 +239,9 @@ export interface RoomState {
   room_id: string;
   owner_uid: string;
   game_id: string | null;
-  room_status: 'open' | 'playing' | 'paused' | 'finished';
+  room_status: 'open' | 'playing' | 'paused';
+  is_public: boolean;
+  resume_locked: boolean;
   
   // Player management
   player_list: PlayerList;

@@ -185,12 +185,17 @@ POST /api/rooms/:roomId/join
 }
 ```
 
+**说明**：
+- 允许加入状态为 `open` 或 `playing` 的房间
+- 加入游戏中的房间不会自动分配角色，需由房主手动分配
+- 玩家将被添加到玩家列表，但不会获得角色映射
+
 **响应**：房间对象（包含更新后的玩家列表）
 
 **错误响应**：
 ```json
 {
-  "error": "Room is full" | "Invalid password" | "Room not found"
+  "error": "Room is full" | "Invalid password" | "Room not found" | "Room is not open for joining"
 }
 ```
 

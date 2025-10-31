@@ -1,0 +1,526 @@
+/* Control Bar Styles */
+
+.nexus-control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  height: 64px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+/* 左侧区域 */
+.control-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.icon-button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.exit-button {
+  background: #f3f4f6;
+  color: #374151;
+  border: 2px solid transparent;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.exit-button:hover {
+  transform: scale(1.05);
+  border-color: #667eea;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.exit-button:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* 下拉菜单 */
+.dropdown-container {
+  position: relative;
+}
+
+.dropdown-button {
+  background: #f3f4f6;
+  border: 2px solid transparent;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  color: #374151;
+  font-weight: 500;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.dropdown-button:hover {
+  transform: scale(1.05);
+  border-color: #667eea;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.dropdown-button:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 200px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 8px 0;
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  cursor: default;
+  transition: background 0.2s;
+}
+
+.dropdown-item:hover {
+  background: #f9fafb;
+}
+
+.dropdown-item-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  color: #111827;
+}
+
+.dropdown-item-button:hover {
+  background: #f3f4f6;
+}
+
+.player-name {
+  font-weight: 500;
+  color: #111827;
+  flex: 1;
+}
+
+.player-type {
+  font-size: 12px;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.role-name {
+  font-weight: 500;
+  color: #3b82f6;
+  font-size: 13px;
+}
+
+.arrow {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* 中间区域 */
+.control-bar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  text-align: center;
+  min-width: 0;
+  gap: 16px;
+}
+
+.game-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.game-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.status-text {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.room-id-display {
+  background: #e5e7eb;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 16px;
+  border-radius: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+  flex-shrink: 1;
+}
+
+/* 右侧区域 */
+.control-bar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 操作按钮组 - 在大屏幕上显示 */
+.action-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 操作下拉菜单 - 在小屏幕上显示 */
+.actions-dropdown {
+  display: none;
+}
+
+.play-pause-button {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 50%;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.play-pause-button.play {
+  background: #3b82f6;
+  color: white;
+}
+
+.play-pause-button.play:hover {
+  background: #2563eb;
+  transform: scale(1.05);
+}
+
+.play-pause-button.pause {
+  background: #f59e0b;
+  color: white;
+}
+
+.play-pause-button.pause:hover {
+  background: #d97706;
+  transform: scale(1.05);
+}
+
+.play-pause-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.stop-button {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 50%;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ef4444;
+  color: white;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.stop-button:hover {
+  background: #dc2626;
+  transform: scale(1.05);
+}
+
+.stop-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.restart-button {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 50%;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #10b981;
+  color: white;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.restart-button:hover {
+  background: #059669;
+  transform: scale(1.05);
+}
+
+.restart-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.avatar-container {
+  display: flex;
+  align-items: center;
+}
+
+/* 响应式设计 */
+
+/* 中等屏幕：缩小间距但保持单行布局 */
+@media (max-width: 1024px) {
+  .nexus-control-bar {
+    padding: 10px 16px;
+    gap: 8px;
+  }
+
+  .control-bar-left,
+  .control-bar-right {
+    gap: 8px;
+  }
+
+  .game-name {
+    font-size: 16px;
+  }
+
+  .status-text {
+    font-size: 12px;
+  }
+
+  .room-id-display {
+    font-size: 12px;
+    padding: 5px 14px;
+    border-radius: 14px;
+    max-width: 250px;
+  }
+
+  .control-bar-center {
+    gap: 12px;
+  }
+
+  .action-buttons-group {
+    gap: 10px;
+  }
+
+  .exit-button,
+  .dropdown-button {
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+
+  .play-pause-button,
+  .stop-button,
+  .restart-button {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 16px;
+  }
+}
+
+/* 小屏幕：紧凑布局，隐藏次要信息 */
+@media (max-width: 768px) {
+  .nexus-control-bar {
+    padding: 8px 12px;
+    height: auto;
+    min-height: 56px;
+    gap: 8px;
+  }
+
+  .control-bar-left {
+    gap: 6px;
+    flex: 0 1 auto;
+    min-width: fit-content;
+  }
+
+  .control-bar-center {
+    flex: 1 1 auto;
+    min-width: 120px;
+  }
+
+  .control-bar-right {
+    gap: 8px;
+    flex: 0 1 auto;
+    min-width: fit-content;
+  }
+
+  /* 在小屏幕上：隐藏操作按钮组，显示下拉菜单 */
+  .action-buttons-group {
+    display: none;
+  }
+
+  .actions-dropdown {
+    display: block;
+  }
+
+  .game-info {
+    gap: 2px;
+  }
+
+  .game-name {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+  }
+
+  .status-text {
+    font-size: 11px;
+    display: none; /* 在小屏幕上隐藏状态文本 */
+  }
+
+  .room-id-display {
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    max-width: 200px;
+  }
+
+  .control-bar-center {
+    gap: 10px;
+  }
+
+  .exit-button {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  /* 下拉菜单：只显示图标和数字 */
+  .dropdown-button {
+    font-size: 12px;
+    padding: 6px 8px;
+    min-width: auto;
+  }
+
+  /* 下拉菜单调整 */
+  .dropdown-menu {
+    min-width: 180px;
+    font-size: 13px;
+  }
+
+  .dropdown-item-button {
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+}
+
+/* 超小屏幕：进一步简化 */
+@media (max-width: 480px) {
+  .nexus-control-bar {
+    padding: 6px 8px;
+    min-height: 48px;
+    gap: 6px;
+  }
+
+  .control-bar-left {
+    gap: 4px;
+  }
+
+  .control-bar-right {
+    gap: 6px;
+  }
+
+  .game-name {
+    font-size: 13px;
+    max-width: 120px;
+  }
+
+  .room-id-display {
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 10px;
+    max-width: 150px;
+  }
+
+  .control-bar-center {
+    gap: 8px;
+  }
+
+  .exit-button {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .dropdown-button {
+    padding: 5px 6px;
+    font-size: 11px;
+  }
+
+  .dropdown-item-button {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  /* 可以考虑隐藏角色映射下拉菜单 */
+  .dropdown-container:nth-child(3) {
+    display: none;
+  }
+}
+

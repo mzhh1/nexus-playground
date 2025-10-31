@@ -77,7 +77,7 @@
 
 4. **房间状态(Room State)**
 
-open/playing
+open / playing / paused（其中 paused 同时包含「临时暂停」与「终局暂停」，终局暂停会锁定状态，无法继续播放）
 
 5. **游戏ID(Game ID)**
 

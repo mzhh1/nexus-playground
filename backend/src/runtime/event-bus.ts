@@ -12,6 +12,7 @@ export interface SSEClient {
   roomId: string;
   roleId: string;
   playerId?: string;
+  userId?: string; // For audit logging
   connectedAt: Date;
 }
 
@@ -26,7 +27,8 @@ export class EventBus {
     reply: FastifyReply,
     roomId: string,
     roleId: string,
-    playerId?: string
+    playerId?: string,
+    userId?: string
   ): string {
     const clientId = this.generateClientId(roomId, roleId, playerId);
 
@@ -44,13 +46,14 @@ export class EventBus {
       roomId,
       roleId,
       playerId,
+      userId,
       connectedAt: new Date(),
     };
 
     this.clients.set(clientId, client);
 
     logger.info(
-      { clientId, roomId, roleId, playerId, totalClients: this.clients.size },
+      { clientId, roomId, roleId, playerId, userId, totalClients: this.clients.size },
       'SSE client registered'
     );
 

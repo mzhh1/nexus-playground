@@ -6,7 +6,7 @@
 import React from 'react';
 import type { GameUIProps } from '../../../frontend/src/lib/game-ui-types';
 import type { Action } from '../../../frontend/src/lib/types';
-import './ui.module.css';
+import styles from './ui.module.css';
 
 const TicTacToeUI: React.FC<GameUIProps> = ({
   perspective,
@@ -69,49 +69,13 @@ const TicTacToeUI: React.FC<GameUIProps> = ({
     return '';
   };
 
-  /**
-   * Render game status
-   */
-  const renderStatus = () => {
-    if (winner) {
-      const winnerSymbol = winner === 'player_X' ? 'X' : 'O';
-      return (
-        <div className="game-status winner">
-          🎉 Player {winnerSymbol} wins!
-        </div>
-      );
-    }
-
-    if (isDraw) {
-      return (
-        <div className="game-status draw">
-          🤝 It's a draw!
-        </div>
-      );
-    }
-
-    if (isMyTurn) {
-      return (
-        <div className="game-status your-turn">
-          ✨ Your turn ({your_role.identity})
-        </div>
-      );
-    }
-
-    return (
-      <div className="game-status waiting">
-        ⏳ Waiting for opponent...
-      </div>
-    );
-  };
-
   return (
-    <div className="tic-tac-toe-ui">
-      {renderStatus()}
+    <div className={styles['tic-tac-toe-ui']}>
+      {/* Status message is now handled by platform's unified message bar */}
 
-      <div className="tic-tac-toe-board">
+      <div className={styles['tic-tac-toe-board']}>
         {board.map((row: (string | null)[], rowIndex: number) => (
-          <div key={rowIndex} className="board-row">
+          <div key={rowIndex} className={styles['board-row']}>
             {row.map((cell: string | null, colIndex: number) => {
               const isClickable = isCellClickable(rowIndex, colIndex);
               const symbol = getCellSymbol(cell);
@@ -119,8 +83,8 @@ const TicTacToeUI: React.FC<GameUIProps> = ({
               return (
                 <button
                   key={`${rowIndex}-${colIndex}`}
-                  className={`board-cell ${symbol.toLowerCase()} ${
-                    isClickable ? 'clickable' : ''
+                  className={`${styles['board-cell']} ${symbol ? styles[symbol.toLowerCase()] : ''} ${
+                    isClickable ? styles.clickable : ''
                   }`}
                   onClick={() => handleCellClick(rowIndex, colIndex)}
                   disabled={!isClickable}
@@ -132,15 +96,6 @@ const TicTacToeUI: React.FC<GameUIProps> = ({
             })}
           </div>
         ))}
-      </div>
-
-      <div className="game-info">
-        <div className="role-info">
-          <strong>Your Role:</strong> {your_role.identity}
-        </div>
-        <div className="goal-info">
-          <strong>Goal:</strong> {your_role.goal}
-        </div>
       </div>
     </div>
   );

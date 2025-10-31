@@ -1,26 +1,90 @@
 /**
- * Room Page
- * View and join other users' rooms
+ * Room Page (Unified)
+ * Handles both owner's nexus and visitor views based on isOwner
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AuthAvatar, useOAuth } from '@autolabz/oauth-sdk';
 import '@autolabz/oauth-sdk/dist/style.css';
 import { useRoom } from '../../hooks/useRoom';
 import { usePerspective } from '../../hooks/usePerspective';
 import { useAction } from '../../hooks/useAction';
+import { useGamesMetadata, getGameName } from '../../hooks/useGamesMetadata';
 import { NexusControlBar } from '../../components/NexusControlBar';
 import { GameUIContainer } from '../../components/GameUIContainer';
+import { GameMessageBar } from '../../components/GameMessageBar';
+import { PlayerCard } from '../../components/PlayerCard';
+import { RoleMappingDisplay } from '../../components/RoleMappingDisplay';
+import { RoleMappingModal } from '../../components/RoleMappingModal';
+import type { RoleMapping } from '../../lib/types';
 import '../../styles/global.css';
 
 export const Room: React.FC = () => {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [currentRoleId, setCurrentRoleId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+  const [roleMapping, setRoleMapping] = useState<RoleMapping>({});
+  const [isRoleMappingModalOpen, setIsRoleMappingModalOpen] = useState(false);
 
-  const { room, loading, error, fetchRoom, joinRoom } = useRoom(roomId || undefined);
-  const { perspective } = usePerspective(roomId, currentRoleId, playerId || undefined);
+  // Fetch games metadata
+  const { games: AVAILABLE_GAMES } = useGamesMetadata();
+
+  const {
+    room,
+    loading,
+    error,
+    fetchRoom,
+    joinRoom,
+    selectGame,
+    addPlayer,
+    removePlayer,
+    startGame,
+    pauseGame,
+    resumeGame,
+    stopGame,
+    restartGame,
+  } = useRoom(roomId || undefined);
+
+  // SSE event callbacks to refresh room state
+  const sseCallbacks = useMemo(() => ({
+    onGameStarted: () => {
+      console.log('Game started, refreshing room state...');
+      fetchRoom();
+    },
+    onGamePaused: () => {
+      console.log('Game paused, refreshing room state...');
+      fetchRoom();
+    },
+    onGameResumed: () => {
+      console.log('Game resumed, refreshing room state...');
+      fetchRoom();
+    },
+    onGameStopped: () => {
+      console.log('Game stopped, refreshing room state...');
+      fetchRoom();
+    },
+    onGameRestarted: () => {
+      console.log('Game restarted, refreshing room state...');
+      fetchRoom();
+    },
+  }), [fetchRoom]);
+
+  const { perspective } = usePerspective(roomId, currentRoleId, playerId || undefined, sseCallbacks);
   const { submitAction, submitting } = useAction(roomId);
+  const { user } = useOAuth();
+
+  const accountDisplayName = useMemo(() => {
+    if (!user) return '';
+
+    const nickname = user.nickname?.trim();
+    if (nickname) return nickname;
+
+    const email = user.email?.trim();
+    if (email) return email;
+
+    return user.id;
+  }, [user]);
 
   // Extract room ID from URL (/room?id=...)
   useEffect(() => {
@@ -29,8 +93,6 @@ export const Room: React.FC = () => {
     
     if (id) {
       setRoomId(id);
-    } else {
-      alert('No room ID specified');
     }
   }, []);
 
@@ -41,13 +103,13 @@ export const Room: React.FC = () => {
     }
   }, [roomId]);
 
-  // Determine current role
+  // Determine current role and player ID
   useEffect(() => {
-    if (!room) return;
+    if (!room || !user?.id) return;
 
     // Check if we're already in the room
     const myPlayerId = Object.entries(room.player_list).find(
-      ([_, player]) => player.type === 'human' // M0: Simple check
+      ([_, player]) => player.type === 'human' && player.uid === user.id
     )?.[0];
 
     if (myPlayerId) {
@@ -62,20 +124,208 @@ export const Room: React.FC = () => {
         setCurrentRoleId(roleId);
       }
     }
-  }, [room]);
+  }, [room, user?.id]);
+
+  // Sync role mapping with room
+  useEffect(() => {
+    if (room?.role_mapping) {
+      setRoleMapping(room.role_mapping);
+    }
+  }, [room?.role_mapping]);
+
+
+  // ========== Event Handlers ==========
+
+  const handleSelectGame = async () => {
+    if (!selectedGameId) return;
+    
+    try {
+      await selectGame(selectedGameId);
+      setSelectedGameId('');
+    } catch (err) {
+      console.error('Failed to select game:', err);
+    }
+  };
+
+  const handleAddSelf = async () => {
+    if (!user) {
+      alert('请先登录后再加入房间。');
+      return;
+    }
+
+    const displayName = accountDisplayName;
+    if (!displayName) {
+      alert('无法获取账号昵称，请稍后重试。');
+      return;
+    }
+
+    const alreadyInRoom = Object.values(room?.player_list ?? {}).some(
+      (player) => player.type === 'human' && player.uid === user.id
+    );
+    if (alreadyInRoom) {
+      alert('你已经在房间中。');
+      return;
+    }
+
+    try {
+      const result = await addPlayer({
+        player_type: 'human',
+        display_name: displayName,
+        uid: user.id,
+      });
+      if (result?.player_id) {
+        setPlayerId(result.player_id);
+      }
+    } catch (err) {
+      console.error('Failed to add self as human player:', err);
+    }
+  };
+
+  const handleAddLLMPlayer = async () => {
+    const displayName = prompt('Enter LLM player display name:');
+    if (!displayName) return;
+
+    const modelName = prompt('Enter model name (e.g., gpt-4):') || 'gpt-4';
+    const systemPrompt = prompt('Enter system prompt:') || 'You are a helpful game player.';
+
+    try {
+      await addPlayer({
+        player_type: 'llm',
+        display_name: displayName,
+        model_name: modelName,
+        system_prompt: systemPrompt,
+      });
+    } catch (err) {
+      console.error('Failed to add LLM player:', err);
+    }
+  };
+
+  const handleRemovePlayer = async (playerId: string) => {
+    if (!confirm('Remove this player?')) return;
+
+    try {
+      await removePlayer(playerId);
+    } catch (err) {
+      console.error('Failed to remove player:', err);
+    }
+  };
+
+  const handleStartGame = async () => {
+    try {
+      await startGame(roleMapping);
+    } catch (err) {
+      console.error('Failed to start game:', err);
+    }
+  };
+
+  const handleSaveRoleMapping = (newMapping: RoleMapping) => {
+    setRoleMapping(newMapping);
+    setIsRoleMappingModalOpen(false);
+  };
+
+  const handleCancelRoleMapping = () => {
+    setIsRoleMappingModalOpen(false);
+  };
 
   const handleJoin = async () => {
-    const displayName = prompt('Enter your display name:');
-    if (!displayName) return;
+    if (!user) {
+      alert('请先登录后加入房间。');
+      return;
+    }
+
+    const displayName = accountDisplayName;
+    if (!displayName) {
+      alert('无法获取账号昵称，请稍后重试。');
+      return;
+    }
 
     try {
       const result = await joinRoom(displayName);
       setPlayerId(result.player_id);
-      alert('Joined successfully!');
+      alert('加入成功！');
     } catch (err) {
-      alert('Failed to join room');
+      alert('加入房间失败');
     }
   };
+
+  const handlePlayPause = async () => {
+    if (!room) return;
+
+    try {
+      if (room.room_status === 'playing') {
+        await pauseGame();
+      } else if (room.room_status === 'paused') {
+        if (room.resume_locked) {
+          alert('游戏已停止，无法继续进行');
+          return;
+        }
+        await resumeGame();
+      }
+    } catch (err) {
+      console.error('Failed to toggle play/pause:', err);
+    }
+  };
+
+  const handleStop = async () => {
+    if (!isOwner) return;
+    if (!confirm('确定要停止游戏吗？停止后将无法继续。')) return;
+
+    try {
+      await stopGame();
+    } catch (err) {
+      console.error('Failed to stop game:', err);
+    }
+  };
+
+  const handleRestart = async () => {
+    if (!isOwner) return;
+    if (!confirm('确定要重新开始游戏吗？当前游戏进度将会丢失。')) return;
+
+    try {
+      await restartGame();
+    } catch (err) {
+      console.error('Failed to restart game:', err);
+    }
+  };
+
+  // ========== Computed Values (ALL HOOKS MUST BE BEFORE ANY RETURN) ==========
+
+  // Compute all values that depend on room data
+  const currentUserId = user?.id || null;
+  const isInRoom = playerId !== null;
+  const isOwner = room ? room.owner_uid === currentUserId : false;
+  const isOpen = room ? room.room_status === 'open' : false;
+  const isPlaying = room ? room.room_status === 'playing' : false;
+  const canJoin = isOpen && !isInRoom && !isOwner;
+  const shouldShowControlBar = room
+    ? isPlaying || room.room_status === 'paused' || (isOwner && room.game_id)
+    : false;
+  
+  // 让NexusControlBar组件自己显示房间状态（不再显示Your Turn/Opponent Turn）
+  const controlBarStatusText = undefined;
+
+  // 根据 game_id 查找游戏名称
+  const gameName = room && room.game_id ? getGameName(room.game_id, AVAILABLE_GAMES) : undefined;
+
+  const playerList = room ? Object.entries(room.player_list) : [];
+  const hasGameSelected = room ? !!room.game_id : false;
+  const hasPlayers = playerList.length > 0;
+  const accountAlreadyInRoom = user && room
+    ? playerList.some(([, player]) => player.type === 'human' && player.uid === user.id)
+    : false;
+
+  // Get role IDs dynamically from game metadata
+  // IMPORTANT: This useMemo must be called on every render, not conditionally
+  const roleIds = useMemo(() => {
+    if (!hasGameSelected || !room || !room.game_id) return [];
+    
+    const gameMetadata = AVAILABLE_GAMES.find(game => game.id === room.game_id);
+    return gameMetadata?.roleIds || [];
+  }, [hasGameSelected, room, AVAILABLE_GAMES]);
+  
+  const isMappingComplete = roleIds.length > 0 && roleIds.every(roleId => roleMapping[roleId]);
+
+  // ========== Early Returns (AFTER all hooks) ==========
 
   if (!roomId) {
     return (
@@ -113,149 +363,183 @@ export const Room: React.FC = () => {
     return <div>No room data</div>;
   }
 
-  // 获取当前用户信息（使用 OAuth 的 user.id）
-  const { user } = useOAuth();
-  const currentUserId = user?.id || null;
-  
-  const isInRoom = playerId !== null;
-  const isOwner = room.owner_uid === currentUserId;
-  const isPlaying = room.room_status === 'playing';
-  const canJoin = room.room_status === 'open' && !isInRoom;
-
-  // 🔍 调试信息
-  console.log('=== Room Owner Debug ===');
-  console.log('OAuth user 对象:', user);
-  console.log('当前用户ID (user.id):', currentUserId);
-  console.log('房主ID (room.owner_uid):', room.owner_uid);
-  console.log('是否为房主:', isOwner);
-  console.log('严格相等 (===):', room.owner_uid === currentUserId);
-  console.log('类型检查:', { 
-    currentUserIdType: typeof currentUserId, 
-    ownerUidType: typeof room.owner_uid,
-    currentUserIdValue: JSON.stringify(currentUserId),
-    ownerUidValue: JSON.stringify(room.owner_uid)
-  });
-  console.log('房间状态:', room.room_status);
-  console.log('是否在房间内:', isInRoom);
-  console.log('玩家ID:', playerId);
-  console.log('完整房间数据:', room);
-  console.log('=======================');
+  // ========== Render ==========
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Control Bar */}
-      {isPlaying && (
+      {shouldShowControlBar && (
         <NexusControlBar
           room={room}
           isOwner={isOwner}
-          statusText={perspective?.your_role?.is_current ? 'Your Turn' : 'Opponent Turn'}
+          gameName={gameName}
+          statusText={controlBarStatusText}
+          roleMapping={roleMapping}
+          onPlayPause={handlePlayPause}
+          onStop={handleStop}
+          onRestart={handleRestart}
           onExit={() => (window.location.href = '/')}
         />
       )}
 
-      <div style={{ flex: 1, overflow: 'auto', padding: 'var(--spacing-lg)' }}>
+      <div style={{ 
+        flex: 1, 
+        overflow: 'auto', 
+        padding: 'var(--spacing-lg)',
+        paddingBottom: !isOpen && room.game_id && perspective ? '60px' : 'var(--spacing-lg)' /* 为底部消息栏留出空间 */
+      }}>
         <div className="container">
-          {/* Header with Avatar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
-            <h1>Room: {roomId}</h1>
-            <AuthAvatar
-              redirectUri={import.meta.env.VITE_OAUTH_REDIRECT_URI}
-              scope={import.meta.env.VITE_OAUTH_SCOPE || 'openid profile email llmapi'}
-              profileUrl={import.meta.env.VITE_OAUTH_PROFILE_URL}
-            />
-          </div>
+          {/* Header - 只在开放状态显示，游戏中的头像已在控制栏 */}
+          {isOpen && (
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginBottom: 'var(--spacing-lg)' 
+            }}>
+              <h1>Room: {roomId}</h1>
+              <AuthAvatar
+                redirectUri={import.meta.env.VITE_OAUTH_REDIRECT_URI}
+                scope={import.meta.env.VITE_OAUTH_SCOPE || 'openid profile email llmapi'}
+                profileUrl={import.meta.env.VITE_OAUTH_PROFILE_URL}
+              />
+            </div>
+          )}
           
           {error && <div className="error-message">{error}</div>}
 
-          {/* 🔍 调试信息面板 */}
-          <div className="card" style={{ 
-            marginBottom: 'var(--spacing-lg)', 
-            backgroundColor: '#f0f0f0', 
-            border: '2px solid #ff6b00' 
-          }}>
-            <h3>🔍 调试信息</h3>
-            <table style={{ width: '100%', fontSize: '14px' }}>
-              <tbody>
-                <tr>
-                  <td style={{ fontWeight: 'bold', padding: '4px', width: '200px' }}>OAuth User 对象:</td>
-                  <td style={{ padding: '4px', fontFamily: 'monospace', wordBreak: 'break-all', fontSize: '12px' }}>
-                    {JSON.stringify(user, null, 2)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: 'bold', padding: '4px', width: '200px' }}>当前用户ID (user.id):</td>
-                  <td style={{ padding: '4px', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {currentUserId || '(null)'}
-                    <span style={{ marginLeft: '8px', color: '#666', fontSize: '12px' }}>
-                      (类型: {typeof currentUserId})
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: 'bold', padding: '4px' }}>房主ID (room.owner_uid):</td>
-                  <td style={{ padding: '4px', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {room.owner_uid || '(null)'}
-                    <span style={{ marginLeft: '8px', color: '#666', fontSize: '12px' }}>
-                      (类型: {typeof room.owner_uid})
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: 'bold', padding: '4px' }}>严格相等 (===):</td>
-                  <td style={{ padding: '4px', fontWeight: 'bold', color: room.owner_uid === currentUserId ? 'green' : 'red' }}>
-                    {room.owner_uid === currentUserId ? '✓ true' : '✗ false'}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: 'bold', padding: '4px' }}>是否为房主 (isOwner):</td>
-                  <td style={{ padding: '4px', color: isOwner ? 'green' : 'red', fontWeight: 'bold' }}>
-                    {isOwner ? '✓ 是' : '✗ 否'}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: 'bold', padding: '4px' }}>房间状态:</td>
-                  <td style={{ padding: '4px' }}>{room.room_status}</td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: 'bold', padding: '4px' }}>是否在房间内:</td>
-                  <td style={{ padding: '4px' }}>{isInRoom ? '是' : '否'}</td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: 'bold', padding: '4px' }}>玩家ID:</td>
-                  <td style={{ padding: '4px', fontFamily: 'monospace', wordBreak: 'break-all' }}>{playerId || '(null)'}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div style={{ marginTop: '12px', padding: '8px', backgroundColor: '#fff', borderRadius: '4px', fontSize: '12px' }}>
-              <strong>修复说明：</strong> 现在使用 <code>user.id</code> 而不是 <code>getClientId()</code>。Client ID 是应用全局属性，User ID 才是用户唯一标识。
-            </div>
-          </div>
+          {/* ========== OPEN PHASE ========== */}
+          {isOpen && (
+            <>
+              {/* Owner Controls */}
+              {isOwner && (
+                <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                  <h2>房主控制</h2>
 
-          {/* Join button */}
-          {canJoin && (
-            <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
-              <h2>Join this room?</h2>
-              <p>Owner: {room.owner_uid}</p>
-              <p>Game: {room.game_id || 'Not selected'}</p>
-              <p>Players: {Object.keys(room.player_list).length}</p>
-              <button onClick={handleJoin}>Join Room</button>
-            </div>
-          )}
+                  {/* Game Selection */}
+                  {!hasGameSelected && (
+                    <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                      <h3>选择游戏</h3>
+                      <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                        <select
+                          value={selectedGameId}
+                          onChange={(e) => setSelectedGameId(e.target.value)}
+                          style={{ flex: 1 }}
+                        >
+                          <option value="">-- Select a Game --</option>
+                          {AVAILABLE_GAMES.map(game => (
+                            <option key={game.id} value={game.id}>
+                              {game.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button onClick={handleSelectGame} disabled={!selectedGameId}>
+                          Select Game
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-          {/* Waiting message */}
-          {isInRoom && !isPlaying && (
-            <div className="card">
-              <h2>等待游戏开始...</h2>
-              {isOwner ? (
-                <p>您是房主。请配置玩家和角色，然后开始游戏。</p>
-              ) : (
-                <p>您已加入房间。房主将很快开始游戏。</p>
+                  {/* Player Management (after game selected) */}
+                  {hasGameSelected && (
+                    <>
+                      <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                        <h3>游戏: {room.game_id}</h3>
+                      </div>
+
+                      <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                        <h3>玩家管理</h3>
+                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-sm)' }}>
+                          <button
+                            onClick={handleAddSelf}
+                            disabled={!user || accountAlreadyInRoom}
+                          >
+                            + Add Self
+                          </button>
+                          <button onClick={handleAddLLMPlayer} className="secondary">+ Add LLM Player</button>
+                        </div>
+
+                        {/* Player List */}
+                        {hasPlayers && (
+                          <div style={{ 
+                            display: 'grid', 
+                            gap: 'var(--spacing-sm)', 
+                            marginTop: 'var(--spacing-sm)' 
+                          }}>
+                            {playerList.map(([pid, player]) => (
+                              <PlayerCard
+                                key={pid}
+                                playerId={pid}
+                                player={player}
+                                canRemove={true}
+                                onRemove={handleRemovePlayer}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Role Mapping Display (after players added) */}
+                      {hasPlayers && (
+                        <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                          <RoleMappingDisplay
+                            playerList={room.player_list}
+                            roleIds={roleIds}
+                            mapping={roleMapping}
+                            onEdit={() => setIsRoleMappingModalOpen(true)}
+                          />
+                        </div>
+                      )}
+
+                      {/* Start Game Button */}
+                      <div>
+                        <button
+                          onClick={handleStartGame}
+                          disabled={!isMappingComplete}
+                          style={{ width: '100%' }}
+                        >
+                          Start Game
+                        </button>
+                        {!isMappingComplete && (
+                          <p style={{ 
+                            marginTop: 'var(--spacing-xs)', 
+                            fontSize: '0.875rem', 
+                            color: 'var(--color-text-secondary)' 
+                          }}>
+                            请分配所有角色后才能开始游戏
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
-            </div>
+
+              {/* Visitor: Join Button */}
+              {canJoin && (
+                <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                  <h2>加入这个房间？</h2>
+                  <p><strong>房主:</strong> {room.owner_uid}</p>
+                  <p><strong>游戏:</strong> {room.game_id || '未选择'}</p>
+                  <p><strong>玩家数:</strong> {playerList.length}</p>
+                  <button onClick={handleJoin} style={{ width: '100%', marginTop: 'var(--spacing-sm)' }}>
+                    Join Room
+                  </button>
+                </div>
+              )}
+
+              {/* Visitor: Waiting Message (already joined) */}
+              {isInRoom && !isOwner && (
+                <div className="card">
+                  <h2>等待游戏开始...</h2>
+                  <p>您已加入房间。房主将很快开始游戏。</p>
+                </div>
+              )}
+            </>
           )}
 
-          {/* Game UI */}
-          {isPlaying && room.game_id && perspective && currentRoleId && (
+          {/* ========== PLAYING/PAUSED/FINISHED PHASE ========== */}
+          {!isOpen && room.game_id && perspective && currentRoleId && (
             <div className="card">
               <GameUIContainer
                 gameId={room.game_id}
@@ -271,11 +555,35 @@ export const Room: React.FC = () => {
               />
             </div>
           )}
+
+          {/* Fallback: Status Display */}
+          {!isOpen && (!room.game_id || !perspective || !currentRoleId) && (
+            <div className="card">
+              <h2>房间状态: {room.room_status}</h2>
+              <p>游戏ID: {room.game_id || '无'}</p>
+              <p>玩家数: {playerList.length}</p>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Role Mapping Modal */}
+      {isRoleMappingModalOpen && room && (
+        <RoleMappingModal
+          playerList={room.player_list}
+          roleIds={roleIds}
+          initialMapping={roleMapping}
+          onSave={handleSaveRoleMapping}
+          onCancel={handleCancelRoleMapping}
+        />
+      )}
+
+      {/* Message Bar - 固定在页面底部 */}
+      {!isOpen && room.game_id && perspective && currentRoleId && (
+        <GameMessageBar perspective={perspective} />
+      )}
     </div>
   );
 };
 
 export default Room;
-

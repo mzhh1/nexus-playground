@@ -24,10 +24,13 @@ import authPlugin from './plugins/auth';
 
 // Routes
 import healthRoute from './routes/health';
+import gamesRoute from './routes/games';
 import myNexusRoutes from './routes/my-nexus';
 import roomsRoutes from './routes/rooms';
+import roomsPublicRoutes from './routes/rooms-public';
 import actionsRoutes from './routes/actions';
-import perspectivesRoutes from './routes/perspectives';
+import perspectivesProtectedRoutes from './routes/perspectives-protected';
+import perspectivesPublicRoutes from './routes/perspectives-public';
 
 // Runtime
 import { getEventBus } from './runtime/event-bus';
@@ -100,6 +103,9 @@ async function buildServer() {
     async (instance) => {
       // Public routes (no auth)
       instance.register(healthRoute);
+      instance.register(gamesRoute); // Games metadata
+      instance.register(roomsPublicRoutes); // Browse public rooms (no auth)
+      instance.register(perspectivesPublicRoutes); // SSE stream with ticket auth
       
       // Protected routes (require auth)
       instance.register(async (protectedInstance) => {
@@ -108,9 +114,9 @@ async function buildServer() {
         
         // All routes here require authentication
         protectedInstance.register(myNexusRoutes);
-        protectedInstance.register(roomsRoutes);
+        protectedInstance.register(roomsRoutes); // Room management requires auth
         protectedInstance.register(actionsRoutes);
-        protectedInstance.register(perspectivesRoutes);
+        protectedInstance.register(perspectivesProtectedRoutes); // GET perspective & POST ticket
       });
     },
     { prefix: '/api/v1' }

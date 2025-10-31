@@ -57,6 +57,11 @@
 │  │  │  - 退出按钮                                     │  │  │
 │  │  └────────────────────────────────────────────────┘  │  │
 │  │  ┌────────────────────────────────────────────────┐  │  │
+│  │  │  统一消息状态栏 (Message Bar - 平台渲染)     │  │  │
+│  │  │  - 显示游戏当前状态消息                       │  │  │
+│  │  │  - 内容从 RolePerspective.message 获取        │  │  │
+│  │  └────────────────────────────────────────────────┘  │  │
+│  │  ┌────────────────────────────────────────────────┐  │  │
 │  │  │  游戏UI容器 (Game UI Container)                │  │  │
 │  │  │  ┌──────────────────────────────────────────┐  │  │  │
 │  │  │  │  动态加载的游戏UI模块                    │  │  │  │
@@ -188,9 +193,103 @@ interface GameUIProps {
 
 | 层次 | 职责 | 示例 |
 |------|------|------|
-| **平台控制层** | 房间管理、权限控制、播放控制、角色映射 | "只有主人能点播放按钮" |
-| **游戏逻辑层** | 规则定义、状态推演、合法性验证、视角过滤 | "玩家X在(1,1)落子是否合法?" |
-| **游戏UI层** | 视角渲染、用户交互、视觉呈现 | "显示3x3棋盘,可点击的格子高亮" |
+| **平台控制层** | 房间管理、权限控制、播放控制、角色映射、统一消息状态栏渲染 | "只有主人能点播放按钮"、"显示'轮到你了!'" |
+| **游戏逻辑层** | 规则定义、状态推演、合法性验证、视角过滤、生成消息内容 | "玩家X在(1,1)落子是否合法?"、"生成'等待玩家O行动...'" |
+| **游戏UI层** | 视角渲染、用户交互、视觉呈现（不包括状态消息） | "显示3x3棋盘,可点击的格子高亮" |
+
+### 3.3 统一消息状态栏设计
+
+#### 3.3.1 设计理念
+
+**核心原则：游戏提供内容，平台统一渲染**
+
+- **为什么需要统一消息栏？**
+  - 保证所有游戏的用户体验一致性
+  - 避免游戏UI中重复实现状态提示逻辑
+  - 平台可以统一控制样式、动画、国际化
+
+- **职责划分**
+  - **游戏逻辑层**：在 `toRolePerspective()` 中生成 `message` 字段
+  - **平台前端**：统一渲染消息栏，应用样式、动画、主题
+  - **游戏UI层**：专注游戏内容渲染，无需关心状态消息显示
+
+#### 3.3.2 消息内容规范
+
+游戏开发者应在 `toRolePerspective()` 中根据游戏状态和角色视角生成合适的消息：
+
+```typescript
+toRolePerspective(state, roleId, wholeHistory, diffHistory): RolePerspective {
+  let message = '';
+  
+  // 游戏结束消息
+  if (state.winner) {
+    if (state.winner === roleId) {
+      message = '🎉 游戏结束 - 你获胜了！';
+    } else {
+      message = `😔 游戏结束 - 玩家 ${getPlayerSymbol(state.winner)} 获胜`;
+    }
+  }
+  // 平局消息
+  else if (state.isDraw) {
+    message = '🤝 游戏结束 - 平局';
+  }
+  // 轮到当前玩家
+  else if (this.getCurrentRole(state) === roleId) {
+    message = '✨ 轮到你了，请选择你的行动';
+  }
+  // 等待其他玩家
+  else {
+    const currentSymbol = getCurrentPlayerSymbol(state);
+    message = `⏳ 等待玩家 ${currentSymbol} 行动...`;
+  }
+  
+  return {
+    // ... 其他字段
+    message,
+  };
+}
+```
+
+#### 3.3.3 消息类型建议
+
+| 场景 | 消息示例 | 建议使用的 Emoji |
+|------|---------|-----------------|
+| **轮到玩家** | "轮到你了，请选择你的行动" | ✨ 或 🎯 |
+| **等待对手** | "等待玩家 X 行动..." | ⏳ 或 👀 |
+| **玩家获胜** | "游戏结束 - 你获胜了！" | 🎉 或 👑 |
+| **玩家失败** | "游戏结束 - 玩家 O 获胜" | 😔 或 💔 |
+| **平局** | "游戏结束 - 平局" | 🤝 或 ⚖️ |
+| **警告/错误** | "无效操作，请重新选择" | ⚠️ 或 ❌ |
+| **特殊事件** | "触发特殊技能！" | ⚡ 或 🌟 |
+
+#### 3.3.4 平台渲染示例
+
+平台前端会统一渲染消息栏，游戏开发者无需关心样式：
+
+```tsx
+// frontend/src/components/GameMessageBar.tsx (平台组件)
+
+export function GameMessageBar({ perspective }: { perspective: RolePerspective }) {
+  const message = perspective.message || '准备开始游戏...';
+  
+  // 根据消息内容自动判断类型（可选）
+  const messageType = getMessageType(message);
+  
+  return (
+    <div className={`game-message-bar ${messageType}`}>
+      <span className="message-content">{message}</span>
+    </div>
+  );
+}
+
+// 自动推断消息类型（用于应用不同样式）
+function getMessageType(message: string): 'info' | 'success' | 'warning' | 'waiting' {
+  if (message.includes('获胜') || message.includes('🎉')) return 'success';
+  if (message.includes('等待') || message.includes('⏳')) return 'waiting';
+  if (message.includes('警告') || message.includes('⚠️')) return 'warning';
+  return 'info';
+}
+```
 
 ---
 
@@ -210,6 +309,14 @@ export interface GameMetadata {
   description: string;           // 游戏规则描述
   minPlayers: number;            // 最少玩家数
   maxPlayers: number;            // 最多玩家数
+  
+  /**
+   * 游戏所需的角色ID列表
+   * 例如: ["player_X", "player_O"] 井字棋
+   * 例如: ["player_1", "player_2", "player_3", "player_4"] 四人扑克
+   * 平台将使用此列表动态生成角色映射UI
+   */
+  roleIds: string[];
   
   /**
    * 从视角中提取游戏状态文字(显示在控制栏)
@@ -249,6 +356,13 @@ export interface RolePerspective {
     is_current: boolean;         // 是否当前回合
   };
   action_space_definition: ActionSpec; // 合法行动空间
+  
+  /**
+   * 统一消息状态栏内容 (由平台渲染)
+   * 用于向玩家显示当前游戏状态、提示信息等
+   * 例如: "轮到你了!" 或 "等待对手行动..." 或 "游戏结束 - 你获胜!"
+   */
+  message?: string;
   
   // 可选:游戏自定义字段
   [key: string]: any;
@@ -1176,8 +1290,9 @@ export class EventBus {
    ↓
 5. 其他玩家加入
    POST /api/v1/rooms/{roomId}/join
-   → 验证房间状态为"open"
-   → 添加到玩家列表
+   → 允许加入"open"或"playing"状态的房间
+   → 添加到玩家列表（不分配角色映射）
+   → 若房间已处于"playing"状态，需由主人手动分配角色
    ↓
 6. 主人选择初始状态(可选)
    POST /api/v1/my-nexus/load-snapshot
@@ -1282,21 +1397,20 @@ open ─────────────► playing (主人点击"播放")
   ▲                    │
   │                    │ (主人点击"暂停")
   │                    ▼
-  │                 paused
+  │             paused(可恢复)
   │                    │
   │                    │ (主人点击"播放")
   │                    ▼
   │                 playing
   │                    │
-  │                    │ (游戏结束)
+  │                    │ (主人点击"停止" 或 游戏结束)
   │                    ▼
-  └──────────────── finished (主人点击"退出")
+  └────────────── paused(锁定，不可恢复)
 
 【状态说明】
 - open: 开放阶段,可添加玩家,选择游戏
 - playing: 推演中,自动处理回合
-- paused: 暂停,可编辑角色映射
-- finished: 游戏结束,只读模式
+- paused: 暂停。若为锁定暂停(终局)，仅能查看，不能继续播放
 
 【权限控制】
 - 只有主人可以切换状态
@@ -1311,6 +1425,18 @@ open ─────────────► playing (主人点击"播放")
 ### 8.1 快速接入清单
 
 #### 步骤1: 实现游戏逻辑
+
+**重要提示：角色ID的定义**
+
+在实现游戏逻辑时，必须在 `getMetadata()` 中正确定义 `roleIds` 数组：
+
+- **作用**：平台使用此数组动态生成角色映射界面，允许主人将游戏角色分配给人类或 LLM 玩家
+- **格式**：字符串数组，每个元素是一个唯一的角色标识符
+- **示例**：
+  - 井字棋：`['player_X', 'player_O']`
+  - 四人扑克：`['player_1', 'player_2', 'player_3', 'player_4']`
+  - 狼人杀：`['werewolf_1', 'werewolf_2', 'villager_1', 'villager_2', 'seer', 'witch']`
+- **注意**：角色ID必须与 `initState()` 中使用的角色ID一致
 
 ```bash
 # 创建游戏目录
@@ -1333,6 +1459,7 @@ export class MyGameLogic implements GameLogic {
       description: '游戏规则说明...',
       minPlayers: 2,
       maxPlayers: 4,
+      roleIds: ['player_1', 'player_2'], // 定义游戏所需的角色
       getStatusText: (perspective) => {
         return `第${perspective.current_state.turn}回合`;
       }
@@ -1394,6 +1521,21 @@ export class MyGameLogic implements GameLogic {
 
   toRolePerspective(state, roleId, wholeHistory, diffHistory): RolePerspective {
     // 生成角色视角(核心)
+    
+    // 生成统一消息状态栏内容
+    let message = '';
+    if (state.isGameOver) {
+      if (state.winner === roleId) {
+        message = '🎉 游戏结束 - 你获胜了！';
+      } else {
+        message = '😔 游戏结束 - 你失败了';
+      }
+    } else if (this.getCurrentRole(state) === roleId) {
+      message = '✨ 轮到你了，请选择你的行动';
+    } else {
+      message = '⏳ 等待其他玩家行动...';
+    }
+    
     return {
       global_rules: this.getMetadata().description,
       whole_history: wholeHistory,
@@ -1406,7 +1548,8 @@ export class MyGameLogic implements GameLogic {
         goal: '你的目标',
         is_current: this.getCurrentRole(state) === roleId
       },
-      action_space_definition: this.getLegalActions(state, roleId)
+      action_space_definition: this.getLegalActions(state, roleId),
+      message, // 统一消息，由平台渲染
     };
   }
 }
@@ -1461,6 +1604,11 @@ export function MyGameUI({
 
   return (
     <div className={styles.container}>
+      {/* 
+        游戏状态消息（轮到你了、等待对手等）现在由平台的统一消息栏显示
+        游戏UI只需关注游戏内容的渲染
+      */}
+      
       <div className={styles.gameBoard}>
         {/* 渲染游戏状态 */}
         <pre>{JSON.stringify(perspective.current_state, null, 2)}</pre>
@@ -1480,12 +1628,6 @@ export function MyGameUI({
             </button>
           ))}
       </div>
-      
-      {!isMyTurn && (
-        <div className={styles.waitingMessage}>
-          等待其他玩家行动...
-        </div>
-      )}
     </div>
   );
 }
@@ -1869,6 +2011,7 @@ export class TicTacToeLogic implements GameLogic {
       description: '在3x3棋盘上,先连成三子一线者获胜',
       minPlayers: 2,
       maxPlayers: 2,
+      roleIds: ['player_X', 'player_O'], // 定义井字棋的两个角色
       getStatusText: (perspective: RolePerspective) => {
         const state = perspective.current_state;
         if (state.winner) {
@@ -1967,6 +2110,23 @@ export class TicTacToeLogic implements GameLogic {
 
   toRolePerspective(state: TicTacToeState, roleId, wholeHistory, diffHistory): RolePerspective {
     const symbol = state.players[0] === roleId ? 'X' : 'O';
+    const opponentSymbol = symbol === 'X' ? 'O' : 'X';
+    
+    // Generate message for unified message bar
+    let message = '';
+    if (state.winner) {
+      if (state.winner === roleId) {
+        message = '🎉 游戏结束 - 你获胜了！';
+      } else {
+        message = `😔 游戏结束 - 玩家 ${opponentSymbol} 获胜`;
+      }
+    } else if (this.isBoardFull(state.board)) {
+      message = '🤝 游戏结束 - 平局';
+    } else if (this.getCurrentRole(state) === roleId) {
+      message = `✨ 轮到你了 (${symbol})，请在棋盘上选择位置`;
+    } else {
+      message = `⏳ 等待玩家 ${opponentSymbol} 行动...`;
+    }
     
     return {
       global_rules: this.getMetadata().description,
@@ -1983,7 +2143,8 @@ export class TicTacToeLogic implements GameLogic {
         goal: `使用${symbol}棋子,先连成三子一线获胜`,
         is_current: this.getCurrentRole(state) === roleId
       },
-      action_space_definition: this.getLegalActions(state, roleId)
+      action_space_definition: this.getLegalActions(state, roleId),
+      message, // Unified message for platform to render
     };
   }
 
@@ -2037,6 +2198,8 @@ export function TicTacToeUI({
 
   return (
     <div className={styles.container}>
+      {/* Game status message is now handled by platform's unified message bar */}
+      
       <div className={styles.board}>
         {board.map((row, i) => (
           <div key={i} className={styles.row}>
@@ -2054,18 +2217,6 @@ export function TicTacToeUI({
           </div>
         ))}
       </div>
-      
-      {winner && (
-        <div className={styles.winnerMessage}>
-          🎉 {winner} 获胜!
-        </div>
-      )}
-      
-      {!isMyTurn && !winner && (
-        <div className={styles.waitingMessage}>
-          等待对手行动...
-        </div>
-      )}
     </div>
   );
 }
@@ -2130,25 +2281,10 @@ export default { render: TicTacToeUI };
   color: #667eea;
 }
 
-.winnerMessage {
-  margin-top: 2rem;
-  font-size: 32px;
-  font-weight: bold;
-  color: white;
-  animation: bounce 1s infinite;
-}
-
-.waitingMessage {
-  margin-top: 2rem;
-  font-size: 18px;
-  color: white;
-  opacity: 0.8;
-}
-
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
+/* 
+ * Game status messages (winner, waiting, etc.) are now handled 
+ * by platform's unified message bar - no need for game-specific styles 
+ */
 ```
 
 ---
@@ -2163,6 +2299,7 @@ export default { render: TicTacToeUI };
 ✅ **LLM原生**: 人类和AI使用同一视角协议  
 ✅ **可扩展性**: 新游戏只需实现标准接口即可接入  
 ✅ **灵活行动空间**: 统一支持固定选项与参数化模板的组合
+✅ **统一用户体验**: 平台统一渲染消息状态栏，保证体验一致性
 
 ### 核心设计亮点
 
@@ -2172,12 +2309,20 @@ export default { render: TicTacToeUI };
 - 参数化模板：`params_schema: {...}`（如"落子(row,col)"、"加注(amount)"）
 - 支持任意组合，适配从井字棋到围棋的各类游戏
 
-**游戏开发者只需关注两件事:**
+**统一消息状态栏设计**
+- 游戏逻辑层在 `toRolePerspective()` 中生成 `message` 字段
+- 平台前端统一渲染消息栏，应用样式、动画、主题
+- 游戏UI专注游戏内容，无需重复实现状态提示逻辑
+- 确保所有游戏的用户体验一致，降低开发者负担
+
+**游戏开发者只需关注三件事:**
 1. **实现 `GameLogic` 接口** (后端纯逻辑)
-2. **实现 `GameUIPlugin` 接口** (前端纯渲染)
+2. **在 `toRolePerspective()` 中生成消息内容** (状态提示)
+3. **实现 `GameUIPlugin` 接口** (前端纯渲染，不含状态消息)
 
 **平台处理剩下的一切:**
 - 房间管理、状态同步、LLM调度、权限控制、事件广播
 - 行动验证、版本控制、分布式锁、幂等性保证
 - 视角生成与缓存、SSE实时推送
+- 统一消息状态栏渲染、样式管理、国际化支持
 

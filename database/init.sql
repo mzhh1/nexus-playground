@@ -11,13 +11,14 @@ CREATE TABLE IF NOT EXISTS rooms (
     room_id VARCHAR(16) PRIMARY KEY,
     owner_uid VARCHAR(255) NOT NULL,
     game_id VARCHAR(100),
-    room_status VARCHAR(20) NOT NULL DEFAULT 'open', -- open, playing, paused, finished
+    room_status VARCHAR(20) NOT NULL DEFAULT 'open', -- open, playing, paused
+    is_public BOOLEAN NOT NULL DEFAULT TRUE, -- 房间是否公开
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
     -- Constraints
     CONSTRAINT unique_owner_room UNIQUE (owner_uid),
-    CONSTRAINT valid_room_status CHECK (room_status IN ('open', 'playing', 'paused', 'finished'))
+    CONSTRAINT valid_room_status CHECK (room_status IN ('open', 'playing', 'paused'))
 );
 
 -- Index for fast lookup by owner
@@ -93,6 +94,7 @@ SELECT
     r.owner_uid,
     r.game_id,
     r.room_status,
+    r.is_public,
     r.created_at,
     r.updated_at,
     COUNT(DISTINCT s.snapshot_id) as snapshot_count,
@@ -101,7 +103,7 @@ FROM rooms r
 LEFT JOIN snapshots s ON r.room_id = s.room_id
 LEFT JOIN history h ON r.room_id = h.room_id
 WHERE r.room_status IN ('open', 'playing', 'paused')
-GROUP BY r.room_id, r.owner_uid, r.game_id, r.room_status, r.created_at, r.updated_at;
+GROUP BY r.room_id, r.owner_uid, r.game_id, r.room_status, r.is_public, r.created_at, r.updated_at;
 
 -- ============ Permissions (for production) ============
 -- Grant appropriate permissions to the nexus_user

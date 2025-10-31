@@ -87,7 +87,9 @@ export interface RoomInfo {
   room_id: string;
   owner_uid: string;
   game_id: string | null;
-  room_status: 'open' | 'playing' | 'paused' | 'finished';
+  room_status: 'open' | 'playing' | 'paused';
+  is_public: boolean;
+  resume_locked: boolean;
   player_list: PlayerList;
   role_mapping: RoleMapping;
   has_game_state: boolean;
@@ -104,6 +106,11 @@ export interface GameMetadata {
   description: string;
   minPlayers: number;
   maxPlayers: number;
+  /**
+   * List of role IDs required by the game
+   * Example: ["player_X", "player_O"] for tic-tac-toe
+   */
+  roleIds: string[];
 }
 
 // ============ API Response Types ============

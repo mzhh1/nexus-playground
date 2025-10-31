@@ -1,11 +1,12 @@
 /**
- * Rooms Routes
- * Access other users' rooms
+ * Protected Rooms Routes (Auth Required)
+ * Manage and interact with rooms (requires authentication)
  */
 
 import { FastifyPluginAsync } from 'fastify';
 import { createRoomDAO } from '../db/rooms';
 import { createStateManager } from '../runtime/state-manager';
+import { createPerspectiveGenerator } from '../runtime/perspective-generator';
 import { generatePlayerId } from '../utils/player-id-generator';
 import { isValidRoomId } from '../utils/room-id-generator';
 import logger from '../utils/logger';
@@ -15,6 +16,7 @@ import { getEventBus } from '../runtime/event-bus';
 const roomsRoutes: FastifyPluginAsync = async (fastify) => {
   const roomDAO = createRoomDAO(fastify);
   const stateManager = createStateManager(fastify);
+  const perspectiveGenerator = createPerspectiveGenerator(fastify, stateManager);
 
   // ----- Owner-only helpers -----
   async function ensureOwner(request: any, roomId: string) {
@@ -26,51 +28,6 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
     return { ok: true as const, room };
   }
 
-  /**
-   * GET /api/v1/rooms/:roomId
-   * Get room information (public view)
-   */
-  fastify.get<{
-    Params: { roomId: string };
-  }>('/rooms/:roomId', async (request, reply) => {
-    const { roomId } = request.params;
-
-    if (!isValidRoomId(roomId)) {
-      return reply.code(400).send({ error: 'Invalid room ID format' });
-    }
-
-    try {
-      // Get room from PostgreSQL
-      const room = await roomDAO.getById(roomId);
-
-      if (!room) {
-        return reply.code(404).send({ error: 'Room not found' });
-      }
-
-      // Get room state from Redis
-      const roomState = await stateManager.getRoomState(roomId);
-
-      if (!roomState) {
-        return reply.code(404).send({ error: 'Room state not found' });
-      }
-
-      // Return public information only
-      return reply.send({
-        room_id: room.room_id,
-        owner_uid: room.owner_uid,
-        game_id: roomState.game_id,
-        room_status: roomState.room_status,
-        player_count: Object.keys(roomState.player_list).length,
-        player_list: roomState.player_list,
-        role_mapping: roomState.role_mapping,
-        has_game_state: roomState.game_state !== null,
-        created_at: room.created_at,
-      });
-    } catch (error) {
-      logger.error({ error, roomId }, 'Failed to get room');
-      return reply.code(500).send({ error: 'Failed to get room' });
-    }
-  });
 
   /**
    * POST /api/v1/rooms/:roomId/select-game
@@ -98,6 +55,11 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       await roomDAO.updateGameId(roomId, game_id);
       const result = await stateManager.selectGame(roomId, game_id);
       if (!result.success) return reply.code(500).send({ error: 'Failed to select game' });
+      
+      // Clear all player perspective caches when changing game
+      await perspectiveGenerator.invalidateAllPerspectives(roomId);
+      logger.debug({ roomId, gameId: game_id }, 'Cleared perspective caches on game selection');
+      
       logger.info({ roomId, gameId: game_id }, 'Game selected');
       return reply.send({ success: true, game_id });
     } catch (error) {
@@ -155,6 +117,13 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await stateManager.addPlayer(roomId, playerId, player);
       if (!result.success) return reply.code(400).send({ error: result.error || 'Failed to add player' });
       logger.info({ roomId, playerId, playerType: player_type }, 'Player added');
+      
+      // Broadcast player joined event
+      getEventBus().broadcastToRoom(roomId, 'player_joined', { 
+        player_id: playerId, 
+        player 
+      });
+      
       return reply.send({ success: true, player_id: playerId, player });
     } catch (error) {
       logger.error({ error, roomId }, 'Failed to add player');
@@ -184,6 +153,12 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await stateManager.removePlayer(roomId, player_id);
       if (!result.success) return reply.code(400).send({ error: result.error || 'Failed to remove player' });
       logger.info({ roomId, playerId: player_id }, 'Player removed');
+      
+      // Broadcast player left event
+      getEventBus().broadcastToRoom(roomId, 'player_left', { 
+        player_id 
+      });
+      
       return reply.send({ success: true });
     } catch (error) {
       logger.error({ error, roomId, playerId: player_id }, 'Failed to remove player');
@@ -213,6 +188,7 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
         role_mapping,
         game_state: getGameLogic(gameId).initState({ players: Object.keys(role_mapping) }),
         room_status: 'playing',
+        resume_locked: false,
         history: [],
       }));
       if (!result.success) return reply.code(500).send({ error: 'Failed to start game' });
@@ -233,10 +209,56 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       if (!('ok' in owner && owner.ok)) return reply.code((owner as any).code).send({ error: (owner as any).error });
 
       try {
-        const status = action === 'pause' ? 'paused' : action === 'resume' ? 'playing' : 'finished';
-        await stateManager.updateRoomStatus(roomId, status as any);
-        await roomDAO.updateStatus(roomId, status as any);
-        getEventBus().broadcastToRoom(roomId, `game_${action}d`, {});
+        const roomState = await stateManager.getRoomState(roomId);
+        if (!roomState) {
+          return reply.code(404).send({ error: 'Room state not found' });
+        }
+
+        if (action === 'pause') {
+          if (roomState.room_status !== 'playing') {
+            return reply.code(400).send({ error: 'Game is not playing' });
+          }
+
+          await stateManager.updateRoomStatus(roomId, 'paused', { resumeLocked: false });
+          await roomDAO.updateStatus(roomId, 'paused');
+        } else if (action === 'resume') {
+          if (roomState.room_status !== 'paused') {
+            return reply.code(400).send({ error: 'Game is not paused' });
+          }
+
+          if (roomState.resume_locked) {
+            return reply.code(400).send({ error: 'Game has been stopped and cannot be resumed' });
+          }
+
+          await stateManager.updateRoomStatus(roomId, 'playing', { resumeLocked: false });
+          await roomDAO.updateStatus(roomId, 'playing');
+        } else {
+          if (roomState.room_status === 'open') {
+            return reply.code(400).send({ error: 'Game has not started' });
+          }
+
+          const resetResult = await stateManager.resetGameState(roomId);
+
+          if (!resetResult.success) {
+            logger.error({ roomId, error: resetResult.error }, 'Failed to reset room state on stop');
+            return reply.code(500).send({ error: 'Failed to stop game' });
+          }
+
+          // Clear all player perspective caches
+          await perspectiveGenerator.invalidateAllPerspectives(roomId);
+          logger.debug({ roomId }, 'Cleared all perspective caches on game stop');
+
+          await roomDAO.updateStatus(roomId, 'open');
+          await roomDAO.updateGameId(roomId, null);
+        }
+        const eventName =
+          action === 'pause'
+            ? 'game_paused'
+            : action === 'resume'
+              ? 'game_resumed'
+              : 'game_stopped';
+
+        getEventBus().broadcastToRoom(roomId, eventName, {});
         return reply.send({ success: true });
       } catch (error) {
         logger.error({ error, roomId }, `Failed to ${action} game`);
@@ -244,6 +266,76 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       }
     });
   }
+
+  /**
+   * POST /api/v1/rooms/:roomId/restart
+   * Restart the game with the same settings
+   */
+  fastify.post<{ Params: { roomId: string } }>('/rooms/:roomId/restart', async (request, reply) => {
+    const { roomId } = request.params;
+    if (!isValidRoomId(roomId)) return reply.code(400).send({ error: 'Invalid room ID format' });
+    const owner = await ensureOwner(request, roomId);
+    if (!('ok' in owner && owner.ok)) return reply.code((owner as any).code).send({ error: (owner as any).error });
+
+    try {
+      const roomState = await stateManager.getRoomState(roomId);
+      if (!roomState || !roomState.game_id) {
+        return reply.code(400).send({ error: 'Game not selected' });
+      }
+
+      if (roomState.room_status === 'open') {
+        return reply.code(400).send({ error: 'Game has not been started yet' });
+      }
+
+      const gameId = roomState.game_id as string;
+      const roleMapping = roomState.role_mapping;
+
+      // Validate role mapping
+      if (!roleMapping || Object.keys(roleMapping).length === 0) {
+        return reply.code(400).send({ error: 'Role mapping not found' });
+      }
+
+      // Restart game with same role mapping
+      const result = await stateManager.updateRoomState(roomId, (state) => ({
+        ...state,
+        game_state: getGameLogic(gameId).initState({ players: Object.keys(roleMapping) }),
+        room_status: 'playing',
+        resume_locked: false,
+        history: [],
+      }));
+
+      if (!result.success) {
+        return reply.code(500).send({ error: 'Failed to restart game' });
+      }
+
+      await roomDAO.updateStatus(roomId, 'playing');
+
+      // Broadcast game_restarted event
+      getEventBus().broadcastToRoom(roomId, 'game_restarted', { game_id: gameId, role_mapping: roleMapping });
+
+      // Broadcast updated perspectives to all roles
+      const updatedState = await stateManager.getRoomState(roomId);
+      if (updatedState && updatedState.game_state) {
+        const gameLogic = getGameLogic(gameId);
+        // History is reset, so both whole and diff history are empty
+        const emptyHistory: any[] = [];
+        for (const roleId of Object.keys(roleMapping)) {
+          const perspective = gameLogic.toRolePerspective(
+            updatedState.game_state,
+            roleId,
+            emptyHistory,
+            emptyHistory
+          );
+          getEventBus().broadcastPerspective(roomId, roleId, perspective);
+        }
+      }
+
+      return reply.send({ success: true });
+    } catch (error) {
+      logger.error({ error, roomId }, 'Failed to restart game');
+      return reply.code(500).send({ error: 'Failed to restart game' });
+    }
+  });
   /**
    * POST /api/v1/rooms/:roomId/join
    * Join a room as a human player

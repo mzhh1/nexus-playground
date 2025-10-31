@@ -25,7 +25,7 @@ export interface GameUIProps {
   isMyTurn: boolean;
 
   /**
-   * Is the game in read-only mode? (observing or game finished)
+   * Is the game in read-only mode? (观察或终局暂停)
    */
   readonly: boolean;
 

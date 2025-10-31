@@ -40,47 +40,6 @@ export class GameAPI {
     return response.data;
   }
 
-  async selectGame(gameId: string): Promise<{ success: true; game_id: string }> {
-    const response = await this.client.post('/my-nexus/select-game', { game_id: gameId });
-    return response.data;
-  }
-
-  async addPlayer(player: {
-    player_type: 'human' | 'llm';
-    uid?: string;
-    display_name: string;
-    model_name?: string;
-    system_prompt?: string;
-  }): Promise<{ success: true; player_id: string; player: any }> {
-    const response = await this.client.post('/my-nexus/add-player', player);
-    return response.data;
-  }
-
-  async removePlayer(playerId: string): Promise<{ success: true }> {
-    const response = await this.client.post('/my-nexus/remove-player', { player_id: playerId });
-    return response.data;
-  }
-
-  async startGame(roleMapping: RoleMapping): Promise<{ success: true }> {
-    const response = await this.client.post('/my-nexus/start', { role_mapping: roleMapping });
-    return response.data;
-  }
-
-  async pauseGame(): Promise<{ success: true }> {
-    const response = await this.client.post('/my-nexus/pause');
-    return response.data;
-  }
-
-  async resumeGame(): Promise<{ success: true }> {
-    const response = await this.client.post('/my-nexus/resume');
-    return response.data;
-  }
-
-  async stopGame(): Promise<{ success: true }> {
-    const response = await this.client.post('/my-nexus/stop');
-    return response.data;
-  }
-
   // ============ Room APIs ============
 
   async getRoomInfo(roomId: string): Promise<RoomInfo> {
@@ -90,6 +49,54 @@ export class GameAPI {
 
   async joinRoom(roomId: string, displayName: string): Promise<{ success: true; player_id: string; player: any }> {
     const response = await this.client.post(`/rooms/${roomId}/join`, { display_name: displayName });
+    return response.data;
+  }
+
+  // ============ Owner Operations (Room-based) ============
+
+  async selectGame(roomId: string, gameId: string): Promise<{ success: true; game_id: string }> {
+    const response = await this.client.post(`/rooms/${roomId}/select-game`, { game_id: gameId });
+    return response.data;
+  }
+
+  async addPlayer(roomId: string, player: {
+    player_type: 'human' | 'llm';
+    uid?: string;
+    display_name: string;
+    model_name?: string;
+    system_prompt?: string;
+  }): Promise<{ success: true; player_id: string; player: any }> {
+    const response = await this.client.post(`/rooms/${roomId}/add-player`, player);
+    return response.data;
+  }
+
+  async removePlayer(roomId: string, playerId: string): Promise<{ success: true }> {
+    const response = await this.client.post(`/rooms/${roomId}/remove-player`, { player_id: playerId });
+    return response.data;
+  }
+
+  async startGame(roomId: string, roleMapping: RoleMapping): Promise<{ success: true }> {
+    const response = await this.client.post(`/rooms/${roomId}/start`, { role_mapping: roleMapping });
+    return response.data;
+  }
+
+  async pauseGame(roomId: string): Promise<{ success: true }> {
+    const response = await this.client.post(`/rooms/${roomId}/pause`);
+    return response.data;
+  }
+
+  async resumeGame(roomId: string): Promise<{ success: true }> {
+    const response = await this.client.post(`/rooms/${roomId}/resume`);
+    return response.data;
+  }
+
+  async stopGame(roomId: string): Promise<{ success: true }> {
+    const response = await this.client.post(`/rooms/${roomId}/stop`);
+    return response.data;
+  }
+
+  async restartGame(roomId: string): Promise<{ success: true }> {
+    const response = await this.client.post(`/rooms/${roomId}/restart`);
     return response.data;
   }
 

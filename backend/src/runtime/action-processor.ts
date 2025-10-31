@@ -155,7 +155,8 @@ export class ActionProcessor {
           ...state,
           game_state: actionResult.nextState,
           history: [...state.history, historyEvent],
-          room_status: isTerminal ? 'finished' : state.room_status,
+          room_status: isTerminal ? 'paused' : state.room_status,
+          resume_locked: isTerminal ? true : state.resume_locked,
         };
       });
 

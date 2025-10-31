@@ -11,24 +11,37 @@ export interface Room {
   room_id: string;
   owner_uid: string;
   game_id: string | null;
-  room_status: 'open' | 'playing' | 'paused' | 'finished';
+  room_status: 'open' | 'playing' | 'paused';
+  is_public: boolean;
   created_at: Date;
   updated_at: Date;
 }
 
+type RoomRow = Omit<Room, 'room_status'> & {
+  room_status: Room['room_status'] | 'finished';
+};
+
 export class RoomDAO {
   constructor(private fastify: FastifyInstance) {}
+
+  private normalizeRoom(row: RoomRow): Room {
+    return {
+      ...row,
+      room_status: row.room_status === 'finished' ? 'paused' : row.room_status,
+    };
+  }
 
   /**
    * Get room by ID
    */
   async getById(roomId: string): Promise<Room | null> {
     try {
-      const result = await this.fastify.pg.query<Room>(
+      const result = await this.fastify.pg.query<RoomRow>(
         'SELECT * FROM rooms WHERE room_id = $1',
         [roomId]
       );
-      return result.rows[0] || null;
+      const row = result.rows[0];
+      return row ? this.normalizeRoom(row) : null;
     } catch (error) {
       logger.error({ error, roomId }, 'Failed to get room by ID');
       throw error;
@@ -40,13 +53,42 @@ export class RoomDAO {
    */
   async getByOwnerUid(ownerUid: string): Promise<Room | null> {
     try {
-      const result = await this.fastify.pg.query<Room>(
+      const result = await this.fastify.pg.query<RoomRow>(
         'SELECT * FROM rooms WHERE owner_uid = $1',
         [ownerUid]
       );
-      return result.rows[0] || null;
+      const row = result.rows[0];
+      return row ? this.normalizeRoom(row) : null;
     } catch (error) {
       logger.error({ error, ownerUid }, 'Failed to get room by owner UID');
+      throw error;
+    }
+  }
+
+  async list(options?: { ownerUid?: string; limit?: number }): Promise<Room[]> {
+    const limit = options?.limit ?? 20;
+
+    if (!Number.isInteger(limit) || limit <= 0) {
+      throw new Error('Invalid limit provided to list rooms');
+    }
+
+    const values: Array<string | number> = [];
+    let query = 'SELECT * FROM rooms';
+
+    if (options?.ownerUid) {
+      values.push(options.ownerUid);
+      query += ` WHERE owner_uid = $${values.length}`;
+    }
+
+    query += ' ORDER BY created_at DESC';
+    values.push(limit);
+    query += ` LIMIT $${values.length}`;
+
+    try {
+      const result = await this.fastify.pg.query<RoomRow>(query, values);
+      return result.rows.map((row) => this.normalizeRoom(row));
+    } catch (error) {
+      logger.error({ error, options }, 'Failed to list rooms');
       throw error;
     }
   }
@@ -100,7 +142,7 @@ export class RoomDAO {
    */
   async updateStatus(
     roomId: string,
-    status: 'open' | 'playing' | 'paused' | 'finished'
+    status: Room['room_status']
   ): Promise<void> {
     try {
       await this.fastify.pg.query(

@@ -14,6 +14,16 @@ export function useRoom(roomId?: string) {
 
   const apiClient = useGameAPI();
 
+  const resolveRoomId = useCallback(() => {
+    if (roomId) {
+      return roomId;
+    }
+    if (room?.room_id) {
+      return room.room_id;
+    }
+    throw new Error('Room ID is required for this operation');
+  }, [roomId, room?.room_id]);
+
   /**
    * Fetch room info
    */
@@ -60,6 +70,14 @@ export function useRoom(roomId?: string) {
     }
   }, []);
 
+  const refreshAfterMutation = useCallback(async () => {
+    if (roomId) {
+      await fetchRoom();
+    } else {
+      await fetchMyNexus();
+    }
+  }, [roomId, fetchRoom, fetchMyNexus]);
+
   /**
    * Select game
    */
@@ -67,9 +85,9 @@ export function useRoom(roomId?: string) {
     setError(null);
 
     try {
-      await apiClient.selectGame(gameId);
-      // Refresh room info
-      await fetchMyNexus();
+      const targetRoomId = resolveRoomId();
+      await apiClient.selectGame(targetRoomId, gameId);
+      await refreshAfterMutation();
     } catch (err: any) {
       const errorMsg = typeof err.response?.data?.error === 'string'
         ? err.response.data.error
@@ -77,7 +95,7 @@ export function useRoom(roomId?: string) {
       setError(errorMsg);
       throw err;
     }
-  }, [fetchMyNexus]);
+  }, [apiClient, resolveRoomId, refreshAfterMutation]);
 
   /**
    * Add player
@@ -92,9 +110,9 @@ export function useRoom(roomId?: string) {
     setError(null);
 
     try {
-      const result = await apiClient.addPlayer(player);
-      // Refresh room info
-      await fetchMyNexus();
+      const targetRoomId = resolveRoomId();
+      const result = await apiClient.addPlayer(targetRoomId, player);
+      await refreshAfterMutation();
       return result;
     } catch (err: any) {
       const errorMsg = typeof err.response?.data?.error === 'string'
@@ -103,7 +121,7 @@ export function useRoom(roomId?: string) {
       setError(errorMsg);
       throw err;
     }
-  }, [fetchMyNexus]);
+  }, [apiClient, resolveRoomId, refreshAfterMutation]);
 
   /**
    * Remove player
@@ -112,9 +130,9 @@ export function useRoom(roomId?: string) {
     setError(null);
 
     try {
-      await apiClient.removePlayer(playerId);
-      // Refresh room info
-      await fetchMyNexus();
+      const targetRoomId = resolveRoomId();
+      await apiClient.removePlayer(targetRoomId, playerId);
+      await refreshAfterMutation();
     } catch (err: any) {
       const errorMsg = typeof err.response?.data?.error === 'string'
         ? err.response.data.error
@@ -122,7 +140,7 @@ export function useRoom(roomId?: string) {
       setError(errorMsg);
       throw err;
     }
-  }, [fetchMyNexus]);
+  }, [apiClient, resolveRoomId, refreshAfterMutation]);
 
   /**
    * Start game
@@ -131,13 +149,9 @@ export function useRoom(roomId?: string) {
     setError(null);
 
     try {
-      await apiClient.startGame(roleMapping);
-      // Refresh room info
-      if (roomId) {
-        await fetchRoom();
-      } else {
-        await fetchMyNexus();
-      }
+      const targetRoomId = resolveRoomId();
+      await apiClient.startGame(targetRoomId, roleMapping);
+      await refreshAfterMutation();
     } catch (err: any) {
       const errorMsg = typeof err.response?.data?.error === 'string'
         ? err.response.data.error
@@ -145,7 +159,7 @@ export function useRoom(roomId?: string) {
       setError(errorMsg);
       throw err;
     }
-  }, [roomId, fetchRoom, fetchMyNexus]);
+  }, [apiClient, resolveRoomId, refreshAfterMutation]);
 
   /**
    * Pause game
@@ -154,8 +168,9 @@ export function useRoom(roomId?: string) {
     setError(null);
 
     try {
-      await apiClient.pauseGame();
-      await fetchMyNexus();
+      const targetRoomId = resolveRoomId();
+      await apiClient.pauseGame(targetRoomId);
+      await refreshAfterMutation();
     } catch (err: any) {
       const errorMsg = typeof err.response?.data?.error === 'string'
         ? err.response.data.error
@@ -163,7 +178,7 @@ export function useRoom(roomId?: string) {
       setError(errorMsg);
       throw err;
     }
-  }, [fetchMyNexus]);
+  }, [apiClient, resolveRoomId, refreshAfterMutation]);
 
   /**
    * Resume game
@@ -172,8 +187,9 @@ export function useRoom(roomId?: string) {
     setError(null);
 
     try {
-      await apiClient.resumeGame();
-      await fetchMyNexus();
+      const targetRoomId = resolveRoomId();
+      await apiClient.resumeGame(targetRoomId);
+      await refreshAfterMutation();
     } catch (err: any) {
       const errorMsg = typeof err.response?.data?.error === 'string'
         ? err.response.data.error
@@ -181,7 +197,7 @@ export function useRoom(roomId?: string) {
       setError(errorMsg);
       throw err;
     }
-  }, [fetchMyNexus]);
+  }, [apiClient, resolveRoomId, refreshAfterMutation]);
 
   /**
    * Stop game
@@ -190,8 +206,9 @@ export function useRoom(roomId?: string) {
     setError(null);
 
     try {
-      await apiClient.stopGame();
-      await fetchMyNexus();
+      const targetRoomId = resolveRoomId();
+      await apiClient.stopGame(targetRoomId);
+      await refreshAfterMutation();
     } catch (err: any) {
       const errorMsg = typeof err.response?.data?.error === 'string'
         ? err.response.data.error
@@ -199,7 +216,26 @@ export function useRoom(roomId?: string) {
       setError(errorMsg);
       throw err;
     }
-  }, [fetchMyNexus]);
+  }, [apiClient, resolveRoomId, refreshAfterMutation]);
+
+  /**
+   * Restart game
+   */
+  const restartGame = useCallback(async () => {
+    setError(null);
+
+    try {
+      const targetRoomId = resolveRoomId();
+      await apiClient.restartGame(targetRoomId);
+      await refreshAfterMutation();
+    } catch (err: any) {
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to restart game';
+      setError(errorMsg);
+      throw err;
+    }
+  }, [apiClient, resolveRoomId, refreshAfterMutation]);
 
   /**
    * Join room
@@ -238,6 +274,7 @@ export function useRoom(roomId?: string) {
     pauseGame,
     resumeGame,
     stopGame,
+    restartGame,
     joinRoom,
   };
 }

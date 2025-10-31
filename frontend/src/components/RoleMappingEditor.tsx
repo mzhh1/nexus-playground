@@ -14,6 +14,15 @@ interface RoleMappingEditorProps {
   onMappingChange?: (mapping: RoleMapping) => void;
 }
 
+const formatRoleLabel = (roleId: string): string => {
+  if (roleId.startsWith('player_')) {
+    const suffix = roleId.slice('player_'.length);
+    return `Player ${suffix.toUpperCase()}`;
+  }
+
+  return roleId;
+};
+
 export const RoleMappingEditor: React.FC<RoleMappingEditorProps> = ({
   playerList,
   roleIds,
@@ -60,7 +69,7 @@ export const RoleMappingEditor: React.FC<RoleMappingEditorProps> = ({
         {roleIds.map((roleId) => (
           <div key={roleId} className="role-row">
             <div className="role-label">
-              <strong>{roleId}</strong>
+              <strong>{formatRoleLabel(roleId)}</strong>
             </div>
             
             <div className="player-select">
@@ -86,7 +95,7 @@ export const RoleMappingEditor: React.FC<RoleMappingEditorProps> = ({
           <p className="empty-message">No players available</p>
         )}
         {playerOptions.map(([playerId, player]) => {
-          const roles = getAssignedRoles(playerId);
+          const roles = getAssignedRoles(playerId).map((id) => formatRoleLabel(id));
           return (
             <div key={playerId} className="player-summary">
               <span className="player-name">{player.display_name}</span>

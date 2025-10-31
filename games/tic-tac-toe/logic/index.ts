@@ -35,6 +35,7 @@ export class TicTacToeLogic implements GameLogic {
       description: '在3x3棋盘上，两位玩家轮流下棋，先将自己的三个棋子连成一线者获胜。',
       minPlayers: 2,
       maxPlayers: 2,
+      roleIds: ['player_X', 'player_O'], // Define the roles required for this game
       getStatusText: (perspective: RolePerspective) => {
         const state = perspective.current_state;
         
@@ -208,6 +209,25 @@ export class TicTacToeLogic implements GameLogic {
     const s = state as TicTacToeState;
     const metadata = this.getMetadata();
 
+    // Generate message for unified message bar
+    let message = '';
+    const mySymbol = roleId === 'player_X' ? 'X' : 'O';
+    const opponentSymbol = roleId === 'player_X' ? 'O' : 'X';
+    
+    if (s.winner) {
+      if (s.winner === roleId) {
+        message = `🎉 游戏结束 - 你获胜了！`;
+      } else {
+        message = `😔 游戏结束 - 玩家 ${opponentSymbol} 获胜`;
+      }
+    } else if (s.isDraw) {
+      message = '🤝 游戏结束 - 平局';
+    } else if (s.currentRole === roleId) {
+      message = `✨ 轮到你了 (${mySymbol})，请在棋盘上选择位置`;
+    } else {
+      message = `⏳ 等待玩家 ${opponentSymbol} 行动...`;
+    }
+
     // Tic-Tac-Toe is a perfect information game
     // All players see the complete board state
     const perspective: RolePerspective = {
@@ -227,6 +247,7 @@ export class TicTacToeLogic implements GameLogic {
         is_current: s.currentRole === roleId,
       },
       action_space_definition: this.getLegalActions(state, roleId),
+      message, // Add unified message for platform to render
     };
 
     return perspective;

@@ -3,6 +3,12 @@
 # 默认目标
 .DEFAULT_GOAL := help
 
+# 加载 .env 文件（如果存在）
+ifneq (,$(wildcard .env))
+    include .env
+    export
+endif
+
 # 颜色定义
 BLUE := \033[0;34m
 GREEN := \033[0;32m
@@ -143,10 +149,32 @@ shell-backend: ## 进入后端容器 shell
 	docker-compose exec backend sh
 
 shell-postgres: ## 进入 PostgreSQL 容器
-	docker-compose exec postgres psql -U $${POSTGRES_USER:-nexus} -d $${POSTGRES_DB:-nexus_playground}
+	docker-compose exec postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
 shell-redis: ## 进入 Redis 容器
-	docker-compose exec redis redis-cli -a $${REDIS_PASSWORD:-nexus_redis_pass}
+	docker-compose exec redis redis-cli -a $(REDIS_PASSWORD)
+
+db-migrate: ## 执行数据库迁移 (使用: make db-migrate MIGRATION=001_add_is_public_to_rooms.sql)
+	@if [ -z "$(MIGRATION)" ]; then \
+		echo "$(RED)❌ 错误: 请指定迁移文件名$(NC)"; \
+		echo "$(YELLOW)使用方法: make db-migrate MIGRATION=001_add_is_public_to_rooms.sql$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)🔄 执行数据库迁移: $(MIGRATION)$(NC)"
+	@docker cp database/migrations/$(MIGRATION) $$(docker-compose ps -q postgres):/tmp/migration.sql
+	@docker-compose exec -T postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f /tmp/migration.sql
+	@echo "$(GREEN)✅ 迁移完成$(NC)"
+
+db-migrate-all: ## 执行所有数据库迁移
+	@echo "$(BLUE)🔄 执行所有数据库迁移...$(NC)"
+	@for file in database/migrations/*.sql; do \
+		if [ -f "$$file" ]; then \
+			echo "$(YELLOW)执行: $$(basename $$file)$(NC)"; \
+			docker cp "$$file" $$(docker-compose ps -q postgres):/tmp/migration.sql; \
+			docker-compose exec -T postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f /tmp/migration.sql || exit 1; \
+		fi; \
+	done
+	@echo "$(GREEN)✅ 所有迁移完成$(NC)"
 
 test: ## 运行测试（示例）
 	@echo "$(BLUE)🧪 运行测试...$(NC)"

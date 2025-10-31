@@ -294,6 +294,74 @@ export interface GameLogic {
    - `room`：基于 `?id=` 查询参数渲染房间（M0 以访客视角为主）
 3. **桥接下游 SDK**：使用 `createAuthBridgeFromContext(auth)` 创建 `llmapi-sdk`、`points-sdk` 客户端
 
+### SSE 流式连接特殊认证机制
+
+由于浏览器原生 `EventSource` API **不支持自定义 HTTP Headers**（无法携带 `Authorization: Bearer <token>`），本平台采用 **临时 Ticket 认证** 机制来保护 SSE 端点。
+
+#### 设计原理
+
+```
+步骤 1: 前端获取 Ticket（使用标准 OAuth Token）
+  POST /api/v1/rooms/{roomId}/perspectives/{roleId}/ticket
+  Authorization: Bearer <access_token>
+  ↓
+  后端验证 Token → 生成临时 Ticket → 存入 Redis（TTL 5分钟）
+  ↓
+  返回 { ticket: "xxx", expiresIn: 300, streamUrl: "..." }
+
+步骤 2: 前端使用 Ticket 建立 SSE 连接
+  GET /api/v1/rooms/{roomId}/perspectives/{roleId}/stream?ticket=xxx
+  ↓
+  后端从 Redis 验证 Ticket → 匹配 roomId/roleId → 建立 SSE 流
+  ↓
+  推送实时视角更新
+
+步骤 3: Ticket 过期自动刷新
+  前端监听 Ticket 过期时间 → 自动重新获取 Ticket → 重连 SSE
+```
+
+#### 安全特性
+
+- ✅ **Ticket 一次性生成**：需要有效的 OAuth Bearer Token 才能生成
+- ✅ **自动过期**：5 分钟 TTL，防止长期泄露
+- ✅ **资源绑定**：Ticket 只能用于指定的 `roomId` 和 `roleId`
+- ✅ **审计日志**：Ticket 包含 `userId`，后端完整记录连接来源
+- ✅ **允许重连**：Ticket 在 TTL 内可重复使用（支持页面刷新场景）
+
+#### 实现细节
+
+**后端路由配置**：
+- `/api/v1/rooms/:roomId/perspectives/:roleId/ticket`：**启用** `authMiddleware`（验证 Bearer Token）
+- `/api/v1/rooms/:roomId/perspectives/:roleId/stream`：**禁用** `authMiddleware`（通过 Ticket 验证）
+
+**前端 Hook (`usePerspective.ts`)**：
+```typescript
+// 1. 获取 Ticket
+const ticket = await fetch('/api/v1/rooms/.../ticket', {
+  method: 'POST',
+  headers: { 'Authorization': `Bearer ${accessToken}` }
+});
+
+// 2. 使用 Ticket 建立 SSE
+const eventSource = new EventSource(
+  `/api/v1/rooms/.../stream?ticket=${ticket}`
+);
+
+// 3. 监听 Ticket 过期并自动重连
+eventSource.onerror = () => {
+  if (ticketExpiring) {
+    // 获取新 Ticket 并重连
+  }
+};
+```
+
+#### 为何不修改 SDK？
+
+本方案完全在**应用层**实现，无需修改 `@autolabz/oauth-sdk` 或 `@autolabz/service-auth-middleware`：
+- SDK 保持通用性，适配所有标准 HTTP 请求场景
+- SSE 流式场景的特殊需求通过应用层 Ticket 机制独立解决
+- 其他项目可参考此模式，但不强制要求
+
 ```tsx
 // 每页入口：PageShell.tsx
 <OAuthProvider authServiceUrl={import.meta.env.VITE_AUTH_API_BASE_URL} clientId={import.meta.env.VITE_OAUTH_CLIENT_ID}>
@@ -356,6 +424,7 @@ app.post('/v1/rooms/:roomId/actions', async (req, reply) => {
 | `room:{roomId}:perspective:{roleId}:v{version}` | String | 角色视角缓存（按版本自动失效） | 5分钟 |
 | `room:{roomId}:history` | String | 历史事件列表（JSON） | 同上 |
 | `room:{roomId}:lock` | String | 行动处理锁（防止并发冲突） | 30秒 |
+| `sse_ticket:{ticket}` | String | SSE 认证票据（包含 userId、roomId、roleId、createdAt） | 5分钟 |
 
 ### PostgreSQL（持久化，支持复杂查询）
 
@@ -433,7 +502,7 @@ CREATE TABLE history (
   后端: GET /api/v1/rooms/{roomId}
         1. 验证星枢存在（Redis/PostgreSQL）
         2. 检查当前用户是否已在玩家列表
-        3. 若未加入且星枢状态为 "open"，允许加入
+        3. 若未加入，允许加入（无论星枢状态为 "open" 或 "playing"）
         4. 返回星枢信息（隐藏敏感数据，如其他玩家手牌）
     ↓
   前端: 渲染星枢页面（游戏区、玩家列表、加入/观战按钮）
@@ -442,10 +511,12 @@ CREATE TABLE history (
   前端: POST /api/v1/rooms/{roomId}/join
     ↓
   后端: 1. 验证用户鉴权
-        2. 检查星枢状态（open 才能加入）
+        2. 检查星枢状态（允许加入 open 或 playing 状态的星枢）
         3. 生成 room_player_id = {roomId}_{随机字符串}
-        4. Redis HSET room:{roomId}:players
+        4. Redis HSET room:{roomId}:players（添加到玩家列表，不分配角色映射）
         5. 广播事件（SSE/WS 通知主人与其他玩家）
+        
+  注：游戏中加入的玩家不会自动分配角色，需由主人在角色映射中手动分配
 ```
 
 ### 3. 选择游戏与开始（主人在 my-nexus 流程中完成）
@@ -555,6 +626,14 @@ cp .env.example .env
 # 编辑 .env，设置数据库连接（localhost:5432、localhost:6379）
 npm run dev  # http://localhost:3000
 ```
+
+### 房间运维脚本
+
+- `npm run room:admin -- --room-id <roomId>`：加载指定 Room 的 PostgreSQL 元数据与 Redis 状态。
+- `npm run room:admin -- --owner <ownerUid>`：按房主 UID 定位房间（若一人一房）。
+- `npm run room:admin -- --list [--limit <n>]`：按创建时间倒序列出最近的房间（默认最多 20 条，可叠加 `--owner` 过滤）。
+- `npm run room:admin -- --room-id <roomId> --reset`：重新初始化 Redis 状态并将数据库状态重置为 `open`（交互式二次确认）。
+- 追加 `--force` 可跳过确认，所有敏感操作会记录日志并在脚本结束时自动释放连接。
 
 ### 单元测试
 
