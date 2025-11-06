@@ -4,8 +4,8 @@
  */
 
 import { FastifyInstance } from 'fastify';
-import { RoomState, GameState, PlayerList, RoleMapping, HistoryEvent } from '../games/types';
-import logger from '../utils/logger';
+import { RoomState, GameState, PlayerList, RoleMapping, HistoryEvent } from '../games/types.js';
+import logger from '../utils/logger.js';
 
 export class StateManager {
   private readonly ROOM_KEY_PREFIX = 'room:';

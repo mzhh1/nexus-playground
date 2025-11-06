@@ -4,10 +4,10 @@
  */
 
 import { FastifyInstance } from 'fastify';
-import { StateManager } from './state-manager';
-import { getGameLogic } from '../games/registry';
-import { Action, HistoryEvent } from '../games/types';
-import logger from '../utils/logger';
+import { StateManager } from './state-manager.js';
+import { getGameLogic } from '../games/registry.js';
+import { Action, HistoryEvent } from '../games/types.js';
+import logger from '../utils/logger.js';
 
 export class ActionProcessor {
   private readonly LOCK_TTL = 10; // 10 seconds

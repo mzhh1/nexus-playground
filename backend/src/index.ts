@@ -3,38 +3,30 @@
  * Main server initialization and startup
  */
 
-// Configure module aliases for runtime
-import * as moduleAlias from 'module-alias';
-import * as path from 'path';
-
-moduleAlias.addAliases({
-  '@games': path.join(__dirname, '../../games'),
-  '@': path.join(__dirname, '../..')
-});
-
 import 'dotenv/config';
 import Fastify from 'fastify';
-import logger from './utils/logger';
+import logger from './utils/logger.js';
 
 // Plugins
-import redisPlugin from './plugins/redis';
-import postgresPlugin from './plugins/postgres';
-import corsPlugin from './plugins/cors';
-import authPlugin from './plugins/auth';
+import redisPlugin from './plugins/redis.js';
+import postgresPlugin from './plugins/postgres.js';
+import corsPlugin from './plugins/cors.js';
+import authPlugin from './plugins/auth.js';
+import appAuthPlugin from './plugins/app-auth.js';
 
 // Routes
-import healthRoute from './routes/health';
-import gamesRoute from './routes/games';
-import myNexusRoutes from './routes/my-nexus';
-import roomsRoutes from './routes/rooms';
-import roomsPublicRoutes from './routes/rooms-public';
-import actionsRoutes from './routes/actions';
-import perspectivesProtectedRoutes from './routes/perspectives-protected';
-import perspectivesPublicRoutes from './routes/perspectives-public';
+import healthRoute from './routes/health.js';
+import gamesRoute from './routes/games.js';
+import myNexusRoutes from './routes/my-nexus.js';
+import roomsRoutes from './routes/rooms.js';
+import roomsPublicRoutes from './routes/rooms-public.js';
+import actionsRoutes from './routes/actions.js';
+import perspectivesProtectedRoutes from './routes/perspectives-protected.js';
+import perspectivesPublicRoutes from './routes/perspectives-public.js';
 
 // Runtime
-import { getEventBus } from './runtime/event-bus';
-import { listAvailableGames } from './games/registry';
+import { getEventBus } from './runtime/event-bus.js';
+import { listAvailableGames } from './games/registry.js';
 
 /**
  * Build Fastify server
@@ -52,6 +44,7 @@ async function buildServer() {
   await fastify.register(corsPlugin);
   await fastify.register(redisPlugin);
   await fastify.register(postgresPlugin);
+  await fastify.register(appAuthPlugin); // Application-level auth for LLM calls
 
   // Add request/response logging hooks
   fastify.addHook('onRequest', async (request) => {
@@ -203,8 +196,8 @@ async function start() {
   }
 }
 
-// Start the server
-if (require.main === module) {
+// Start the server if this is the main module
+if (import.meta.url === `file://${process.argv[1]}`) {
   start();
 }
 

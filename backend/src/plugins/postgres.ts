@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import { Pool, PoolClient } from 'pg';
-import logger from '../utils/logger';
+import logger from '../utils/logger.js';
 
 /**
  * PostgreSQL plugin for Fastify

@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { OAuthProvider, useOAuth, AuthAvatar } from '@autolabz/oauth-sdk';
-import Room from './Room';
+import Room from './Room.tsx';
 
 function RoomGate() {
   const { isAuthenticated } = useOAuth();

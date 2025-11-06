@@ -24,6 +24,14 @@ export interface GameMetadata {
    * Example: "Turn 3 - Player X's turn" or "Game Over - Player O wins"
    */
   getStatusText?: (perspective: RolePerspective) => string;
+
+  /**
+   * Enable LLM memory system for this game
+   * - true: LLM players can maintain memory across turns (e.g., Werewolf)
+   * - false: No memory needed (e.g., Tic-Tac-Toe, Chess)
+   * @default false
+   */
+  enable_llm_memory?: boolean;
 }
 
 // ============ Game State ============
@@ -216,6 +224,15 @@ export interface LLMPlayer {
   display_name: string;
   join_time: string;
   status: 'active' | 'inactive' | 'error';
+  
+  /**
+   * LLM player memory (only used when game's enable_llm_memory is true)
+   * Stores accumulated reasoning, observations, and strategies across turns
+   * - Cleared when game starts
+   * - Updated after each action (append or replace mode)
+   * - Each LLM player has independent memory
+   */
+  memory?: string;
 }
 
 export type Player = HumanPlayer | LLMPlayer;
@@ -255,5 +272,22 @@ export interface RoomState {
   version: number; // Optimistic locking
   created_at: string;
   updated_at: string;
+}
+
+// ============ Spectator Utilities ============
+
+/**
+ * Spectator role ID constant (loaded from environment variable)
+ * Default: 'spectator' for backward compatibility
+ */
+export const SPECTATOR_ROLE_ID = process.env.SPECTATOR_ROLE_ID || 'spectator';
+
+/**
+ * Check if a role ID represents a spectator
+ * @param roleId - The role ID to check
+ * @returns true if the role is a spectator, false otherwise
+ */
+export function isSpectator(roleId: string): boolean {
+  return roleId === SPECTATOR_ROLE_ID;
 }
 

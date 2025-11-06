@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { OAuthProvider } from '@autolabz/oauth-sdk';
-import Callback from './Callback';
+import Callback from './Callback.tsx';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

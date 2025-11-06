@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import { generateRoomId } from '../utils/room-id-generator';
-import logger from '../utils/logger';
+import { generateRoomId } from '../utils/room-id-generator.js';
+import logger from '../utils/logger.js';
 
 /**
  * Room Data Access Object

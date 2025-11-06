@@ -74,6 +74,10 @@ export interface LLMPlayer {
   display_name: string;
   join_time: string;
   status: 'active' | 'inactive' | 'error';
+  /**
+   * LLM player memory (independent for each LLM player)
+   */
+  memory?: string;
 }
 
 export type Player = HumanPlayer | LLMPlayer;
@@ -111,6 +115,11 @@ export interface GameMetadata {
    * Example: ["player_X", "player_O"] for tic-tac-toe
    */
   roleIds: string[];
+  /**
+   * Enable LLM memory system for this game
+   * @default false
+   */
+  enable_llm_memory?: boolean;
 }
 
 // ============ API Response Types ============

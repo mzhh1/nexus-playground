@@ -14,8 +14,9 @@
 5. [游戏UI层规范](#5-游戏ui层规范)
 6. [平台运行时机制](#6-平台运行时机制)
 7. [完整游戏生命周期](#7-完整游戏生命周期)
-8. [开发者实践指南](#8-开发者实践指南)
-9. [附录：完整示例](#9-附录完整示例)
+8. [观战者系统](#8-观战者系统)
+9. [开发者实践指南](#9-开发者实践指南)
+10. [附录：完整示例](#10-附录完整示例)
 
 ---
 
@@ -727,6 +728,235 @@ export function TicTacToeUI(props: GameUIProps) {
 }
 ```
 
+#### 5.2.4 棋盘类游戏布局最佳实践 ⭐
+
+**适用场景**：围棋、五子棋、象棋、国际象棋等需要正方形棋盘的游戏
+
+**核心原则**：棋盘自动占满横向或纵向（取较小值），完美适配任何设备
+
+##### 推荐实现方案
+
+**1. 使用 CSS Container Queries（推荐）**
+
+```css
+/* games/your-game/ui/ui.module.css */
+
+.game-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+  container-type: size; /* 关键：启用容器查询 */
+}
+
+.game-board {
+  position: relative;
+  /* 占满横向或纵向（取较小值） */
+  width: min(calc(100cqw - 2rem), calc(100cqh - 2rem));
+  height: min(calc(100cqw - 2rem), calc(100cqh - 2rem));
+  /* 棋盘自定义样式 */
+  background-color: #daa520;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+```
+
+**工作原理**：
+- `container-type: size`：将容器声明为查询容器
+- `100cqw`：容器宽度的 100%
+- `100cqh`：容器高度的 100%
+- `min(100cqw, 100cqh)`：自动选择较小值，确保棋盘始终完整显示
+
+**2. 使用 aspect-ratio（备选方案）**
+
+如果需要更好的浏览器兼容性：
+
+```css
+.game-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.game-board {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 1 / 1; /* 保持正方形 */
+  background-color: #daa520;
+  border-radius: 4px;
+}
+```
+
+**优势对比**：
+
+| 特性 | Container Queries | aspect-ratio |
+|------|------------------|--------------|
+| 浏览器支持 | Chrome 105+, Safari 16+ | Chrome 88+, Safari 15+ |
+| 精确度 | 完美，直接计算容器尺寸 | 依赖浏览器自动计算 |
+| 代码简洁度 | 非常简洁，一行搞定 | 需要配合 max-width/height |
+| 推荐指数 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+
+##### 完整示例：五子棋
+
+```tsx
+// games/gomoku/ui/ui.tsx
+import React from 'react';
+import type { GameUIProps } from '../../../frontend/src/lib/game-ui-types';
+import styles from './ui.module.css';
+
+const GomokuUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonly }) => {
+  const { board } = perspective.current_state;
+
+  const handleIntersectionClick = (row: number, col: number) => {
+    if (!isMyTurn || readonly) return;
+    onAction({
+      action_id: `place_${row}_${col}`,
+      role_id: perspective.your_role.identity,
+      params: {},
+    });
+  };
+
+  return (
+    <div className={styles['game-container']}>
+      <div className={styles['game-board']}>
+        {/* 渲染棋盘网格 */}
+        <svg className={styles['board-lines']} viewBox="0 0 100 100">
+          {Array.from({ length: 15 }).map((_, i) => {
+            const pos = (i / 14) * 100;
+            return (
+              <React.Fragment key={i}>
+                <line x1="0" y1={pos} x2="100" y2={pos} stroke="#000" strokeWidth="0.3" />
+                <line x1={pos} y1="0" x2={pos} y2="100" stroke="#000" strokeWidth="0.3" />
+              </React.Fragment>
+            );
+          })}
+        </svg>
+
+        {/* 渲染交点和棋子 */}
+        <div className={styles['intersections']}>
+          {board.map((row, rowIndex) =>
+            row.map((cell, colIndex) => (
+              <div
+                key={`${rowIndex}-${colIndex}`}
+                className={styles['intersection']}
+                style={{
+                  left: `${(colIndex / 14) * 100}%`,
+                  top: `${(rowIndex / 14) * 100}%`,
+                }}
+                onClick={() => handleIntersectionClick(rowIndex, colIndex)}
+              >
+                {cell && <div className={`${styles['stone']} ${styles[cell]}`} />}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default GomokuUI;
+```
+
+```css
+/* games/gomoku/ui/ui.module.css */
+
+.game-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+  container-type: size;
+}
+
+.game-board {
+  position: relative;
+  width: min(calc(100cqw - 2rem), calc(100cqh - 2rem));
+  height: min(calc(100cqw - 2rem), calc(100cqh - 2rem));
+  background-color: #daa520;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 5%;
+  box-sizing: border-box;
+}
+
+.board-lines {
+  position: absolute;
+  top: 5%;
+  left: 5%;
+  width: 90%;
+  height: 90%;
+  pointer-events: none;
+}
+
+.intersections {
+  position: absolute;
+  top: 5%;
+  left: 5%;
+  width: 90%;
+  height: 90%;
+}
+
+.intersection {
+  position: absolute;
+  width: 7.5%;
+  height: 7.5%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.stone {
+  width: 85%;
+  height: 85%;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.stone.black {
+  background: radial-gradient(circle at 30% 30%, #4a4a4a, #000);
+}
+
+.stone.white {
+  background: radial-gradient(circle at 30% 30%, #fff, #e0e0e0);
+  border: 1px solid #ccc;
+}
+```
+
+##### 关键优势
+
+1. **完美适配**：宽屏设备占满高度，竖屏设备占满宽度
+2. **无滚动条**：棋盘始终完整显示在可视区域内
+3. **无需媒体查询**：一套CSS适配所有设备
+4. **性能优越**：纯CSS实现，无JavaScript计算
+5. **代码简洁**：核心只需 3 行CSS
+
+##### 平台层支持
+
+平台已自动处理容器占满页面剩余空间，游戏开发者只需：
+1. 容器设置 `container-type: size`
+2. 棋盘使用 `min(100cqw, 100cqh)`
+3. 无需关心viewport尺寸或父容器配置
+
+**注意事项**：
+- 容器 padding 会从可用空间中扣除，建议使用 `calc(100cqw - 2rem)` 
+- 棋盘内部元素使用百分比定位，自动适配棋盘尺寸变化
+- 避免在棋盘元素上使用固定的 px 单位
+
 ### 5.3 游戏UI注册与加载
 
 ```typescript
@@ -1420,9 +1650,452 @@ open ─────────────► playing (主人点击"播放")
 
 ---
 
-## 8. 开发者实践指南
+## 8. 观战者系统
 
-### 8.1 快速接入清单
+### 8.1 观战者设计理念
+
+**核心原则：观战者是特殊的角色ID，自动分配给未映射到游戏角色的玩家**
+
+- **什么是观战者？**
+  - 加入房间但未被分配到游戏角色（如 `player_X`、`player_O`）的玩家
+  - 可以实时观看游戏进行，但不能执行游戏行动
+  - 支持多个观战者同时观看同一场游戏
+
+- **为什么需要观战者？**
+  - 允许更多玩家参与游戏体验（学习、社交、娱乐）
+  - 支持教学场景（老师演示，学生观看）
+  - 支持竞技场景（选手对战，观众围观）
+
+### 8.2 观战者角色ID
+
+- 观战者角色ID是平台保留的特殊ID
+- 平台会自动将未分配角色的玩家标记为观战者
+- 游戏逻辑需要在 `toRolePerspective()` 中检测并处理观战者
+
+### 8.3 观战者自动分配机制
+
+平台在广播视角时，自动为未分配角色的玩家分配观战者角色：
+
+```typescript
+// backend/src/utils/perspective-broadcast.ts
+
+export async function broadcastPerspectivesToAllPlayers(
+  roomId: string,
+  stateManager: StateManager,
+  perspectiveGenerator: PerspectiveGenerator,
+  eventBus: EventBus
+): Promise<void> {
+  const roomState = await stateManager.getRoomState(roomId);
+  
+  // 构建反向映射：room_player_id -> role_id
+  const playerIdToRole = new Map<string, string>();
+  for (const [roleId, playerId] of Object.entries(roomState.role_mapping)) {
+    playerIdToRole.set(playerId, roleId);
+  }
+
+  // 为房间中的所有玩家广播视角（包括观战者）
+  for (const roomPlayerId of Object.keys(roomState.player_list)) {
+    // 获取玩家的角色，如果未分配角色则为观战者
+    const roleId = playerIdToRole.get(roomPlayerId) || SPECTATOR_ROLE_ID;
+    
+    const perspective = await perspectiveGenerator.generatePerspective(
+      roomId,
+      roleId,
+      { skipCache: true }
+    );
+
+    if (perspective) {
+      eventBus.broadcastPerspective(roomId, roleId, perspective);
+    }
+  }
+}
+```
+
+**工作流程**：
+1. 遍历房间的 `player_list`（所有加入房间的玩家）
+2. 检查玩家是否在 `role_mapping` 中有对应的游戏角色
+3. 如果有角色映射，使用游戏角色ID（如 `player_X`）
+4. 如果没有角色映射，使用 `SPECTATOR_ROLE_ID`
+5. 为每个玩家生成并广播对应的视角
+
+### 8.4 游戏逻辑中的观战者支持
+
+#### 8.4.1 在 `toRolePerspective()` 中检测观战者
+
+游戏开发者需要在 `toRolePerspective()` 方法中检测并处理观战者：
+
+```typescript
+import { isSpectator } from '../types';
+
+toRolePerspective(
+  state: GameState,
+  roleId: string,
+  wholeHistory: HistoryEvent[],
+  diffHistory: HistoryEvent[]
+): RolePerspective {
+  const s = state as MyGameState;
+  
+  // 检测是否为观战者
+  const isSpectatorRole = isSpectator(roleId);
+  
+  // 根据是否为观战者生成不同的消息
+  let message = '';
+  
+  if (isSpectatorRole) {
+    // 观战者消息
+    if (s.winner) {
+      message = `👀 观战模式 - 玩家 ${s.winner} 获胜！`;
+    } else {
+      message = `👀 观战模式 - 轮到玩家 ${s.currentRole}`;
+    }
+  } else {
+    // 玩家消息
+    if (s.winner) {
+      message = s.winner === roleId 
+        ? '🎉 游戏结束 - 你获胜了！' 
+        : '😔 游戏结束 - 对手获胜';
+    } else if (s.currentRole === roleId) {
+      message = '✨ 轮到你了，请选择你的行动';
+    } else {
+      message = '⏳ 等待对手行动...';
+    }
+  }
+  
+  return {
+    global_rules: this.getMetadata().description,
+    whole_history: wholeHistory,
+    diff_history: diffHistory,
+    current_state: {
+      // 观战者通常可以看到完整的游戏状态
+      // 但不完美信息游戏可能需要隐藏某些信息
+      ...
+    },
+    your_role: {
+      identity: isSpectatorRole 
+        ? 'Spectator (观战者)' 
+        : `Player ${roleId}`,
+      goal: isSpectatorRole 
+        ? '观看对局，学习游戏策略。' 
+        : '你的游戏目标...',
+      is_current: isSpectatorRole ? false : s.currentRole === roleId,
+    },
+    action_space_definition: this.getLegalActions(state, roleId),
+    message,
+  };
+}
+```
+
+#### 8.4.2 观战者的行动空间
+
+观战者不应有任何可执行的行动：
+
+```typescript
+getLegalActions(state: GameState, roleId: string): ActionSpec {
+  // 观战者没有合法行动
+  if (isSpectator(roleId)) {
+    return { actions: [] };
+  }
+  
+  // 正常玩家的行动空间
+  return {
+    actions: [
+      // ... 游戏行动
+    ]
+  };
+}
+```
+
+#### 8.4.3 观战者消息规范
+
+| 场景 | 玩家消息 | 观战者消息 |
+|------|---------|-----------|
+| **轮到玩家** | "✨ 轮到你了，请选择你的行动" | "👀 观战模式 - 轮到玩家 X" |
+| **等待对手** | "⏳ 等待对手行动..." | "👀 观战模式 - 轮到玩家 O" |
+| **玩家获胜** | "🎉 游戏结束 - 你获胜了！" | "👀 观战模式 - 玩家 X 获胜！" |
+| **玩家失败** | "😔 游戏结束 - 对手获胜" | "👀 观战模式 - 玩家 O 获胜！" |
+| **平局** | "🤝 游戏结束 - 平局" | "👀 观战模式 - 平局" |
+| **特殊事件** | "⚠️ 你被将军了！" | "👀 观战模式 - 红方被将军了！" |
+
+**设计建议**：
+- 观战者消息始终以 "👀 观战模式" 开头，清晰标识身份
+- 使用第三人称描述游戏状态（"轮到玩家 X"而非"轮到你了"）
+- 保持客观中立，不偏向任何一方
+
+### 8.5 完整示例：井字棋观战者实现
+
+```typescript
+// games/tic-tac-toe/logic/index.ts
+
+import { 
+  GameLogic, 
+  GameState, 
+  RolePerspective, 
+  isSpectator 
+} from '../../../backend/src/games/types';
+
+export class TicTacToeLogic implements GameLogic {
+  // ... 其他方法
+  
+  toRolePerspective(
+    state: GameState,
+    roleId: string,
+    wholeHistory: HistoryEvent[],
+    diffHistory: HistoryEvent[]
+  ): RolePerspective {
+    const s = state as TicTacToeState;
+    const metadata = this.getMetadata();
+
+    // 检查是否为观战者
+    const isSpectatorRole = isSpectator(roleId);
+
+    // 生成统一消息状态栏内容
+    let message = '';
+    
+    if (isSpectatorRole) {
+      // 观战者消息
+      if (s.winner) {
+        const winnerSymbol = s.winner === 'player_X' ? 'X' : 'O';
+        message = `👀 观战模式 - 玩家 ${winnerSymbol} 获胜！`;
+      } else if (s.isDraw) {
+        message = '👀 观战模式 - 平局';
+      } else {
+        const currentSymbol = s.currentRole === 'player_X' ? 'X' : 'O';
+        message = `👀 观战模式 - 轮到玩家 ${currentSymbol}`;
+      }
+    } else {
+      // 玩家消息
+      const mySymbol = roleId === 'player_X' ? 'X' : 'O';
+      const opponentSymbol = roleId === 'player_X' ? 'O' : 'X';
+      
+      if (s.winner) {
+        if (s.winner === roleId) {
+          message = `🎉 游戏结束 - 你获胜了！`;
+        } else {
+          message = `😔 游戏结束 - 玩家 ${opponentSymbol} 获胜`;
+        }
+      } else if (s.isDraw) {
+        message = '🤝 游戏结束 - 平局';
+      } else if (s.currentRole === roleId) {
+        message = `✨ 轮到你了 (${mySymbol})，请在棋盘上选择位置`;
+      } else {
+        message = `⏳ 等待玩家 ${opponentSymbol} 行动...`;
+      }
+    }
+
+    // 井字棋是完美信息游戏，所有玩家（包括观战者）看到相同的棋盘
+    const perspective: RolePerspective = {
+      global_rules: metadata.description,
+      whole_history: wholeHistory,
+      diff_history: diffHistory,
+      current_state: {
+        board: s.board,
+        currentRole: s.currentRole,
+        turn: s.turn,
+        winner: s.winner,
+        isDraw: s.isDraw,
+      },
+      your_role: {
+        identity: isSpectatorRole 
+          ? 'Spectator (观战者)' 
+          : (roleId === 'player_X' ? 'Player X' : 'Player O'),
+        goal: isSpectatorRole 
+          ? '观看对局，学习井字棋策略。' 
+          : '在棋盘的空位上放置你的棋子，尝试将三个棋子连成一线以获胜。',
+        is_current: isSpectatorRole ? false : s.currentRole === roleId,
+      },
+      action_space_definition: this.getLegalActions(state, roleId),
+      message,
+    };
+
+    return perspective;
+  }
+  
+  getLegalActions(state: GameState, roleId: string): ActionSpec {
+    // 观战者没有合法行动
+    if (isSpectator(roleId)) {
+      return { actions: [] };
+    }
+    
+    const s = state as TicTacToeState;
+    const actions = [];
+    
+    // 只有当前玩家才有合法行动
+    if (s.currentRole !== roleId) {
+      return { actions: [] };
+    }
+    
+    // 遍历棋盘，找到所有空位
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        if (s.board[row][col] === null) {
+          actions.push({
+            action_id: `place_${row}_${col}`,
+            description: `在位置 (${row},${col}) 落子`,
+            params_schema: null,
+          });
+        }
+      }
+    }
+    
+    return { actions };
+  }
+}
+```
+
+### 8.6 不完美信息游戏的观战者处理
+
+对于不完美信息游戏（如扑克、狼人杀），观战者的视角需要特别设计：
+
+#### 选项A：观战者看到完整信息（推荐用于教学/回放）
+
+```typescript
+toRolePerspective(state: PokerState, roleId: string, ...): RolePerspective {
+  const isSpectatorRole = isSpectator(roleId);
+  
+  if (isSpectatorRole) {
+    // 观战者看到所有玩家的手牌（上帝视角）
+    return {
+      current_state: {
+        all_hands: state.hands, // 所有玩家手牌
+        community_cards: state.communityCards,
+        pot: state.pot,
+        // ... 完整信息
+      },
+      your_role: {
+        identity: 'Spectator (观战者 - 上帝视角)',
+        goal: '观看对局，所有信息可见。',
+        is_current: false,
+      },
+      action_space_definition: { actions: [] },
+      message: '👀 观战模式 - 上帝视角',
+    };
+  }
+  
+  // 玩家只看到自己的手牌
+  return {
+    current_state: {
+      my_hand: state.hands[roleId],
+      opponent_count: state.hands.length - 1,
+      community_cards: state.communityCards,
+      pot: state.pot,
+    },
+    // ...
+  };
+}
+```
+
+#### 选项B：观战者看到有限信息（推荐用于竞技/直播）
+
+```typescript
+toRolePerspective(state: PokerState, roleId: string, ...): RolePerspective {
+  const isSpectatorRole = isSpectator(roleId);
+  
+  if (isSpectatorRole) {
+    // 观战者只看到公共信息，不看手牌（公平观战）
+    return {
+      current_state: {
+        player_count: state.players.length,
+        community_cards: state.communityCards,
+        pot: state.pot,
+        current_bets: state.currentBets,
+        // 不包含任何玩家的手牌
+      },
+      your_role: {
+        identity: 'Spectator (观战者)',
+        goal: '观看对局，仅可见公共信息。',
+        is_current: false,
+      },
+      action_space_definition: { actions: [] },
+      message: '👀 观战模式 - 公平观战',
+    };
+  }
+  
+  // 玩家视角
+  // ...
+}
+```
+
+### 8.7 观战者UI处理
+
+游戏UI会自动处理观战者状态：
+
+```tsx
+// games/my-game/ui/ui.tsx
+
+export function MyGameUI({ 
+  perspective, 
+  onAction, 
+  isMyTurn, 
+  readonly 
+}: GameUIProps) {
+  
+  // 观战者的 isMyTurn 永远为 false
+  // 观战者的 action_space_definition.actions 为空数组
+  
+  const isSpectator = perspective.your_role.identity.includes('Spectator');
+  
+  return (
+    <div className={styles.container}>
+      {/* 游戏棋盘渲染（观战者和玩家看到相同的棋盘） */}
+      <GameBoard board={perspective.current_state.board} />
+      
+      {/* 行动按钮（观战者不会看到任何按钮，因为 actions 为空） */}
+      <div className={styles.actions}>
+        {perspective.action_space_definition.actions.map(action => (
+          <button
+            key={action.action_id}
+            onClick={() => onAction({
+              action_id: action.action_id,
+              role_id: perspective.your_role.identity,
+            })}
+            disabled={!isMyTurn || readonly}
+          >
+            {action.description}
+          </button>
+        ))}
+      </div>
+      
+      {/* 可选：显示观战者特殊提示 */}
+      {isSpectator && (
+        <div className={styles.spectatorBadge}>
+          👀 观战模式
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### 8.8 观战者系统架构优势
+
+| 维度 | 传统方案 | 星枢观战者系统 |
+|------|---------|---------------|
+| **实现复杂度** | 需要单独的观战者API | 统一的视角生成机制 |
+| **数据一致性** | 需要同步玩家和观战者状态 | 自动保证一致性 |
+| **扩展性** | 添加观战者功能需要大量改动 | 游戏逻辑只需检测 `isSpectator()` |
+| **多观战者支持** | 需要特殊处理 | 原生支持任意数量观战者 |
+| **权限控制** | 需要单独实现 | 平台自动处理（观战者无行动权限） |
+| **消息推送** | 需要维护两套推送逻辑 | 统一的 SSE 推送机制 |
+
+### 8.9 观战者开发检查清单
+
+在为游戏添加观战者支持时，请确保：
+
+- [ ] 在 `toRolePerspective()` 中使用 `isSpectator(roleId)` 检测观战者
+- [ ] 为观战者生成专门的消息（以 "👀 观战模式" 开头）
+- [ ] 设置观战者的 `your_role.is_current` 为 `false`
+- [ ] 设置观战者的 `your_role.identity` 包含 "Spectator" 或 "观战者"
+- [ ] 设置观战者的 `your_role.goal` 描述观战目的
+- [ ] 在 `getLegalActions()` 中为观战者返回空行动列表
+- [ ] 考虑观战者应该看到的信息范围（完整信息 vs 有限信息）
+- [ ] 测试多个观战者同时观看的场景
+- [ ] 测试观战者在游戏各个阶段（开始、进行中、结束）的体验
+
+---
+
+## 9. 开发者实践指南
+
+### 9.1 快速接入清单
 
 #### 步骤1: 实现游戏逻辑
 
@@ -1661,9 +2334,9 @@ npm run dev
 # 选择"我的游戏"开始测试
 ```
 
-### 8.2 调试技巧
+### 9.2 调试技巧
 
-#### 8.2.1 查看权威状态(仅开发环境)
+#### 9.2.1 查看权威状态(仅开发环境)
 
 ```typescript
 // backend/src/routes/debug.ts (仅开发环境启用)
@@ -1680,7 +2353,7 @@ app.get('/api/v1/debug/rooms/:roomId/state', async (req, reply) => {
 });
 ```
 
-#### 8.2.2 模拟LLM响应
+#### 9.2.2 模拟LLM响应
 
 ```typescript
 // backend/src/runtime/llm-executor.ts
@@ -1694,7 +2367,7 @@ async executeForLLMPlayer(...) {
 }
 ```
 
-#### 8.2.3 前端日志
+#### 9.2.3 前端日志
 
 ```tsx
 // frontend/src/pages/room/index.tsx
@@ -1706,16 +2379,16 @@ useEffect(() => {
 }, [perspective]);
 ```
 
-### 8.3 性能优化建议
+### 9.3 性能优化建议
 
-#### 8.3.1 视角缓存策略
+#### 9.3.1 视角缓存策略
 
 ```typescript
 // 缓存键设计: room:{roomId}:perspective:{roleId}:v{version}
 // 优点: 版本变化自动失效,无需手动清除
 ```
 
-#### 8.3.2 历史记录分页
+#### 9.3.2 历史记录分页
 
 ```typescript
 // 对于长时间游戏,历史记录可能很大
@@ -1729,7 +2402,7 @@ toRolePerspective(state, roleId, wholeHistory, diffHistory) {
 }
 ```
 
-#### 8.3.3 大状态压缩
+#### 9.3.3 大状态压缩
 
 ```typescript
 // 对于复杂游戏(如围棋),状态可能很大
@@ -1746,7 +2419,7 @@ toRolePerspective(state, roleId, ...) {
 }
 ```
 
-### 8.4 常见陷阱
+### 9.4 常见陷阱
 
 #### ❌ 陷阱1: 在UI中维护游戏状态
 
@@ -1800,9 +2473,9 @@ applyAction(state: GameState, action: Action) {
 
 ---
 
-## 9. 附录:完整示例
+## 10. 附录:完整示例
 
-### 9.1 组合模式示例
+### 10.1 组合模式示例
 
 以下示例展示如何在一个游戏中同时使用固定选项和参数化模板。
 
@@ -1987,7 +2660,7 @@ getLegalActions(state: CardGameState, roleId: string): ActionSpec {
 
 ---
 
-### 9.2 井字棋完整实现
+### 10.2 井字棋完整实现
 
 #### 后端逻辑
 
@@ -2298,8 +2971,9 @@ export default { render: TicTacToeUI };
 ✅ **安全保障**: 权威状态永不泄露,视角生成严格过滤  
 ✅ **LLM原生**: 人类和AI使用同一视角协议  
 ✅ **可扩展性**: 新游戏只需实现标准接口即可接入  
-✅ **灵活行动空间**: 统一支持固定选项与参数化模板的组合
-✅ **统一用户体验**: 平台统一渲染消息状态栏，保证体验一致性
+✅ **灵活行动空间**: 统一支持固定选项与参数化模板的组合  
+✅ **统一用户体验**: 平台统一渲染消息状态栏，保证体验一致性  
+✅ **观战者支持**: 原生支持多观战者，统一视角生成机制
 
 ### 核心设计亮点
 
@@ -2315,9 +2989,16 @@ export default { render: TicTacToeUI };
 - 游戏UI专注游戏内容，无需重复实现状态提示逻辑
 - 确保所有游戏的用户体验一致，降低开发者负担
 
+**观战者系统设计**
+- 观战者是特殊角色ID，自动分配给未映射到游戏角色的玩家
+- 使用 `isSpectator(roleId)` 工具函数检测观战者身份
+- 观战者看到游戏状态但无法执行行动（空行动列表）
+- 支持多个观战者同时观看，统一的视角生成和推送机制
+- 不完美信息游戏可选择观战者看到的信息范围（完整/有限）
+
 **游戏开发者只需关注三件事:**
 1. **实现 `GameLogic` 接口** (后端纯逻辑)
-2. **在 `toRolePerspective()` 中生成消息内容** (状态提示)
+2. **在 `toRolePerspective()` 中生成消息内容并处理观战者** (状态提示 + 观战者支持)
 3. **实现 `GameUIPlugin` 接口** (前端纯渲染，不含状态消息)
 
 **平台处理剩下的一切:**
@@ -2325,4 +3006,5 @@ export default { render: TicTacToeUI };
 - 行动验证、版本控制、分布式锁、幂等性保证
 - 视角生成与缓存、SSE实时推送
 - 统一消息状态栏渲染、样式管理、国际化支持
+- 观战者自动分配、权限控制、视角推送
 

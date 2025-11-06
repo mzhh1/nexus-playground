@@ -7,7 +7,7 @@ import React from 'react';
 import Home from './Home';
 import '../../styles/global.css';
 
-export const Index: React.FC = () => {
+const Index: React.FC = () => {
   return <Home />;
 };
 

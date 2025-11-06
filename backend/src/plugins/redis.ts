@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import Redis from 'ioredis';
-import logger from '../utils/logger';
+import logger from '../utils/logger.js';
 
 /**
  * Redis plugin for Fastify

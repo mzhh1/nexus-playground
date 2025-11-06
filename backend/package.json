@@ -1,12 +1,13 @@
 {
   "name": "@nexus-playground/backend",
   "version": "1.0.0",
+  "type": "module",
   "description": "Nexus Playground Backend - LLM-native game platform server",
-  "main": "dist/index.js",
+  "main": "dist/backend/src/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/backend/src/index.js",
     "test": "echo \"Error: no test specified\" && exit 0",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
@@ -20,12 +21,14 @@
   "author": "Nexus Playground Team",
   "license": "MIT",
   "dependencies": {
+    "@autolabz/llmapi-sdk": "^0.1.5",
+    "@autolabz/oauth-app-sdk": "^1.0.0",
     "@autolabz/service-auth-middleware": "^0.2.2",
     "@fastify/cors": "^9.0.1",
     "dotenv": "^16.4.1",
     "fastify": "^4.26.0",
+    "fastify-plugin": "^5.1.0",
     "ioredis": "^5.3.2",
-    "module-alias": "^2.2.3",
     "nanoid": "^3.3.7",
     "pg": "^8.11.3",
     "pino": "^8.19.0",
@@ -33,7 +36,6 @@
     "tsconfig-paths": "^4.2.0"
   },
   "devDependencies": {
-    "@types/module-alias": "^2.0.4",
     "@types/node": "^20.11.16",
     "@types/pg": "^8.11.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",

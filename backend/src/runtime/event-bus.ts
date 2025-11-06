@@ -4,8 +4,8 @@
  */
 
 import { FastifyReply } from 'fastify';
-import { RolePerspective } from '../games/types';
-import logger from '../utils/logger';
+import { RolePerspective } from '../games/types.js';
+import logger from '../utils/logger.js';
 
 export interface SSEClient {
   reply: FastifyReply;

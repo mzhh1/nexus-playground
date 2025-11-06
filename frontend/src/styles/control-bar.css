@@ -2,16 +2,60 @@
 
 .nexus-control-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 24px;
+  flex-direction: column;
   background: white;
   border-bottom: 1px solid #e5e7eb;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  height: 64px;
   position: sticky;
   top: 0;
   z-index: 100;
+}
+
+/* 第一行：主控制区域 */
+.control-bar-row-1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  min-height: 64px;
+}
+
+/* 第二行：游戏信息行（默认隐藏） */
+.control-bar-row-2 {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 24px;
+  border-top: 1px solid #f3f4f6;
+  background: #fafafa;
+}
+
+.game-info-mobile {
+  flex: 1;
+  min-width: 0;
+}
+
+.game-name-status {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.room-id-mobile {
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+/* Room ID 桌面和移动端版本 */
+.room-id-desktop {
+  display: block;
+}
+
+.room-id-mobile {
+  display: none;
 }
 
 /* 左侧区域 */
@@ -95,7 +139,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   padding: 8px 0;
   z-index: 1000;
-  max-height: 300px;
+  max-height: min(300px, calc(100vh - 150px));
   overflow-y: auto;
 }
 
@@ -334,9 +378,8 @@
 
 /* 中等屏幕：缩小间距但保持单行布局 */
 @media (max-width: 1024px) {
-  .nexus-control-bar {
+  .control-bar-row-1 {
     padding: 10px 16px;
-    gap: 8px;
   }
 
   .control-bar-left,
@@ -384,24 +427,40 @@
   }
 }
 
-/* 小屏幕：紧凑布局，隐藏次要信息 */
+/* 小屏幕：紧凑布局，显示两行布局 */
 @media (max-width: 768px) {
-  .nexus-control-bar {
+  .control-bar-row-1 {
     padding: 8px 12px;
-    height: auto;
     min-height: 56px;
-    gap: 8px;
+  }
+
+  /* 显示第二行 */
+  .control-bar-row-2 {
+    display: flex;
+    padding: 6px 12px;
+  }
+
+  /* 隐藏第一行的中间区域和桌面版房间ID */
+  .control-bar-center {
+    display: none;
+  }
+
+  .room-id-desktop {
+    display: none;
+  }
+
+  /* 显示移动端房间ID */
+  .room-id-mobile {
+    display: block;
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 12px;
   }
 
   .control-bar-left {
     gap: 6px;
     flex: 0 1 auto;
     min-width: fit-content;
-  }
-
-  .control-bar-center {
-    flex: 1 1 auto;
-    min-width: 120px;
   }
 
   .control-bar-right {
@@ -417,34 +476,6 @@
 
   .actions-dropdown {
     display: block;
-  }
-
-  .game-info {
-    gap: 2px;
-  }
-
-  .game-name {
-    font-size: 14px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 200px;
-  }
-
-  .status-text {
-    font-size: 11px;
-    display: none; /* 在小屏幕上隐藏状态文本 */
-  }
-
-  .room-id-display {
-    font-size: 11px;
-    padding: 4px 12px;
-    border-radius: 12px;
-    max-width: 200px;
-  }
-
-  .control-bar-center {
-    gap: 10px;
   }
 
   .exit-button {
@@ -473,10 +504,13 @@
 
 /* 超小屏幕：进一步简化 */
 @media (max-width: 480px) {
-  .nexus-control-bar {
+  .control-bar-row-1 {
     padding: 6px 8px;
     min-height: 48px;
-    gap: 6px;
+  }
+
+  .control-bar-row-2 {
+    padding: 4px 8px;
   }
 
   .control-bar-left {
@@ -487,20 +521,14 @@
     gap: 6px;
   }
 
-  .game-name {
-    font-size: 13px;
-    max-width: 120px;
+  .game-name-status {
+    font-size: 12px;
   }
 
-  .room-id-display {
+  .room-id-mobile {
     font-size: 10px;
     padding: 3px 10px;
     border-radius: 10px;
-    max-width: 150px;
-  }
-
-  .control-bar-center {
-    gap: 8px;
   }
 
   .exit-button {
@@ -516,11 +544,6 @@
   .dropdown-item-button {
     font-size: 12px;
     padding: 8px 10px;
-  }
-
-  /* 可以考虑隐藏角色映射下拉菜单 */
-  .dropdown-container:nth-child(3) {
-    display: none;
   }
 }
 

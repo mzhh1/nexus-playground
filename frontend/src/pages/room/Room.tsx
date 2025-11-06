@@ -16,16 +16,18 @@ import { GameMessageBar } from '../../components/GameMessageBar';
 import { PlayerCard } from '../../components/PlayerCard';
 import { RoleMappingDisplay } from '../../components/RoleMappingDisplay';
 import { RoleMappingModal } from '../../components/RoleMappingModal';
+import { LLMPlayerTemplateModal, LLMPlayerTemplate } from '../../components/LLMPlayerTemplateModal';
 import type { RoleMapping } from '../../lib/types';
 import '../../styles/global.css';
 
-export const Room: React.FC = () => {
+const Room: React.FC = () => {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [currentRoleId, setCurrentRoleId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [selectedGameId, setSelectedGameId] = useState<string>('');
   const [roleMapping, setRoleMapping] = useState<RoleMapping>({});
   const [isRoleMappingModalOpen, setIsRoleMappingModalOpen] = useState(false);
+  const [isLLMTemplateModalOpen, setIsLLMTemplateModalOpen] = useState(false);
 
   // Fetch games metadata
   const { games: AVAILABLE_GAMES } = useGamesMetadata();
@@ -122,6 +124,11 @@ export const Room: React.FC = () => {
 
       if (roleId) {
         setCurrentRoleId(roleId);
+      } else {
+        // Player is in the room but not assigned a role - use spectator mode
+        // Use the spectator role ID from environment variable
+        const spectatorRoleId = import.meta.env.VITE_SPECTATOR_ROLE_ID || 'spectator';
+        setCurrentRoleId(spectatorRoleId);
       }
     }
   }, [room, user?.id]);
@@ -181,20 +188,23 @@ export const Room: React.FC = () => {
     }
   };
 
-  const handleAddLLMPlayer = async () => {
-    const displayName = prompt('Enter LLM player display name:');
-    if (!displayName) return;
+  const handleAddLLMPlayer = () => {
+    setIsLLMTemplateModalOpen(true);
+  };
 
-    const modelName = prompt('Enter model name (e.g., gpt-4):') || 'gpt-4';
-    const systemPrompt = prompt('Enter system prompt:') || 'You are a helpful game player.';
-
+  const handleSelectLLMTemplate = async (template: LLMPlayerTemplate) => {
     try {
+      // 生成 5 位随机字符后缀，避免名称重复
+      const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const uniqueName = `${template.name}_${randomSuffix}`;
+      
       await addPlayer({
         player_type: 'llm',
-        display_name: displayName,
-        model_name: modelName,
-        system_prompt: systemPrompt,
+        display_name: uniqueName,
+        model_name: template.model_name,
+        system_prompt: template.system_prompt,
       });
+      setIsLLMTemplateModalOpen(false);
     } catch (err) {
       console.error('Failed to add LLM player:', err);
     }
@@ -301,6 +311,11 @@ export const Room: React.FC = () => {
     ? isPlaying || room.room_status === 'paused' || (isOwner && room.game_id)
     : false;
   
+  const baseContentPadding = isOpen ? 'var(--spacing-lg)' : 'var(--spacing-sm)';
+  const contentPaddingBottom = !isOpen && room?.game_id && perspective
+    ? '60px'
+    : baseContentPadding;
+
   // 让NexusControlBar组件自己显示房间状态（不再显示Your Turn/Opponent Turn）
   const controlBarStatusText = undefined;
 
@@ -366,7 +381,7 @@ export const Room: React.FC = () => {
   // ========== Render ==========
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       {/* Control Bar */}
       {shouldShowControlBar && (
         <NexusControlBar
@@ -384,11 +399,22 @@ export const Room: React.FC = () => {
 
       <div style={{ 
         flex: 1, 
-        overflow: 'auto', 
-        padding: 'var(--spacing-lg)',
-        paddingBottom: !isOpen && room.game_id && perspective ? '60px' : 'var(--spacing-lg)' /* 为底部消息栏留出空间 */
+        overflow: isOpen ? 'auto' : 'hidden',
+        display: isOpen ? 'block' : 'flex',
+        flexDirection: isOpen ? undefined : 'column',
+        paddingTop: baseContentPadding,
+        paddingRight: baseContentPadding,
+        paddingBottom: contentPaddingBottom, /* 为底部消息栏留出空间 */
+        paddingLeft: baseContentPadding,
+        minHeight: 0
       }}>
-        <div className="container">
+        <div className={isOpen ? "container" : ""} style={isOpen ? {} : { 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column',
+          minHeight: 0,
+          width: '100%'
+        }}>
           {/* Header - 只在开放状态显示，游戏中的头像已在控制栏 */}
           {isOpen && (
             <div style={{ 
@@ -540,7 +566,14 @@ export const Room: React.FC = () => {
 
           {/* ========== PLAYING/PAUSED/FINISHED PHASE ========== */}
           {!isOpen && room.game_id && perspective && currentRoleId && (
-            <div className="card">
+            <div className="card" style={{ 
+              height: '100%', 
+              display: 'flex', 
+              flexDirection: 'column',
+              minHeight: 0,
+              overflow: 'hidden',
+              padding: 0 /* 游戏UI自己管理padding */
+            }}>
               <GameUIContainer
                 gameId={room.game_id}
                 perspective={perspective}
@@ -577,6 +610,13 @@ export const Room: React.FC = () => {
           onCancel={handleCancelRoleMapping}
         />
       )}
+
+      {/* LLM Player Template Modal */}
+      <LLMPlayerTemplateModal
+        isOpen={isLLMTemplateModalOpen}
+        onClose={() => setIsLLMTemplateModalOpen(false)}
+        onSelect={handleSelectLLMTemplate}
+      />
 
       {/* Message Bar - 固定在页面底部 */}
       {!isOpen && room.game_id && perspective && currentRoleId && (

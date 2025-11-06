@@ -1,0 +1,227 @@
+/**
+ * 中国象棋 UI 样式
+ * Traditional Chinese Chess styling with responsive layout
+ */
+
+.game-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+  container-type: size;
+  background: #e5e5e5
+}
+
+.game-board {
+  position: relative;
+  /* 使用 Container Queries 实现完美的响应式长方形 */
+  /* 棋盘是长方形，宽高比约为 9:10 */
+  width: min(calc(100cqw - 2rem), calc((100cqh - 2rem) * 0.9));
+  height: min(calc((100cqw - 2rem) / 0.9), calc(100cqh - 2rem));
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  padding: 5%;
+  background: linear-gradient(135deg, #daa520 0%, #f0e68c 50%, #daa520 100%);
+  box-sizing: border-box;
+}
+
+/* 棋盘线条 */
+.board-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 楚河汉界文字 */
+.river-text {
+  position: absolute;
+  top: 42%;
+  left: 0;
+  width: 100%;
+  height: 16%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20%;
+  font-size: clamp(15px, 2cqw, 24px);
+  font-weight: bold;
+  color: #8b4513;
+  pointer-events: none;
+  z-index: 1;
+  font-family: '楷体', 'KaiTi', serif;
+  letter-spacing: 0.3em;
+}
+
+.river-left,
+.river-right {
+  text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+/* 棋子容器 */
+.pieces-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  /* 棋子精确对齐到棋盘线条的交点 */
+}
+
+/* 交点位置 */
+.position {
+  position: absolute;
+  /* 宽度：棋盘有8个间隔（9列），所以每个间隔是 100%/8 = 12.5% */
+  width: 12.5%;
+  /* 高度：棋盘有9个间隔（10行），所以每个间隔是 100%/9 ≈ 11.11% */
+  height: 11.11%;
+  /* 使用translate让棋子中心对齐交点 */
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+/* 选中状态 */
+.position.selected {
+  background-color: rgba(255, 215, 0, 0.3);
+  box-shadow: 0 0 0 2px #ffd700;
+}
+
+/* 合法移动位置 */
+.position.legal-move {
+  background-color: rgba(144, 238, 144, 0.2);
+}
+
+.position.legal-move:hover {
+  background-color: rgba(144, 238, 144, 0.4);
+}
+
+/* 上一步移动标记 */
+.position.last-move {
+  background-color: rgba(255, 165, 0, 0.2);
+}
+
+/* 合法移动提示点 */
+.move-hint {
+  width: 30%;
+  height: 30%;
+  background-color: rgba(0, 128, 0, 0.4);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* 棋子 */
+.piece {
+  width: 85%;
+  height: 85%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 2px solid #000;
+  position: relative;
+}
+
+.piece::before {
+  content: '';
+  position: absolute;
+  top: 15%;
+  left: 15%;
+  width: 30%;
+  height: 30%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.6), transparent);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.piece:hover:not(.not-my-turn) {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 红方棋子 */
+.piece.red {
+  background: radial-gradient(circle at 35% 35%, #ff6b6b, #c92a2a);
+  border-color: #8b0000;
+}
+
+/* 黑方棋子 */
+.piece.black {
+  background: radial-gradient(circle at 35% 35%, #4a4a4a, #1a1a1a);
+  border-color: #000;
+}
+
+/* 不可操作状态 */
+.piece.not-my-turn {
+  cursor: not-allowed;
+  opacity: 0.98;
+}
+
+.piece.not-my-turn:hover {
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 棋子文字 */
+.piece-char {
+  font-size: clamp(12px, 3.5cqw, 32px);
+  font-weight: bold;
+  font-family: '楷体', 'KaiTi', 'STKaiti', serif;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 3px rgba(0, 0, 0, 0.3);
+  user-select: none;
+  pointer-events: none;
+  z-index: 1;
+  position: relative;
+}
+
+.piece.red .piece-char {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 4px rgba(139, 0, 0, 0.5);
+}
+
+.piece.black .piece-char {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3), 0 0 4px rgba(0, 0, 0, 0.8);
+}
+
+/* 移动设备优化 */
+@media (max-width: 768px) {
+  .game-container {
+    padding: 0.5rem;
+  }
+
+  .piece-char {
+    font-size: clamp(10px, 4cqw, 24px);
+  }
+}
+
+/* 触摸设备优化 */
+@media (hover: none) {
+  .position {
+    cursor: default;
+  }
+
+  .piece {
+    cursor: default;
+  }
+
+  .piece:active:not(.not-my-turn) {
+    transform: scale(1.05);
+  }
+}
+

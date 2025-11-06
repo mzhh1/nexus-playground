@@ -5,11 +5,12 @@
  */
 
 import { FastifyPluginAsync } from 'fastify';
-import { createStateManager } from '../runtime/state-manager';
-import { createPerspectiveGenerator } from '../runtime/perspective-generator';
-import { getEventBus } from '../runtime/event-bus';
-import { isValidRoomId } from '../utils/room-id-generator';
-import logger from '../utils/logger';
+import { createStateManager } from '../runtime/state-manager.js';
+import { createPerspectiveGenerator } from '../runtime/perspective-generator.js';
+import { getEventBus } from '../runtime/event-bus.js';
+import { isValidRoomId } from '../utils/room-id-generator.js';
+import logger from '../utils/logger.js';
+import { isSpectator } from '../games/types.js';
 
 const perspectivesPublicRoutes: FastifyPluginAsync = async (fastify) => {
   const stateManager = createStateManager(fastify);
@@ -90,8 +91,8 @@ const perspectivesPublicRoutes: FastifyPluginAsync = async (fastify) => {
           return reply.code(404).send({ error: 'Room not found' });
         }
 
-        // Verify role is mapped
-        if (!(roleId in roomState.role_mapping)) {
+        // Verify role is mapped (allow special spectator role for observers)
+        if (!isSpectator(roleId) && !(roleId in roomState.role_mapping)) {
           return reply.code(404).send({ error: 'Role not found or not mapped' });
         }
 
@@ -109,11 +110,16 @@ const perspectivesPublicRoutes: FastifyPluginAsync = async (fastify) => {
         // Register SSE client (with userId for audit)
         const clientId = eventBus.registerClient(reply, roomId, roleId, player_id, ticketData.userId);
 
-        // Send initial perspective
-        const perspective = await perspectiveGenerator.generatePerspective(roomId, roleId);
+        // Attempt to send initial perspective, but never tear down the SSE stream if it fails
+        try {
+          const perspective = await perspectiveGenerator.generatePerspective(roomId, roleId);
 
-        if (perspective) {
-          eventBus.sendEvent(clientId, 'perspective', perspective);
+          if (perspective) {
+            eventBus.sendEvent(clientId, 'perspective', perspective);
+          }
+        } catch (error) {
+          logger.error({ error, roomId, roleId }, 'Failed to generate initial perspective');
+          // Keep the connection open so it can receive future broadcasts
         }
 
         // The connection stays open
@@ -124,13 +130,24 @@ const perspectivesPublicRoutes: FastifyPluginAsync = async (fastify) => {
         // Cleanup is handled by event-bus.ts via 'close' event
       } catch (error) {
         logger.error({ error, roomId, roleId }, 'Failed to establish SSE connection');
-        return reply.code(500).send({ error: 'Failed to establish SSE connection' });
+
+        if (!reply.raw.closed && !reply.raw.writableEnded) {
+          return reply.code(500).send({ error: 'Failed to establish SSE connection' });
+        }
+
+        // If the SSE headers have already been sent, end the stream gracefully
+        try {
+          reply.raw.end();
+        } catch (endError) {
+          logger.warn({ endError, roomId, roleId }, 'Failed to end SSE stream after error');
+        }
       }
     }
   );
 };
 
 export default perspectivesPublicRoutes;
+
 
 
 

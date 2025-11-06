@@ -3,15 +3,19 @@
  * Central registry for all available games
  */
 
-import { GameLogic } from './types';
-import TicTacToeLogic from '@games/tic-tac-toe/logic';
-import logger from '../utils/logger';
+import { GameLogic } from './types.js';
+import TicTacToeLogic from '../../../games/tic-tac-toe/logic/index.js';
+import GomokuLogic from '../../../games/gomoku/logic/index.js';
+import XiangqiLogic from '../../../games/xiangqi/logic/index.js';
+import logger from '../utils/logger.js';
 
 /**
  * Game registry - maps game ID to game logic implementation
  */
 export const gameRegistry: Record<string, GameLogic> = {
   'tic-tac-toe': TicTacToeLogic,
+  'gomoku': GomokuLogic,
+  'xiangqi': XiangqiLogic,
   // Add more games here as they are implemented
   // 'poker': PokerLogic,
   // 'go': GoLogic,

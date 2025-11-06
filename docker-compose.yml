@@ -66,6 +66,11 @@ services:
       AUTH_ISSUER: ${AUTH_ISSUER}
       OAUTH_USERINFO_PATH: ${OAUTH_USERINFO_PATH}
       OAUTH_USERINFO_TIMEOUT_MS: ${OAUTH_USERINFO_TIMEOUT_MS}
+      # LLM 玩家功能所需（应用身份认证）
+      OAUTH_APP_CLIENT_ID: ${OAUTH_APP_CLIENT_ID}
+      OAUTH_APP_CLIENT_SECRET: ${OAUTH_APP_CLIENT_SECRET}
+      LLMAPI_BASE_URL: ${LLMAPI_BASE_URL}
+      SPECTATOR_ROLE_ID: ${SPECTATOR_ROLE_ID}
       # Node.js 使用自定义 CA 证书
       NODE_EXTRA_CA_CERTS: /app/certs/ca.pem
     ports:
@@ -90,12 +95,14 @@ services:
       VITE_OAUTH_SCOPE: ${OAUTH_SCOPE}
       VITE_OAUTH_PROFILE_URL: ${OAUTH_PROFILE_URL}
       VITE_BACKEND_BASE_URL: /api/v1
+      VITE_SPECTATOR_ROLE_ID: ${SPECTATOR_ROLE_ID}
       FRONTEND_PORT: ${FRONTEND_PORT}
       NGINX_PORT: ${NGINX_PORT}
     ports:
       - "${FRONTEND_PORT}:${FRONTEND_PORT}"
     volumes:
       - ./frontend/src:/app/src
+      - ./frontend/vite.config.ts:/app/vite.config.ts
       - ./frontend/index.html:/app/index.html
       - ./frontend/my-nexus.html:/app/my-nexus.html
       - ./frontend/room.html:/app/room.html

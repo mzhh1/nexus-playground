@@ -5,10 +5,11 @@
 
 import { FastifyPluginAsync } from 'fastify';
 import crypto from 'crypto';
-import { createStateManager } from '../runtime/state-manager';
-import { createPerspectiveGenerator } from '../runtime/perspective-generator';
-import { isValidRoomId } from '../utils/room-id-generator';
-import logger from '../utils/logger';
+import { createStateManager } from '../runtime/state-manager.js';
+import { createPerspectiveGenerator } from '../runtime/perspective-generator.js';
+import { isValidRoomId } from '../utils/room-id-generator.js';
+import logger from '../utils/logger.js';
+import { isSpectator } from '../games/types.js';
 
 const perspectivesProtectedRoutes: FastifyPluginAsync = async (fastify) => {
   const stateManager = createStateManager(fastify);
@@ -74,8 +75,8 @@ const perspectivesProtectedRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(404).send({ error: 'Room not found' });
       }
 
-      // Verify role is mapped
-      if (!(roleId in roomState.role_mapping)) {
+      // Verify role is mapped (allow special spectator role for observers)
+      if (!isSpectator(roleId) && !(roleId in roomState.role_mapping)) {
         return reply.code(404).send({ error: 'Role not found or not mapped' });
       }
 
@@ -124,6 +125,7 @@ const perspectivesProtectedRoutes: FastifyPluginAsync = async (fastify) => {
 };
 
 export default perspectivesProtectedRoutes;
+
 
 
 

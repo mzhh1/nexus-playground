@@ -1,0 +1,121 @@
+/* Gomoku UI - Stones on Intersections */
+
+.gomoku-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem; /* 留出边距 */
+  box-sizing: border-box;
+  container-type: size; /* 启用容器查询 */
+}
+
+/* Board - takes min(width, height) to fit perfectly */
+.gomoku-board {
+  position: relative;
+  /* 占满横向或纵向（取较小值），减去padding */
+  width: min(calc(100cqw - 2rem), calc(100cqh - 2rem));
+  height: min(calc(100cqw - 2rem), calc(100cqh - 2rem));
+  background-color: #daa520;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 5%;
+  box-sizing: border-box;
+}
+
+/* Grid lines */
+.board-lines {
+  position: absolute;
+  top: 5%;
+  left: 5%;
+  width: 90%;
+  height: 90%;
+  pointer-events: none;
+}
+
+/* Star points (traditional go board markers) */
+.star-points {
+  position: absolute;
+  top: 5%;
+  left: 5%;
+  width: 90%;
+  height: 90%;
+  pointer-events: none;
+}
+
+.star-point {
+  position: absolute;
+  width: 1%;
+  height: 1%;
+  background-color: #000;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Intersections container */
+.intersections {
+  position: absolute;
+  top: 5%;
+  left: 5%;
+  width: 90%;
+  height: 90%;
+}
+
+/* Individual intersection */
+.intersection {
+  position: absolute;
+  width: 7.5%;
+  height: 7.5%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+
+.intersection.clickable {
+  cursor: pointer;
+}
+
+.intersection.clickable:hover::before {
+  content: '';
+  position: absolute;
+  width: 60%;
+  height: 60%;
+  background-color: rgba(0, 0, 0, 0.15);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Stone (solid circle) */
+.stone {
+  width: 85%;
+  height: 85%;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s ease;
+}
+
+.stone.black {
+  background: radial-gradient(circle at 30% 30%, #4a4a4a, #000);
+}
+
+.stone.white {
+  background: radial-gradient(circle at 30% 30%, #fff, #e0e0e0);
+  border: 1px solid #ccc;
+}
+
+/* Last move indicator */
+.stone.last-move::after {
+  content: '';
+  position: absolute;
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(255, 0, 0, 0.6);
+}
+

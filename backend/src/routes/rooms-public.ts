@@ -4,10 +4,10 @@
  */
 
 import { FastifyPluginAsync } from 'fastify';
-import { createRoomDAO } from '../db/rooms';
-import { createStateManager } from '../runtime/state-manager';
-import { isValidRoomId } from '../utils/room-id-generator';
-import logger from '../utils/logger';
+import { createRoomDAO } from '../db/rooms.js';
+import { createStateManager } from '../runtime/state-manager.js';
+import { isValidRoomId } from '../utils/room-id-generator.js';
+import logger from '../utils/logger.js';
 
 const roomsPublicRoutes: FastifyPluginAsync = async (fastify) => {
   const roomDAO = createRoomDAO(fastify);

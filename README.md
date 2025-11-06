@@ -87,7 +87,10 @@ nexus-playground/
 │   │   │   ├── action-processor.ts   # 行动队列与串行执行
 │   │   │   ├── perspective-generator.ts # 视角生成与缓存
 │   │   │   ├── event-bus.ts          # 事件总线（SSE/WS 推送）
-│   │   │   └── llm-executor.ts       # LLM 玩家执行器
+│   │   │   ├── llm-executor.ts       # LLM API 调用（非流式）
+│   │   │   ├── auto-player-executor.ts    # 自动玩家接口
+│   │   │   ├── llm-player-executor.ts     # LLM 玩家执行器
+│   │   │   └── auto-player-coordinator.ts # 自动玩家协调器
 │   │   ├── games/           # （平台侧文件，仅注册与类型定义）
 │   │   │   ├── registry.ts  # 游戏注册表（从顶层 games/*/logic 导入）
 │   │   │   └── types.ts     # GameLogic/ActionSpec 接口定义
@@ -154,9 +157,14 @@ cp .env.example .env
 # 关键配置项（示例）
 # AUTH_BASE_URL=http://114.132.91.247/api              # AutoLab 认证服务地址
 # LLMAPI_BASE_URL=http://114.132.91.247/llmapi        # LLM API 服务地址
-# OAUTH_CLIENT_ID=your-assigned-client-id              # 由 AutoLab 组织分配
+# OAUTH_CLIENT_ID=your-assigned-client-id              # 由 AutoLab 组织分配（前端用）
 # REDIS_URL=redis://redis:6379                         # Redis 连接
 # DATABASE_URL=postgresql://nexus:password@postgres:5432/nexus # PostgreSQL 连接
+
+# LLM 玩家功能所需（后端应用身份）
+# OAUTH_APP_CLIENT_ID=your-app-client-id               # 后端应用 ID
+# OAUTH_APP_CLIENT_SECRET=cs_live_your_secret          # 后端应用密钥（保密！）
+# JWT_ACCESS_SECRET=your-jwt-secret                    # JWT 签名密钥
 ```
 
 ### 3. 一键启动
@@ -272,13 +280,18 @@ export interface GameLogic {
 
 ### 运行时核心摘要
 
-- 状态管理器（State Manager）：Redis 持有权威 GameState，版本控制与乐观锁
-- 行动处理器（Action Processor）：分布式锁、幂等校验、回合与合法性验证、应用行动与历史记录
-- 视角生成器（Perspective Generator）：按角色生成 `RolePerspective`，并按版本缓存
-- 事件总线（Event Bus）：SSE 广播视角更新与错误信息
-- LLM 执行器（LLM Executor）：将 `RolePerspective` 适配为 Prompt，调用 LLM 并提交行动
+- **状态管理器（State Manager）**：Redis 持有权威 GameState，版本控制与乐观锁
+- **行动处理器（Action Processor）**：分布式锁、幂等校验、回合与合法性验证、应用行动与历史记录
+- **视角生成器（Perspective Generator）**：按角色生成 `RolePerspective`，并按版本缓存
+- **事件总线（Event Bus）**：SSE 广播视角更新与错误信息
+- **自动玩家系统（Auto Player System）**：
+  - **AutoPlayerExecutor 接口**：定义自动玩家执行器契约（`canHandle`、`executeTurn`）
+  - **LLMPlayerExecutor**：LLM 玩家实现，将 `RolePerspective` 适配为 Prompt 并调用 LLM
+  - **AutoPlayerCoordinator**：协调器，维护执行器注册表，责任链模式匹配并触发执行
+  - 支持多种自动玩家类型（LLM、规则 AI、RL Agent 等），易于扩展
 
-完整机制与生命周期请参考 `game_integration_guide.md` 第 6、7 章。
+完整机制与生命周期请参考 `game_integration_guide.md` 第 6、7 章。  
+自动玩家系统详解请参考 `AUTO_PLAYER_SYSTEM.md`。
 
 ---
 
@@ -817,10 +830,17 @@ docs(readme): update deployment section
 
 ## 📚 参考文档
 
+### 核心文档
+
 - [平台设计文档](./platform_design.md)：完整的架构设计与游戏状态流转
 - [SDK 接入理念](./sdk_concept.md)：关注点分离与核心哲学
 - [前端集成最佳实践](./frontend_best_practices.md)：AutoLab SDK 前端族使用指南
 - [后端鉴权最佳实践](./backend_best_practices.md)：统一鉴权中间件与服务间透传
+
+### 新增功能文档
+
+- [自动玩家系统架构](./AUTO_PLAYER_SYSTEM.md)：自动玩家系统设计、接口定义、扩展指南
+- [LLM 执行器使用指南](./LLM_EXECUTOR_GUIDE.md)：LLM 玩家配置、Prompt 构造、参数验证
 
 ### 路径别名建议
 

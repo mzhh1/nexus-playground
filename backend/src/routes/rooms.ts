@@ -4,19 +4,22 @@
  */
 
 import { FastifyPluginAsync } from 'fastify';
-import { createRoomDAO } from '../db/rooms';
-import { createStateManager } from '../runtime/state-manager';
-import { createPerspectiveGenerator } from '../runtime/perspective-generator';
-import { generatePlayerId } from '../utils/player-id-generator';
-import { isValidRoomId } from '../utils/room-id-generator';
-import logger from '../utils/logger';
-import { getGameLogic } from '../games/registry';
-import { getEventBus } from '../runtime/event-bus';
+import { createRoomDAO } from '../db/rooms.js';
+import { createStateManager } from '../runtime/state-manager.js';
+import { createPerspectiveGenerator } from '../runtime/perspective-generator.js';
+import { createAutoPlayerCoordinator } from '../runtime/auto-player-coordinator.js';
+import { generatePlayerId } from '../utils/player-id-generator.js';
+import { isValidRoomId } from '../utils/room-id-generator.js';
+import logger from '../utils/logger.js';
+import { getGameLogic } from '../games/registry.js';
+import { getEventBus } from '../runtime/event-bus.js';
+import { broadcastPerspectivesToAllPlayers } from '../utils/perspective-broadcast.js';
 
 const roomsRoutes: FastifyPluginAsync = async (fastify) => {
   const roomDAO = createRoomDAO(fastify);
   const stateManager = createStateManager(fastify);
   const perspectiveGenerator = createPerspectiveGenerator(fastify, stateManager);
+  const autoPlayerCoordinator = createAutoPlayerCoordinator(fastify);
 
   // ----- Owner-only helpers -----
   async function ensureOwner(request: any, roomId: string) {
@@ -111,6 +114,7 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
           display_name,
           join_time: new Date().toISOString(),
           status: 'active',
+          memory: '', // Initialize empty memory (cleared when game starts)
         };
       }
 
@@ -167,6 +171,33 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
+   * Helper function to broadcast game started/restarted events and initial perspectives
+   */
+  async function broadcastGameStarted(
+    roomId: string,
+    gameId: string,
+    roleMapping: Record<string, string>,
+    eventType: 'game_started' | 'game_restarted'
+  ) {
+    // Clear perspective cache for all roles (important for restart/start)
+    // This ensures that when clients reconnect (e.g., page refresh), they get the fresh perspective
+    await perspectiveGenerator.invalidateAllPerspectives(roomId);
+
+    // Broadcast game started/restarted event
+    getEventBus().broadcastToRoom(roomId, eventType, { game_id: gameId, role_mapping: roleMapping });
+
+    // Generate and broadcast initial perspectives to all players (including spectators)
+    await broadcastPerspectivesToAllPlayers(roomId, stateManager, perspectiveGenerator, getEventBus());
+
+    // Trigger auto player coordinator for initial turn (async, non-blocking)
+    setImmediate(() => {
+      autoPlayerCoordinator.checkAndExecuteCurrentTurn(roomId).catch((err) => {
+        logger.error({ err, roomId, eventType }, 'Auto player coordination failed after game start');
+      });
+    });
+  }
+
+  /**
    * POST /api/v1/rooms/:roomId/start|pause|resume|stop
    */
   fastify.post<{
@@ -183,17 +214,41 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       const roomState = await stateManager.getRoomState(roomId);
       if (!roomState || !roomState.game_id) return reply.code(400).send({ error: 'Game not selected' });
       const gameId = roomState.game_id as string;
+      const gameLogic = getGameLogic(gameId);
+      const metadata = gameLogic.getMetadata();
+
+      // Clear LLM player memory if game enables memory system
+      let updatedPlayerList = roomState.player_list;
+      if (metadata.enable_llm_memory) {
+        updatedPlayerList = Object.fromEntries(
+          Object.entries(roomState.player_list).map(([id, player]) => {
+            if (player.type === 'llm') {
+              return [id, { ...player, memory: '' }];
+            }
+            return [id, player];
+          })
+        );
+        logger.info(
+          { roomId, gameId, llmPlayerCount: Object.values(roomState.player_list).filter(p => p.type === 'llm').length },
+          'Cleared LLM player memory for new game'
+        );
+      }
+
       const result = await stateManager.updateRoomState(roomId, (state) => ({
         ...state,
         role_mapping,
-        game_state: getGameLogic(gameId).initState({ players: Object.keys(role_mapping) }),
+        player_list: updatedPlayerList,
+        game_state: gameLogic.initState({ players: Object.keys(role_mapping) }),
         room_status: 'playing',
         resume_locked: false,
         history: [],
       }));
       if (!result.success) return reply.code(500).send({ error: 'Failed to start game' });
       await roomDAO.updateStatus(roomId, 'playing');
-      getEventBus().broadcastToRoom(roomId, 'game_started', { game_id: gameId, role_mapping });
+      
+      // Broadcast game started event and initial perspectives
+      await broadcastGameStarted(roomId, gameId, role_mapping, 'game_started');
+      
       return reply.send({ success: true });
     } catch (error) {
       logger.error({ error, roomId }, 'Failed to start game');
@@ -232,6 +287,13 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
 
           await stateManager.updateRoomStatus(roomId, 'playing', { resumeLocked: false });
           await roomDAO.updateStatus(roomId, 'playing');
+          
+          // Trigger auto player coordinator when resuming (async, non-blocking)
+          setImmediate(() => {
+            autoPlayerCoordinator.checkAndExecuteCurrentTurn(roomId).catch((err) => {
+              logger.error({ err, roomId }, 'Auto player coordination failed on resume');
+            });
+          });
         } else {
           if (roomState.room_status === 'open') {
             return reply.code(400).send({ error: 'Game has not started' });
@@ -295,10 +357,31 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(400).send({ error: 'Role mapping not found' });
       }
 
+      const gameLogic = getGameLogic(gameId);
+      const metadata = gameLogic.getMetadata();
+
+      // Clear LLM player memory if game enables memory system
+      let updatedPlayerList = roomState.player_list;
+      if (metadata.enable_llm_memory) {
+        updatedPlayerList = Object.fromEntries(
+          Object.entries(roomState.player_list).map(([id, player]) => {
+            if (player.type === 'llm') {
+              return [id, { ...player, memory: '' }];
+            }
+            return [id, player];
+          })
+        );
+        logger.info(
+          { roomId, gameId, llmPlayerCount: Object.values(roomState.player_list).filter(p => p.type === 'llm').length },
+          'Cleared LLM player memory for game restart'
+        );
+      }
+
       // Restart game with same role mapping
       const result = await stateManager.updateRoomState(roomId, (state) => ({
         ...state,
-        game_state: getGameLogic(gameId).initState({ players: Object.keys(roleMapping) }),
+        player_list: updatedPlayerList,
+        game_state: gameLogic.initState({ players: Object.keys(roleMapping) }),
         room_status: 'playing',
         resume_locked: false,
         history: [],
@@ -310,25 +393,8 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
 
       await roomDAO.updateStatus(roomId, 'playing');
 
-      // Broadcast game_restarted event
-      getEventBus().broadcastToRoom(roomId, 'game_restarted', { game_id: gameId, role_mapping: roleMapping });
-
-      // Broadcast updated perspectives to all roles
-      const updatedState = await stateManager.getRoomState(roomId);
-      if (updatedState && updatedState.game_state) {
-        const gameLogic = getGameLogic(gameId);
-        // History is reset, so both whole and diff history are empty
-        const emptyHistory: any[] = [];
-        for (const roleId of Object.keys(roleMapping)) {
-          const perspective = gameLogic.toRolePerspective(
-            updatedState.game_state,
-            roleId,
-            emptyHistory,
-            emptyHistory
-          );
-          getEventBus().broadcastPerspective(roomId, roleId, perspective);
-        }
-      }
+      // Broadcast game restarted event and initial perspectives
+      await broadcastGameStarted(roomId, gameId, roleMapping, 'game_restarted');
 
       return reply.send({ success: true });
     } catch (error) {

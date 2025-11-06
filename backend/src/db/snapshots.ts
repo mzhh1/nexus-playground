@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import logger from '../utils/logger';
+import logger from '../utils/logger.js';
 
 /**
  * Snapshot Data Access Object

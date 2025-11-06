@@ -4,7 +4,7 @@
  */
 
 import { FastifyPluginAsync } from 'fastify';
-import { getAllGamesMetadata } from '../games/registry';
+import { getAllGamesMetadata } from '../games/registry.js';
 
 const gamesRoute: FastifyPluginAsync = async (fastify) => {
   /**
@@ -25,4 +25,5 @@ const gamesRoute: FastifyPluginAsync = async (fastify) => {
 };
 
 export default gamesRoute;
+
 

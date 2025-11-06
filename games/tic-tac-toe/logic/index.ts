@@ -13,7 +13,8 @@ import {
   ActionResult,
   HistoryEvent,
   RolePerspective,
-} from '../../../backend/src/games/types';
+  isSpectator as isSpectatorRole,
+} from '../../../backend/src/games/types.js';
 
 // ============ Tic-Tac-Toe State ============
 
@@ -36,6 +37,7 @@ export class TicTacToeLogic implements GameLogic {
       minPlayers: 2,
       maxPlayers: 2,
       roleIds: ['player_X', 'player_O'], // Define the roles required for this game
+      enable_llm_memory: false, // Perfect information game, no memory needed
       getStatusText: (perspective: RolePerspective) => {
         const state = perspective.current_state;
         
@@ -209,23 +211,41 @@ export class TicTacToeLogic implements GameLogic {
     const s = state as TicTacToeState;
     const metadata = this.getMetadata();
 
+    // Check if this is a spectator (role not in the game)
+    const isSpectator = isSpectatorRole(roleId);
+
     // Generate message for unified message bar
     let message = '';
-    const mySymbol = roleId === 'player_X' ? 'X' : 'O';
-    const opponentSymbol = roleId === 'player_X' ? 'O' : 'X';
     
-    if (s.winner) {
-      if (s.winner === roleId) {
-        message = `🎉 游戏结束 - 你获胜了！`;
+    if (isSpectator) {
+      // Spectator messages
+      if (s.winner) {
+        const winnerSymbol = s.winner === 'player_X' ? 'X' : 'O';
+        message = `👀 观战模式 - 玩家 ${winnerSymbol} 获胜！`;
+      } else if (s.isDraw) {
+        message = '👀 观战模式 - 平局';
       } else {
-        message = `😔 游戏结束 - 玩家 ${opponentSymbol} 获胜`;
+        const currentSymbol = s.currentRole === 'player_X' ? 'X' : 'O';
+        message = `👀 观战模式 - 轮到玩家 ${currentSymbol}`;
       }
-    } else if (s.isDraw) {
-      message = '🤝 游戏结束 - 平局';
-    } else if (s.currentRole === roleId) {
-      message = `✨ 轮到你了 (${mySymbol})，请在棋盘上选择位置`;
     } else {
-      message = `⏳ 等待玩家 ${opponentSymbol} 行动...`;
+      // Player messages
+      const mySymbol = roleId === 'player_X' ? 'X' : 'O';
+      const opponentSymbol = roleId === 'player_X' ? 'O' : 'X';
+      
+      if (s.winner) {
+        if (s.winner === roleId) {
+          message = `🎉 游戏结束 - 你获胜了！`;
+        } else {
+          message = `😔 游戏结束 - 玩家 ${opponentSymbol} 获胜`;
+        }
+      } else if (s.isDraw) {
+        message = '🤝 游戏结束 - 平局';
+      } else if (s.currentRole === roleId) {
+        message = `✨ 轮到你了 (${mySymbol})，请在棋盘上选择位置`;
+      } else {
+        message = `⏳ 等待玩家 ${opponentSymbol} 行动...`;
+      }
     }
 
     // Tic-Tac-Toe is a perfect information game
@@ -242,9 +262,13 @@ export class TicTacToeLogic implements GameLogic {
         isDraw: s.isDraw,
       },
       your_role: {
-        identity: roleId === 'player_X' ? 'Player X' : 'Player O',
-        goal: '在棋盘的空位上放置你的棋子，尝试将三个棋子连成一线以获胜。',
-        is_current: s.currentRole === roleId,
+        identity: isSpectator 
+          ? 'Spectator (观战者)' 
+          : (roleId === 'player_X' ? 'Player X' : 'Player O'),
+        goal: isSpectator 
+          ? '观看对局，学习井字棋策略。' 
+          : '在棋盘的空位上放置你的棋子，尝试将三个棋子连成一线以获胜。',
+        is_current: isSpectator ? false : s.currentRole === roleId,
       },
       action_space_definition: this.getLegalActions(state, roleId),
       message, // Add unified message for platform to render

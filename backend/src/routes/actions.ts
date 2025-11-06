@@ -4,18 +4,21 @@
  */
 
 import { FastifyPluginAsync } from 'fastify';
-import { createStateManager } from '../runtime/state-manager';
-import { createActionProcessor } from '../runtime/action-processor';
-import { createPerspectiveGenerator } from '../runtime/perspective-generator';
-import { getEventBus } from '../runtime/event-bus';
-import { Action } from '../games/types';
-import { isValidRoomId } from '../utils/room-id-generator';
-import logger from '../utils/logger';
+import { createStateManager } from '../runtime/state-manager.js';
+import { createActionProcessor } from '../runtime/action-processor.js';
+import { createPerspectiveGenerator } from '../runtime/perspective-generator.js';
+import { createAutoPlayerCoordinator } from '../runtime/auto-player-coordinator.js';
+import { getEventBus } from '../runtime/event-bus.js';
+import { Action } from '../games/types.js';
+import { isValidRoomId } from '../utils/room-id-generator.js';
+import logger from '../utils/logger.js';
+import { broadcastPerspectivesToAllPlayers } from '../utils/perspective-broadcast.js';
 
 const actionsRoutes: FastifyPluginAsync = async (fastify) => {
   const stateManager = createStateManager(fastify);
   const actionProcessor = createActionProcessor(fastify, stateManager);
   const perspectiveGenerator = createPerspectiveGenerator(fastify, stateManager);
+  const autoPlayerCoordinator = createAutoPlayerCoordinator(fastify);
   const eventBus = getEventBus();
 
   /**
@@ -64,23 +67,19 @@ const actionsRoutes: FastifyPluginAsync = async (fastify) => {
       // Invalidate perspective caches
       await perspectiveGenerator.invalidateAllPerspectives(roomId);
 
-      // Generate new perspectives for all roles
-      const roomState = await stateManager.getRoomState(roomId);
-      
-      if (roomState && roomState.game_state) {
-        // Broadcast updated perspectives to all connected clients
-        for (const roleId of Object.keys(roomState.role_mapping)) {
-          const perspective = await perspectiveGenerator.generatePerspective(
-            roomId,
-            roleId,
-            { skipCache: true }
-          );
+      // Generate and broadcast new perspectives to all players (including spectators)
+      await broadcastPerspectivesToAllPlayers(roomId, stateManager, perspectiveGenerator, eventBus);
 
-          if (perspective) {
-            eventBus.broadcastPerspective(roomId, roleId, perspective);
-          }
-        }
-      }
+      // Trigger auto player coordinator (async, non-blocking)
+      // This checks if the next player is an auto player and executes their turn
+      setImmediate(() => {
+        autoPlayerCoordinator.checkAndExecuteCurrentTurn(roomId).catch((err) => {
+          logger.error(
+            { err, roomId },
+            'Auto player coordination failed after action'
+          );
+        });
+      });
 
       return reply.send({ 
         success: true,

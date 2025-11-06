@@ -4,10 +4,10 @@
  */
 
 import { FastifyInstance } from 'fastify';
-import { StateManager } from './state-manager';
-import { getGameLogic } from '../games/registry';
-import { RolePerspective, HistoryEvent } from '../games/types';
-import logger from '../utils/logger';
+import { StateManager } from './state-manager.js';
+import { getGameLogic } from '../games/registry.js';
+import { RolePerspective, HistoryEvent } from '../games/types.js';
+import logger from '../utils/logger.js';
 
 export class PerspectiveGenerator {
   private readonly CACHE_TTL = 60; // 60 seconds

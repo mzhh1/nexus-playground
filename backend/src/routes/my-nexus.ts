@@ -4,9 +4,9 @@
  */
 
 import { FastifyPluginAsync } from 'fastify';
-import { createRoomDAO } from '../db/rooms';
-import { createStateManager } from '../runtime/state-manager';
-import logger from '../utils/logger';
+import { createRoomDAO } from '../db/rooms.js';
+import { createStateManager } from '../runtime/state-manager.js';
+import logger from '../utils/logger.js';
 
 const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
   const roomDAO = createRoomDAO(fastify);

@@ -34,8 +34,17 @@ export default defineConfig({
     },
     // 允许从nginx代理访问
     hmr: {
-      clientPort: NGINX_PORT, // 使用nginx端口进行HMR
+      // 只设置 clientPort，让客户端使用当前页面的主机名
+      // 这样客户端会连接到 wss://nexus.mzhh.xyz:443
+      // Vite 服务器仍在容器内的 0.0.0.0:5173 监听
+      clientPort: 443,
     },
+    // 允许的域名列表（防止 DNS 重绑定攻击，但允许已知域名）
+    allowedHosts: [
+      'nexus.mzhh.xyz',
+      'localhost',
+      '.localhost',
+    ],
   },
   build: {
     outDir: 'dist',

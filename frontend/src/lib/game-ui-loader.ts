@@ -10,6 +10,8 @@ import type { GameUIComponent } from './game-ui-types';
 // Note: In Docker, games directory is mounted at /app/games, so path is ../../games from src/lib/
 const gameUIRegistry: Record<string, () => Promise<{ default: GameUIComponent }>> = {
   'tic-tac-toe': () => import('../../games/tic-tac-toe/ui/ui.tsx'),
+  'gomoku': () => import('../../games/gomoku/ui/ui.tsx'),
+  'xiangqi': () => import('../../games/xiangqi/ui/ui.tsx'),
   // Add more games here as they are created
   // 'game-id': () => import('../../games/game-id/ui/ui.tsx'),
 };

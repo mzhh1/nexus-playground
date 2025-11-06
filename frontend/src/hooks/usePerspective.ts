@@ -204,6 +204,8 @@ export function usePerspective(
 
       eventSource.addEventListener('game_restarted', (event) => {
         console.log('Game restarted event:', event.data);
+        // Don't clear perspective here - it will be updated by the new perspective event
+        // that the backend sends immediately after game_restarted
         callbacksRef.current?.onGameRestarted?.();
       });
 

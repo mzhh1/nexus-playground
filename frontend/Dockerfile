@@ -23,6 +23,9 @@ FROM node:18-alpine AS development
 
 WORKDIR /app
 
+# Create .bashrc file to prevent ENOENT errors from npm packages
+RUN touch /root/.bashrc
+
 # Copy package files
 COPY package*.json ./
 
