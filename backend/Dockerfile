@@ -3,20 +3,39 @@
 # ============ Stage 1: Build ============
 FROM node:18-alpine AS builder
 
+WORKDIR /app
+
+# Copy and build the SDK first
+COPY packages/game-sdk/package*.json ./packages/game-sdk/
+COPY packages/game-sdk/tsconfig.json ./packages/game-sdk/
+COPY packages/game-sdk/tsup.config.ts ./packages/game-sdk/
+COPY packages/game-sdk/src ./packages/game-sdk/src
+
+WORKDIR /app/packages/game-sdk
+RUN npm ci && npm run build
+
+# Now set up backend
 WORKDIR /app/backend
 
 # Copy package files
 COPY backend/package*.json ./
 COPY backend/tsconfig.json ./
 
-# Install dependencies
+# Install dependencies and link SDK
 RUN npm ci
+RUN npm link ../packages/game-sdk
 
 # Copy source code
 COPY backend/src ./src
 
 # Copy game modules to parent directory to match tsconfig paths
 COPY games /app/games
+
+# Link SDK in games that need it
+WORKDIR /app/games/gomoku
+RUN if [ -f package.json ]; then npm link /app/packages/game-sdk 2>/dev/null || true; fi
+
+WORKDIR /app/backend
 
 # Build TypeScript
 RUN npm run build
