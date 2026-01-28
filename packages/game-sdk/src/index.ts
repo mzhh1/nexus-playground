@@ -13,3 +13,4 @@ export * from './logic';
 
 // ============ Constants ============
 export { SPECTATOR_ROLE_ID } from './logic/utils';
+export { z } from 'zod';

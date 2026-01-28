@@ -1,15 +1,9 @@
-import {
-  Action,
-  ActionResult,
-  ActionSpec,
-  GameLogic,
-  GameMetadata,
-  GameState,
-  HistoryEvent,
-  InitContext,
+InitContext,
   RolePerspective,
-  isSpectator as isSpectatorRole,
-} from '../../../backend/src/games/types.js';
+  BaseGameLogic,
+  z,
+} from '@nexus/game-sdk';
+import { isSpectator as isSpectatorRole } from '@nexus/game-sdk';
 
 // 导入类型
 import type { Identity, WerewolfState } from './types.js';
@@ -68,7 +62,15 @@ import {
 
 // ============ 游戏逻辑实现 ============
 
-export class WerewolfLogic implements GameLogic {
+export class WerewolfLogic extends BaseGameLogic<WerewolfState> {
+  getActionSchema(): z.ZodSchema {
+    return z.object({
+      action_id: z.string(),
+      params: z.record(z.any()).optional(),
+      role_id: z.string(),
+    });
+  }
+
   getMetadata(): GameMetadata {
     return {
       id: 'werewolf',
@@ -95,11 +97,11 @@ export class WerewolfLogic implements GameLogic {
         if (current?.phase === 'night') {
           const subPhaseLabel = current?.nightSubPhase
             ? {
-                guard: '守卫行动',
-                werewolf: '狼人行动',
-                seer: '预言家查验',
-                witch: '女巫用药',
-              }[current.nightSubPhase] ?? '夜晚阶段'
+              guard: '守卫行动',
+              werewolf: '狼人行动',
+              seer: '预言家查验',
+              witch: '女巫用药',
+            }[current.nightSubPhase] ?? '夜晚阶段'
             : '夜晚阶段';
           return `第 ${current?.day ?? 1} 夜 - ${subPhaseLabel}`;
         }

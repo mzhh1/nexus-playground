@@ -14,6 +14,7 @@ import type {
     HistoryEvent,
     RolePerspective,
 } from '../types';
+import { z } from 'zod';
 
 /**
  * Default state prompt generator
@@ -66,6 +67,25 @@ export abstract class BaseGameLogic<TState extends GameState>
     // ========== Abstract Methods (must implement) ==========
 
     abstract getMetadata(): GameMetadata;
+
+    /**
+     * Get the Zod schema for action validation
+     * This schema should validate the 'payload' of the action
+     */
+    abstract getActionSchema(): z.ZodSchema;
+
+    /**
+     * Validate action payload against schema
+     */
+    validatePayload(actionPayload: any): boolean {
+        const schema = this.getActionSchema();
+        const result = schema.safeParse(actionPayload);
+        if (!result.success) {
+            console.error("Invalid Action Payload:", result.error);
+            return false;
+        }
+        return true;
+    }
 
     abstract initState(ctx: InitContext): TState;
 

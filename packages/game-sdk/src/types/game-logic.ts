@@ -3,6 +3,8 @@
  * Core interfaces that all games must implement
  */
 
+import { z } from 'zod';
+
 // ============ Game Metadata ============
 
 /**
@@ -214,6 +216,18 @@ export interface GameLogic<TState extends GameState = GameState> {
 
     /** Get game metadata */
     getMetadata(): GameMetadata;
+
+    // ========== Runtime Validation ==========
+
+    /**
+     * Get Zod schema for action validation
+     */
+    getActionSchema(): z.ZodSchema;
+
+    /**
+     * Validate action payload against schema
+     */
+    validatePayload(actionPayload: any): boolean;
 
     // ========== State Management ==========
 

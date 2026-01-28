@@ -5,15 +5,23 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy and build the SDK first
+COPY packages/game-sdk ./packages/game-sdk
+WORKDIR /app/packages/game-sdk
+RUN npm ci && npm run build
 
-# Install dependencies
+# Now set up frontend
+WORKDIR /app
+
+# Copy frontend package files
+COPY frontend/package*.json ./
+
+# Install dependencies (this will use the local SDK from /app/packages/game-sdk)
 RUN npm ci
 
 # Copy source code and game modules
-COPY . .
-COPY ../games ./games
+COPY frontend/ ./
+COPY games ./games
 
 # Build for production
 RUN npm run build
@@ -26,14 +34,22 @@ WORKDIR /app
 # Create .bashrc file to prevent ENOENT errors from npm packages
 RUN touch /root/.bashrc
 
-# Copy package files
-COPY package*.json ./
+# Copy and build the SDK first (must be done before npm ci to satisfy file: dependency)
+COPY packages/game-sdk /app/packages/game-sdk
+WORKDIR /app/packages/game-sdk
+RUN npm ci && npm run build
 
-# Install dependencies
+# Now set up frontend
+WORKDIR /app
+
+# Copy package files
+COPY frontend/package*.json ./
+
+# Install dependencies (this will use the local SDK from /app/packages/game-sdk)
 RUN npm ci
 
 # Copy source code
-COPY . .
+COPY frontend/ ./
 
 # Expose dev server port
 EXPOSE 5173
@@ -53,4 +69,3 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
-

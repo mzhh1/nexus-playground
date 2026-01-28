@@ -18,116 +18,69 @@
 
 ---
 
-## 🏗️ 架构设计
+## 🏗️ 架构设计 (详见 [architecture.md](./architecture.md))
 
 ### 技术栈
 
-#### 前端
-- **React 18** + **TypeScript**：MPA（多页应用）架构，每页独立挂载认证上下文
-- **Vite**：快速开发与构建
-- **AutoLab SDK 前端族**：
-  - `@autolabz/oauth-sdk`：OAuth 2.0 认证与会话管理
-  - `@autolabz/llmapi-sdk`：LLM 调用（非流式/SSE 流式）
+#### 前端 (Micro-Frontend)
+- **React 18** + **TypeScript**：MPA 架构 + Module Federation
+- **Vite 5**：集成 `@originjs/vite-plugin-federation`
+- **Host App**：负责鉴权、路由、游戏容器、SDK 注入
+- **Remote Games**：独立构建的微前端应用，动态加载
 
-#### 后端
-- **Node.js 20** + **Fastify**：高性能 API 服务
-- **TypeScript**：类型安全与开发体验
-- **AutoLab SDK 后端族**：
-  - `@autolabz/service-auth-middleware`：统一鉴权中间件（SIMPLE JWT + OAuth userinfo 回落）
-  - `@autolabz/llmapi-sdk`：后端调用 LLM（代 AI 玩家决策）
+#### 后端 (Node.js Service)
+- **Fastify** + **TypeScript**：高性能 API 服务
+- **Docker Multi-stage**：集成 SDK 构建与链接
+- **Dynamic Registry**：基于配置文件的游戏注册与版本握手
+- **Shared Middleware**：`@autolabz/service-auth-middleware`
 
-#### 数据层
-- **Redis 7**：星枢（房间）实时状态、玩家列表、角色映射、游戏状态缓存
-- **PostgreSQL 15**：持久化数据（用户→星枢映射、保存的游戏快照、历史记录、审计日志）
+#### 共享核心 (Monorepo)
+- **@nexus/game-sdk**：
+  - 类型定义 (GameLogic, ActionSpec)
+  - 逻辑基类 (BaseGameLogic)
+  - UI 组件库 (BoardGrid, Piece)
+  - 测试工具 (GameTestHarness)
 
 #### 基础设施
-- **Nginx**：静态资源服务 + 反向代理 + 统一网关
-- **Docker Compose**：一键编排所有服务
-- **Makefile**：标准化开发与部署命令
+- **Redis 7**：实时状态、分布式锁、SSE 票据
+- **PostgreSQL 15**：持久化数据
+- **Nginx**：统一网关
+- **Docker Compose**：全栈编排
+- **Make**：开发运维脚本
 
 ---
 
-## 🗂️ 项目结构
-
 ```
 nexus-playground/
-├── frontend/                 # React 前端（MPA）
-│   ├── src/
-│   │   ├── pages/           # 页面：首页、星枢、房间、回调
-│   │   │   ├── index/       # 登录引导与重定向
-│   │   │   ├── my-nexus/    # 我的星枢定位：解析/创建 roomId 后重定向至 /room?id=...
-│   │   │   ├── room/        # 统一房间页（访客视角；M0）：观战、加入、游戏区
-│   │   │   └── callback/    # OAuth 统一回调页
-│   │   ├── components/      # 通用组件：AuthAvatar、RoomCard
-│   │   ├── hooks/           # React Hooks：useRoom、usePerspective
-│   │   ├── lib/             # 工具：API 客户端封装、桥接、游戏 UI 加载
-│   │   │   ├── game-ui-loader.ts   # 动态加载游戏 UI 插件（与注册映射）
-│   │   │   └── game-ui-types.ts    # 前端 GameUIPlugin 与 Props 定义
-│   │   └── main.tsx         # 各页面入口（由 Vite 多页配置生成）
-│   ├── public/              # 静态资源
-│   ├── vite.config.ts       # Vite 多页配置
-│   ├── .env.example         # 环境变量模板
-│   └── package.json
+├── packages/                 # Monorepo 共享包
+│   └── game-sdk/            # @nexus/game-sdk (通用类型/逻辑/UI)
 │
-├── backend/                  # Fastify 后端
-│   ├── src/
-│   │   ├── index.ts         # 入口：注册插件、启动服务
-│   │   ├── plugins/         # Fastify 插件
-│   │   │   ├── auth.ts      # 鉴权插件（@autolabz/service-auth-middleware）
-│   │   │   ├── redis.ts     # Redis 客户端插件
-│   │   │   └── postgres.ts  # PostgreSQL 客户端插件
-│   │   ├── routes/          # API 路由
-│   │   │   ├── my-nexus.ts  # 我的星枢：自动创建、游戏选择、玩家管理、角色映射、开始/暂停
-│   │   │   ├── rooms.ts     # 星枢访问：查询他人星枢、加入、观战
-│   │   │   ├── actions.ts   # 行动提交与验证（通用，适用于自己或他人星枢）
-│   │   │   ├── perspectives.ts # 视角拉取与 SSE 订阅
-│   │   │   └── snapshots.ts # 快照保存与加载
-│   │   ├── runtime/         # 游戏运行时核心
-│   │   │   ├── state-manager.ts      # 权威状态管理（Redis + 版本控制）
-│   │   │   ├── action-processor.ts   # 行动队列与串行执行
-│   │   │   ├── perspective-generator.ts # 视角生成与缓存
-│   │   │   ├── event-bus.ts          # 事件总线（SSE/WS 推送）
-│   │   │   ├── llm-executor.ts       # LLM API 调用（非流式）
-│   │   │   ├── auto-player-executor.ts    # 自动玩家接口
-│   │   │   ├── llm-player-executor.ts     # LLM 玩家执行器
-│   │   │   └── auto-player-coordinator.ts # 自动玩家协调器
-│   │   ├── games/           # （平台侧文件，仅注册与类型定义）
-│   │   │   ├── registry.ts  # 游戏注册表（从顶层 games/*/logic 导入）
-│   │   │   └── types.ts     # GameLogic/ActionSpec 接口定义
-│   │   ├── db/              # 数据库访问层
-│   │   │   ├── schema.sql   # PostgreSQL 表结构
-│   │   │   ├── rooms.ts     # 房间持久化 DAO
-│   │   │   └── snapshots.ts # 快照 DAO
-│   │   └── utils/           # 工具函数
-│   ├── .env.example
-│   └── package.json
+├── games/                    # 独立游戏包 (Module Federation Remotes)
+│   └── gomoku/              # 五子棋 (参考实现)
+│       ├── logic/           # 游戏逻辑 (后端兼容)
+│       ├── ui/              # 游戏 UI (前端兼容)
+│       ├── package.json     # 独立依赖
+│       └── vite.config.ts   # Remote 导出配置
 │
-├── games/                    # 顶层游戏目录（与平台前后端解耦）
-│   └── tic-tac-toe/
-│       ├── logic/           # 后端纯逻辑实现（被后端注册表导入）
-│       │   └── index.ts
-│       └── ui/              # 前端纯渲染 UI 插件（由前端动态加载）
-│           ├── ui.tsx
-│           └── ui.module.css
+├── frontend/                 # Host 应用 (React + Vite)
+│   ├── src/lib/game-ui-loader.ts  # Federation 动态加载器
+│   └── vite.config.ts       # Host Federation 配置
 │
-├── e2e/                      # 端到端测试（Playwright 等，若使用）
-│   └── README.md            # 测试说明（可选）
+├── backend/                  # Host 服务 (Node.js + Fastify)
+│   ├── src/games/registry.ts      # 混合注册表 (配置 + 静态)
+│   └── Dockerfile           # 多阶段构建 (含 SDK 链接)
 │
-├── nginx/                    # Nginx 配置
-│   ├── nginx.conf           # 主配置：统一网关 + 静态服务
-│   └── Dockerfile
+├── config/                   # 全局配置
+│   └── games.json           # 动态游戏注册配置
+│
+├── deploy/                   # 部署相关 (Nginx)
+│   └── ...
 │
 ├── database/                 # 数据库初始化
-│   └── init.sql             # PostgreSQL 初始化脚本
-│
 ├── docker-compose.yml        # 服务编排
-├── Makefile                  # 开发与部署命令
-├── .env.example              # 全局环境变量模板
-├── game_integration_guide.md # 游戏接入与运行设计文档（规范与示例）
-├── platform_design.md        # 平台设计文档
-├── frontend_best_practices.md # 前端集成最佳实践
-├── backend_best_practices.md  # 后端鉴权最佳实践
-└── README.md                 # 本文档
+├── Makefile                  # 开发命令
+├── architecture.md           # 架构详解文档
+└── README.md                 # 项目概览
 ```
 
 ---

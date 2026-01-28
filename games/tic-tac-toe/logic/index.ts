@@ -3,18 +3,11 @@
  * A perfect information game for 2 players
  */
 
-import {
-  GameLogic,
-  GameMetadata,
-  GameState,
-  InitContext,
-  ActionSpec,
-  Action,
-  ActionResult,
-  HistoryEvent,
-  RolePerspective,
-  isSpectator as isSpectatorRole,
-} from '../../../backend/src/games/types.js';
+RolePerspective,
+  BaseGameLogic,
+  z,
+} from '@nexus/game-sdk';
+import { isSpectator as isSpectatorRole } from '@nexus/game-sdk';
 
 // ============ Tic-Tac-Toe State ============
 
@@ -28,7 +21,7 @@ interface TicTacToeState extends GameState {
 
 // ============ Game Logic Implementation ============
 
-export class TicTacToeLogic implements GameLogic {
+export class TicTacToeLogic extends BaseGameLogic<TicTacToeState> {
   getMetadata(): GameMetadata {
     return {
       id: 'tic-tac-toe',
@@ -40,20 +33,28 @@ export class TicTacToeLogic implements GameLogic {
       enable_llm_memory: false, // Perfect information game, no memory needed
       getStatusText: (perspective: RolePerspective) => {
         const state = perspective.current_state;
-        
+
         if (state.winner) {
           const winnerSymbol = state.winner === 'player_X' ? 'X' : 'O';
           return `游戏结束 - 玩家 ${winnerSymbol} 获胜！`;
         }
-        
+
         if (state.isDraw) {
           return '游戏结束 - 平局';
         }
-        
+
         const currentSymbol = state.currentRole === 'player_X' ? 'X' : 'O';
         return `第 ${state.turn} 回合 - 轮到玩家 ${currentSymbol}`;
       },
     };
+  }
+
+  getActionSchema(): z.ZodSchema {
+    return z.object({
+      action_id: z.string().regex(/^place_\d_\d$/, "Invalid action format. Expected 'place_row_col'"),
+      params: z.any().optional(),
+      role_id: z.string(),
+    });
   }
 
   initState(ctx: InitContext): GameState {
@@ -190,15 +191,15 @@ export class TicTacToeLogic implements GameLogic {
 
   getWinners(state: GameState): string[] | null {
     const s = state as TicTacToeState;
-    
+
     if (s.winner) {
       return [s.winner];
     }
-    
+
     if (s.isDraw) {
       return []; // Draw - no winners
     }
-    
+
     return null; // Game not finished
   }
 
@@ -216,7 +217,7 @@ export class TicTacToeLogic implements GameLogic {
 
     // Generate message for unified message bar
     let message = '';
-    
+
     if (isSpectator) {
       // Spectator messages
       if (s.winner) {
@@ -232,7 +233,7 @@ export class TicTacToeLogic implements GameLogic {
       // Player messages
       const mySymbol = roleId === 'player_X' ? 'X' : 'O';
       const opponentSymbol = roleId === 'player_X' ? 'O' : 'X';
-      
+
       if (s.winner) {
         if (s.winner === roleId) {
           message = `🎉 游戏结束 - 你获胜了！`;
@@ -262,11 +263,11 @@ export class TicTacToeLogic implements GameLogic {
         isDraw: s.isDraw,
       },
       your_role: {
-        identity: isSpectator 
-          ? 'Spectator (观战者)' 
+        identity: isSpectator
+          ? 'Spectator (观战者)'
           : (roleId === 'player_X' ? 'Player X' : 'Player O'),
-        goal: isSpectator 
-          ? '观看对局，学习井字棋策略。' 
+        goal: isSpectator
+          ? '观看对局，学习井字棋策略。'
           : '在棋盘的空位上放置你的棋子，尝试将三个棋子连成一线以获胜。',
         is_current: isSpectator ? false : s.currentRole === roleId,
       },
@@ -278,15 +279,15 @@ export class TicTacToeLogic implements GameLogic {
   }
 
   generateStatePrompt(perspective: RolePerspective): string {
-    const { 
+    const {
       // @ts-ignore
-      global_rules, 
+      global_rules,
       current_state,
       // @ts-ignore 
       whole_history,
       // @ts-ignore 
       diff_history,
-      your_role 
+      your_role
     } = perspective;
     // Generate state prompt
     return `# 游戏规则

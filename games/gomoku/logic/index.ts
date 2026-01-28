@@ -13,6 +13,8 @@ import type {
   ActionResult,
   HistoryEvent,
   RolePerspective,
+  BaseGameLogic, // Import Base Class
+  z, // Import Zod from SDK
 } from '@nexus/game-sdk';
 import { isSpectator as isSpectatorRole } from '@nexus/game-sdk';
 
@@ -37,11 +39,12 @@ interface GomokuState extends GameState {
 
 // ============ Game Logic Implementation ============
 
-export class GomokuLogic implements GameLogic {
+export class GomokuLogic extends BaseGameLogic<GomokuState> {
   private readonly BOARD_SIZE = 15;
   private readonly WIN_LENGTH = 5;
 
   getMetadata(): GameMetadata {
+    // ... metadata (lines 45-77) kept as is - wait, I'm replacing the block so I need to keep it or use carefully scoped replace
     return {
       id: 'gomoku',
       name: '五子棋 (Gomoku)',
@@ -77,13 +80,18 @@ export class GomokuLogic implements GameLogic {
     };
   }
 
-  serializeState(state: GameState): string {
-    return JSON.stringify(state);
+  getActionSchema(): z.ZodSchema {
+    return z.object({
+      action_id: z.literal('place'),
+      params: z.object({
+        row: z.number().int().min(0).max(14),
+        col: z.number().int().min(0).max(14),
+      }).required(),
+      role_id: z.string(),
+    });
   }
 
-  deserializeState(data: string): GameState {
-    return JSON.parse(data) as GomokuState;
-  }
+  // Removed redundant serializeState/deserializeState as BaseGameLogic handles them
 
   initState(ctx: InitContext): GameState {
     if (ctx.players.length !== 2) {

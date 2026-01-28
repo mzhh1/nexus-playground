@@ -30,14 +30,17 @@ export default defineConfig({
       shared: {
         react: {
           singleton: true,
-          requiredVersion: '^18.0.0',
+          requiredVersion: false,
         },
         'react-dom': {
           singleton: true,
-          requiredVersion: '^18.0.0',
+          requiredVersion: false,
         },
         '@nexus/game-sdk': {
           singleton: true,
+          requiredVersion: false,
+          version: '0.1.0',
+          packagePath: '../packages/game-sdk/package.json',
         },
       },
     }),

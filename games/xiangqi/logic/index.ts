@@ -62,9 +62,17 @@ const PIECE_CHARS = {
 
 // ============ Game Logic Implementation ============
 
-export class XiangqiLogic implements GameLogic {
+export class XiangqiLogic extends BaseGameLogic<XiangqiState> {
   private readonly BOARD_ROWS = 10;
   private readonly BOARD_COLS = 9;
+
+  getActionSchema(): z.ZodSchema {
+    return z.object({
+      action_id: z.string().regex(/^move_\d\d_to_\d\d$/, "Invalid action format. Expected 'move_r1c1_to_r2c2'"),
+      params: z.any().optional(),
+      role_id: z.string(),
+    });
+  }
 
   getMetadata(): GameMetadata {
     return {
