@@ -4,9 +4,17 @@
  */
 
 import React from 'react';
-import type { GameUIProps } from '../../../frontend/src/lib/game-ui-types';
-import type { Action } from '../../../frontend/src/lib/types';
+import type { GameUIProps, Action } from '@nexus/game-sdk';
 import styles from './ui.module.css';
+
+interface GomokuState {
+  board: (0 | 1 | 2)[][];
+  currentRole: string;
+  turn: number;
+  winner: string | null;
+  isDraw: boolean;
+  lastMove: { row: number; col: number } | null;
+}
 
 const GomokuUI: React.FC<GameUIProps> = ({
   perspective,
@@ -15,7 +23,8 @@ const GomokuUI: React.FC<GameUIProps> = ({
   readonly,
 }) => {
   const { current_state, your_role, action_space_definition } = perspective;
-  const { board, lastMove } = current_state;
+  const state = current_state as GomokuState;
+  const { board, lastMove } = state;
 
   /**
    * Handle intersection click
@@ -156,9 +165,8 @@ const GomokuUI: React.FC<GameUIProps> = ({
               return (
                 <div
                   key={`${rowIndex}-${colIndex}`}
-                  className={`${styles['intersection']} ${
-                    isClickable ? styles['clickable'] : ''
-                  }`}
+                  className={`${styles['intersection']} ${isClickable ? styles['clickable'] : ''
+                    }`}
                   style={{
                     left: `${(colIndex / 14) * 100}%`,
                     top: `${(rowIndex / 14) * 100}%`,
@@ -167,9 +175,8 @@ const GomokuUI: React.FC<GameUIProps> = ({
                 >
                   {stoneType && (
                     <div
-                      className={`${styles['stone']} ${styles[stoneType]} ${
-                        isLast ? styles['last-move'] : ''
-                      }`}
+                      className={`${styles['stone']} ${styles[stoneType]} ${isLast ? styles['last-move'] : ''
+                        }`}
                     />
                   )}
                 </div>

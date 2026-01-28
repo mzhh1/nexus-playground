@@ -3,7 +3,7 @@
  * A perfect information game for 2 players on a 15x15 board
  */
 
-import {
+import type {
   GameLogic,
   GameMetadata,
   GameState,
@@ -13,8 +13,8 @@ import {
   ActionResult,
   HistoryEvent,
   RolePerspective,
-  isSpectator as isSpectatorRole,
-} from '../../../backend/src/games/types.js';
+} from '@nexus/game-sdk';
+import { isSpectator as isSpectatorRole } from '@nexus/game-sdk';
 
 // ============ Gomoku State ============
 
@@ -45,6 +45,8 @@ export class GomokuLogic implements GameLogic {
     return {
       id: 'gomoku',
       name: '五子棋 (Gomoku)',
+      version: '1.0.0',
+      logicVersion: 1,
       description: `这是一个五子棋游戏。在15x15棋盘上，两位玩家轮流下棋，先将自己的五个棋子连成一线(包括横竖和斜线)者获胜。
 
 棋盘编码说明：
@@ -55,24 +57,32 @@ export class GomokuLogic implements GameLogic {
 黑棋先手，白棋后手。`,
       minPlayers: 2,
       maxPlayers: 2,
-      roleIds: ['player_black', 'player_white'], // Define the roles required for this game
-      enable_llm_memory: false, // Perfect information game, no memory needed
+      roleIds: ['player_black', 'player_white'],
+      enable_llm_memory: false,
       getStatusText: (perspective: RolePerspective) => {
-        const state = perspective.current_state;
-        
+        const state = perspective.current_state as GomokuState;
+
         if (state.winner) {
           const winnerSymbol = state.winner === 'player_black' ? '黑' : '白';
           return `游戏结束 - ${winnerSymbol}棋获胜！`;
         }
-        
+
         if (state.isDraw) {
           return '游戏结束 - 平局';
         }
-        
+
         const currentSymbol = state.currentRole === 'player_black' ? '黑' : '白';
         return `第 ${state.turn} 回合 - 轮到${currentSymbol}棋`;
       },
     };
+  }
+
+  serializeState(state: GameState): string {
+    return JSON.stringify(state);
+  }
+
+  deserializeState(data: string): GameState {
+    return JSON.parse(data) as GomokuState;
   }
 
   initState(ctx: InitContext): GameState {
@@ -227,15 +237,15 @@ export class GomokuLogic implements GameLogic {
 
   getWinners(state: GameState): string[] | null {
     const s = state as GomokuState;
-    
+
     if (s.winner) {
       return [s.winner];
     }
-    
+
     if (s.isDraw) {
       return []; // Draw - no winners
     }
-    
+
     return null; // Game not finished
   }
 
@@ -253,7 +263,7 @@ export class GomokuLogic implements GameLogic {
 
     // Generate message for unified message bar
     let message = '';
-    
+
     if (isSpectator) {
       // Spectator messages
       if (s.winner) {
@@ -269,7 +279,7 @@ export class GomokuLogic implements GameLogic {
       // Player messages
       const mySymbol = roleId === 'player_black' ? '黑' : '白';
       const opponentSymbol = roleId === 'player_black' ? '白' : '黑';
-      
+
       if (s.winner) {
         if (s.winner === roleId) {
           message = `🎉 游戏结束 - 你获胜了！`;
@@ -300,11 +310,11 @@ export class GomokuLogic implements GameLogic {
         lastMove: s.lastMove,
       },
       your_role: {
-        identity: isSpectator 
-          ? 'Spectator (观战者)' 
+        identity: isSpectator
+          ? 'Spectator (观战者)'
           : (roleId === 'player_black' ? 'Player Black' : 'Player White'),
-        goal: isSpectator 
-          ? '观看对局，学习五子棋策略。' 
+        goal: isSpectator
+          ? '观看对局，学习五子棋策略。'
           : '在棋盘的空位上放置你的棋子，尝试将五个棋子连成一线以获胜。',
         is_current: isSpectator ? false : s.currentRole === roleId,
       },
@@ -316,29 +326,27 @@ export class GomokuLogic implements GameLogic {
   }
 
   generateStatePrompt(perspective: RolePerspective): string {
-    const { 
-      global_rules, 
-      current_state, 
-      whole_history, 
+    const {
+      global_rules,
+      current_state,
+      whole_history,
       diff_history,
-      your_role 
+      your_role
     } = perspective;
 
     // Format history
     const historyText = whole_history.length > 0
-      ? whole_history.map(h => 
-          `Turn ${h.turn}: ${h.role_id} → ${h.action.action_id}${
-            h.action.params ? ` (${JSON.stringify(h.action.params)})` : ''
-          }${h.description ? ` - ${h.description}` : ''}`
-        ).join('\n')
+      ? whole_history.map(h =>
+        `Turn ${h.turn}: ${h.role_id} → ${h.action.action_id}${h.action.params ? ` (${JSON.stringify(h.action.params)})` : ''
+        }${h.description ? ` - ${h.description}` : ''}`
+      ).join('\n')
       : '(Game just started)';
 
     const recentHistoryText = diff_history.length > 0
-      ? diff_history.map(h => 
-          `Turn ${h.turn}: ${h.role_id} → ${h.action.action_id}${
-            h.action.params ? ` (${JSON.stringify(h.action.params)})` : ''
-          }${h.description ? ` - ${h.description}` : ''}`
-        ).join('\n')
+      ? diff_history.map(h =>
+        `Turn ${h.turn}: ${h.role_id} → ${h.action.action_id}${h.action.params ? ` (${JSON.stringify(h.action.params)})` : ''
+        }${h.description ? ` - ${h.description}` : ''}`
+      ).join('\n')
       : '(No new events since your last turn)';
 
     // Generate state prompt
