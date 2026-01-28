@@ -77,12 +77,12 @@ export class XiangqiLogic implements GameLogic {
       enable_llm_memory: false, // Perfect information game, no memory needed
       getStatusText: (perspective: RolePerspective) => {
         const state = perspective.current_state;
-        
+
         if (state.winner) {
           const winnerColor = state.winner === 'player_red' ? '红方' : '黑方';
           return `游戏结束 - ${winnerColor}获胜！`;
         }
-        
+
         const currentColor = state.currentRole === 'player_red' ? '红方' : '黑方';
         const checkStatus = state.inCheck ? ' (被将军！)' : '';
         return `第 ${state.turn} 回合 - 轮到${currentColor}${checkStatus}`;
@@ -102,13 +102,22 @@ export class XiangqiLogic implements GameLogic {
 
     // 放置黑方棋子 (顶部，行0-2)
     this.placeInitialPieces(board, 'black', 0);
-    
+
     // 放置红方棋子 (底部，行7-9)
     this.placeInitialPieces(board, 'red', 9);
 
+    // 确保 player_red 是红方，player_black 是黑方
+    // 如果输入的 player ID 不是这两个标准 ID，则 fallback 到原来的 index 逻辑（为了兼容性）
+    // 但在这个系统中，roleIds 元数据定义了 'player_red' 和 'player_black'
+    let startRole = 'player_red';
+    if (!ctx.players.includes('player_red')) {
+      // Fallback: use first player as Red
+      startRole = ctx.players[0];
+    }
+
     const state: XiangqiState = {
       board,
-      currentRole: ctx.players[0], // 红方先行
+      currentRole: startRole, // 强制红方 (player_red) 先行
       players: ctx.players,
       turn: 1,
       winner: null,
@@ -154,7 +163,15 @@ export class XiangqiLogic implements GameLogic {
     }
 
     const actions = [];
-    const color = roleId === s.players[0] ? 'red' : 'black';
+
+    // Determine color based on role ID
+    let color: PieceColor;
+    if (roleId === 'player_red') color = 'red';
+    else if (roleId === 'player_black') color = 'black';
+    else {
+      // Fallback: first player is red
+      color = roleId === s.players[0] ? 'red' : 'black';
+    }
 
     // 遍历所有棋子，找出该玩家的所有合法移动
     for (let fromRow = 0; fromRow < this.BOARD_ROWS; fromRow++) {
@@ -164,12 +181,12 @@ export class XiangqiLogic implements GameLogic {
 
         // 获取该棋子的所有合法移动
         const moves = this.getPieceLegalMoves(s, fromRow, fromCol);
-        
+
         for (const [toRow, toCol] of moves) {
           const actionId = `move_${fromRow}${fromCol}_to_${toRow}${toCol}`;
           const target = s.board[toRow][toCol];
           const targetDesc = target ? `吃${target.char}` : '移动';
-          
+
           actions.push({
             action_id: actionId,
             description: `${piece.char} 从(${fromRow},${fromCol})${targetDesc}到(${toRow},${toCol})`,
@@ -229,7 +246,7 @@ export class XiangqiLogic implements GameLogic {
 
       while (r >= 0 && r < this.BOARD_ROWS && c >= 0 && c < this.BOARD_COLS) {
         const target = state.board[r][c];
-        
+
         if (!target) {
           moves.push([r, c]);
         } else {
@@ -238,7 +255,7 @@ export class XiangqiLogic implements GameLogic {
           }
           break; // 遇到棋子停止
         }
-        
+
         r += dr;
         c += dc;
       }
@@ -250,7 +267,7 @@ export class XiangqiLogic implements GameLogic {
   // 馬（马）：日字移动，检测蹩马腿
   private getHorseMoves(state: XiangqiState, row: number, col: number, color: PieceColor): [number, number][] {
     const moves: [number, number][] = [];
-    
+
     // 马的8个可能移动方向，格式：[行偏移, 列偏移, 蹩马腿检查行偏移, 蹩马腿检查列偏移]
     const horseMoves = [
       [2, 1, 1, 0],   // 下右
@@ -292,7 +309,7 @@ export class XiangqiLogic implements GameLogic {
   // 象（相）：田字移动，不能过河，检测塞象眼
   private getElephantMoves(state: XiangqiState, row: number, col: number, color: PieceColor): [number, number][] {
     const moves: [number, number][] = [];
-    
+
     // 象的4个可能移动方向
     const elephantMoves = [
       [2, 2, 1, 1],   // 右下
@@ -396,7 +413,7 @@ export class XiangqiLogic implements GameLogic {
 
       while (r >= 0 && r < this.BOARD_ROWS && c >= 0 && c < this.BOARD_COLS) {
         const target = state.board[r][c];
-        
+
         if (!foundPiece) {
           // 还没遇到棋子，可以移动到空位
           if (!target) {
@@ -413,7 +430,7 @@ export class XiangqiLogic implements GameLogic {
             break;
           }
         }
-        
+
         r += dr;
         c += dc;
       }
@@ -456,7 +473,7 @@ export class XiangqiLogic implements GameLogic {
   // 检查位置是否在九宫格内
   private isInPalace(row: number, col: number, color: PieceColor): boolean {
     if (col < 3 || col > 5) return false;
-    
+
     if (color === 'red') {
       return row >= 7 && row <= 9;
     } else {
@@ -522,7 +539,7 @@ export class XiangqiLogic implements GameLogic {
   private isInCheck(state: XiangqiState, color: PieceColor): boolean {
     // 找到己方将的位置
     let generalPos: [number, number] | null = null;
-    
+
     for (let r = 0; r < this.BOARD_ROWS; r++) {
       for (let c = 0; c < this.BOARD_COLS; c++) {
         const piece = state.board[r][c];
@@ -538,7 +555,7 @@ export class XiangqiLogic implements GameLogic {
 
     // 检查是否有对方棋子可以攻击到将
     const opponentColor = color === 'red' ? 'black' : 'red';
-    
+
     for (let r = 0; r < this.BOARD_ROWS; r++) {
       for (let c = 0; c < this.BOARD_COLS; c++) {
         const piece = state.board[r][c];
@@ -546,7 +563,7 @@ export class XiangqiLogic implements GameLogic {
 
         // 获取该棋子的所有可能移动（不考虑将军检查，避免无限递归）
         const moves = this.getPieceRawMoves(state, r, c);
-        
+
         if (moves.some(([mr, mc]) => mr === generalPos![0] && mc === generalPos![1])) {
           return true;
         }
@@ -601,7 +618,15 @@ export class XiangqiLogic implements GameLogic {
       return { success: false, error: '起始位置没有棋子' };
     }
 
-    const currentColor = s.currentRole === s.players[0] ? 'red' : 'black';
+    // Determine current color (explicit role ID check)
+    let currentColor: PieceColor;
+    if (s.currentRole === 'player_red') currentColor = 'red';
+    else if (s.currentRole === 'player_black') currentColor = 'black';
+    else {
+      // Fallback
+      currentColor = s.currentRole === s.players[0] ? 'red' : 'black';
+    }
+
     if (piece.color !== currentColor) {
       return { success: false, error: '不能移动对方的棋子' };
     }
@@ -624,7 +649,13 @@ export class XiangqiLogic implements GameLogic {
     s.turn++;
 
     // 检查下一个玩家是否被将军
-    const nextColor = s.currentRole === s.players[0] ? 'red' : 'black';
+    let nextColor: PieceColor;
+    if (s.currentRole === 'player_red') nextColor = 'red';
+    else if (s.currentRole === 'player_black') nextColor = 'black';
+    else {
+      nextColor = s.currentRole === s.players[0] ? 'red' : 'black';
+    }
+
     s.inCheck = this.isInCheck(s, nextColor);
 
     // 检查是否困毙（无论是否被将军，只要没有合法移动就判负）
@@ -670,24 +701,37 @@ export class XiangqiLogic implements GameLogic {
     diffHistory: HistoryEvent[]
   ): RolePerspective {
     const s = state as XiangqiState;
-    
+
     // Check if this is a spectator (role not in the game)
     const isSpectator = isSpectatorRole(roleId);
-    
-    const color = isSpectator 
-      ? 'red' // Default to red perspective for spectators
-      : (roleId === s.players[0] ? 'red' : 'black');
+
+    let color: PieceColor;
+    if (isSpectator) {
+      color = 'red'; // Spectator defaults to red perspective
+    } else if (roleId === 'player_red') {
+      color = 'red';
+    } else if (roleId === 'player_black') {
+      color = 'black';
+    } else {
+      // Fallback check
+      color = roleId === s.players[0] ? 'red' : 'black';
+    }
+
     const colorName = color === 'red' ? '红方' : '黑方';
     const opponentColor = color === 'red' ? '黑方' : '红方';
-    const currentColorName = s.currentRole === s.players[0] ? '红方' : '黑方';
+
+    let currentColorName: string;
+    if (s.currentRole === 'player_red') currentColorName = '红方';
+    else if (s.currentRole === 'player_black') currentColorName = '黑方';
+    else currentColorName = s.currentRole === s.players[0] ? '红方' : '黑方';
 
     // 生成消息
     let message = '';
-    
+
     if (isSpectator) {
       // Spectator messages
       if (s.winner) {
-        const winnerColor = s.winner === s.players[0] ? '红方' : '黑方';
+        const winnerColor = s.winner === 'player_red' ? '红方' : (s.winner === 'player_black' ? '黑方' : (s.winner === s.players[0] ? '红方' : '黑方'));
         message = `👀 观战模式 - ${winnerColor}获胜！`;
       } else {
         if (s.inCheck) {
@@ -728,11 +772,11 @@ export class XiangqiLogic implements GameLogic {
         myColor: color,
       },
       your_role: {
-        identity: isSpectator 
-          ? 'Spectator (观战者)' 
+        identity: isSpectator
+          ? 'Spectator (观战者)'
           : roleId,
-        goal: isSpectator 
-          ? '观看对局，学习象棋策略。' 
+        goal: isSpectator
+          ? '观看对局，学习象棋策略。'
           : `作为${colorName}，将死对方的将/帅`,
         is_current: isSpectator ? false : s.currentRole === roleId,
       },
@@ -741,8 +785,72 @@ export class XiangqiLogic implements GameLogic {
     };
   }
 
+  generateStatePrompt(perspective: RolePerspective): string {
+    const {
+      global_rules,
+      current_state,
+      whole_history,
+      diff_history,
+      your_role
+    } = perspective;
+
+    // Format history
+    const historyText = whole_history.length > 0
+      ? whole_history.map(h =>
+        `Turn ${h.turn}: ${h.role_id} → ${h.action.action_id}${h.action.params ? ` (${JSON.stringify(h.action.params)})` : ''
+        }${h.description ? ` - ${h.description}` : ''}`
+      ).join('\n')
+      : '(Game just started)';
+
+    const recentHistoryText = diff_history.length > 0
+      ? diff_history.map(h =>
+        `Turn ${h.turn}: ${h.role_id} → ${h.action.action_id}${h.action.params ? ` (${JSON.stringify(h.action.params)})` : ''
+        }${h.description ? ` - ${h.description}` : ''}`
+      ).join('\n')
+      : '(No new events since your last turn)';
+
+    // Generate state prompt
+    return `# 游戏规则
+${global_rules}
+
+# 你的身份
+角色: ${your_role.identity}
+目标: ${your_role.goal}
+${your_role.is_current ? '**现在轮到你行动**' : '(目前不是你的回合)'}
+
+# 当前游戏状态
+${JSON.stringify(current_state)}
+
+# 完整历史记录
+${historyText}
+
+# 自上次行动以来的变化
+${recentHistoryText}`;
+  }
+
+  // 获取指定位置被多少个指定颜色的棋子攻击
+  getAttackCountAtPosition(state: XiangqiState, targetRow: number, targetCol: number, attackerColor: PieceColor): number {
+    let count = 0;
+
+    for (let r = 0; r < this.BOARD_ROWS; r++) {
+      for (let c = 0; c < this.BOARD_COLS; c++) {
+        const piece = state.board[r][c];
+        if (!piece || piece.color !== attackerColor) continue;
+
+        // 获取该棋子的所有可能移动（不考虑将军检查）
+        const moves = this.getPieceRawMoves(state, r, c);
+
+        if (moves.some(([mr, mc]) => mr === targetRow && mc === targetCol)) {
+          count++;
+        }
+      }
+    }
+
+    return count;
+  }
+
   // 辅助函数：深拷贝状态
-  private cloneState(state: XiangqiState): XiangqiState {
+  cloneState(state: XiangqiState): XiangqiState {
     return {
       ...state,
       board: state.board.map(row => row.map(piece => piece ? { ...piece } : null)),

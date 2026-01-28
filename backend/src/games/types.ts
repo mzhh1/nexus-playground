@@ -13,11 +13,35 @@ export interface GameMetadata {
   maxPlayers: number;
 
   /**
-   * List of role IDs required by the game
-   * Example: ["player_X", "player_O"] for tic-tac-toe
-   * Example: ["player_1", "player_2", "player_3", "player_4"] for 4-player poker
+   * 游戏角色配置
+   * 
+   * 支持两种格式：
+   * 
+   * 1. 固定角色列表（适用于固定人数游戏）
+   *    roleIds: ['player_X', 'player_O']
+   * 
+   * 2. 多人数配置（适用于可变人数游戏，如狼人杀）
+   *    roleIds: {
+   *      6: ['werewolf_1', 'werewolf_2', 'villager_1', ...],
+   *      8: ['werewolf_1', 'werewolf_2', 'werewolf_3', ...],
+   *      12: [...]
+   *    }
+   * 
+   * 当使用多人数配置时：
+   * - 前端会先显示人数选择器
+   * - 选择人数后再显示对应的角色映射配置
+   * 
+   * Example (固定人数): ["player_X", "player_O"] for tic-tac-toe
+   * Example (多人数): { 6: [...], 8: [...], 12: [...] } for werewolf
    */
-  roleIds: string[];
+  roleIds: string[] | Record<number, string[]>;
+
+  /**
+   * （可选）为多人数配置提供的人数描述
+   * 仅当 roleIds 为 Record<number, string[]> 时使用
+   * Example: { 6: '6人标准局', 8: '8人进阶局', 12: '12人完整局' }
+   */
+  playerCountLabels?: Record<number, string>;
 
   /**
    * Extract status text from perspective for display in control bar
@@ -200,6 +224,16 @@ export interface GameLogic {
     wholeHistory: HistoryEvent[],
     diffHistory: HistoryEvent[]
   ): RolePerspective;
+
+  /**
+   * Generate state prompt for LLM player
+   * This method is called by the LLM executor to generate the state portion of the prompt.
+   * Game developers have full control over how the state is presented to the LLM.
+   * 
+   * @param perspective Role perspective (contains state, history, role info, etc.)
+   * @returns State prompt string (will be combined with action prompt, memory, and task prompt by the system)
+   */
+  generateStatePrompt(perspective: RolePerspective): string;
 }
 
 // ============ Runtime Types ============
@@ -221,6 +255,7 @@ export interface LLMPlayer {
   type: 'llm';
   model_name: string; // e.g., "gpt-4o-mini"
   system_prompt: string;
+  temperature?: number; // Temperature parameter for LLM (default: 0.7)
   display_name: string;
   join_time: string;
   status: 'active' | 'inactive' | 'error';
@@ -268,6 +303,13 @@ export interface RoomState {
   game_state: GameState | null;
   history: HistoryEvent[];
   
+  /**
+   * 选择的游戏人数（仅多人数配置游戏使用）
+   * 当游戏的 roleIds 为 Record<number, string[]> 格式时，
+   * 此字段记录主人选择的游戏人数配置
+   */
+  selected_player_count?: number;
+  
   // Metadata
   version: number; // Optimistic locking
   created_at: string;
@@ -289,5 +331,57 @@ export const SPECTATOR_ROLE_ID = process.env.SPECTATOR_ROLE_ID || 'spectator';
  */
 export function isSpectator(roleId: string): boolean {
   return roleId === SPECTATOR_ROLE_ID;
+}
+
+// ============ Multi-Player Count Utilities ============
+
+/**
+ * 判断 roleIds 是否为多人数配置格式
+ * @param roleIds - 游戏的 roleIds 配置
+ * @returns true 如果是多人数配置（Record<number, string[]>），false 如果是传统格式（string[]）
+ */
+export function isMultiPlayerCountConfig(
+  roleIds: string[] | Record<number, string[]>
+): roleIds is Record<number, string[]> {
+  return typeof roleIds === 'object' && !Array.isArray(roleIds);
+}
+
+/**
+ * 获取指定人数的角色列表
+ * @param roleIds - 游戏的 roleIds 配置
+ * @param playerCount - 游戏人数（可选）
+ * @returns 角色ID列表
+ */
+export function getRoleIdsForPlayerCount(
+  roleIds: string[] | Record<number, string[]>,
+  playerCount?: number
+): string[] {
+  // 传统格式：直接返回
+  if (Array.isArray(roleIds)) {
+    return roleIds;
+  }
+  
+  // 多人数配置：返回指定人数的角色列表
+  if (playerCount !== undefined && roleIds[playerCount]) {
+    return roleIds[playerCount];
+  }
+  
+  // 未指定人数或人数无效：返回最小支持人数的角色列表作为默认值
+  const counts = Object.keys(roleIds).map(Number).sort((a, b) => a - b);
+  return counts.length > 0 ? roleIds[counts[0]] : [];
+}
+
+/**
+ * 获取多人数配置游戏支持的所有人数选项
+ * @param roleIds - 游戏的 roleIds 配置
+ * @returns 人数列表（按升序排列），如果是传统格式则返回空数组
+ */
+export function getAvailablePlayerCounts(
+  roleIds: string[] | Record<number, string[]>
+): number[] {
+  if (isMultiPlayerCountConfig(roleIds)) {
+    return Object.keys(roleIds).map(Number).sort((a, b) => a - b);
+  }
+  return [];
 }
 

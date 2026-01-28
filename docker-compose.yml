@@ -109,6 +109,33 @@ services:
       - ./frontend/callback.html:/app/callback.html
       - ./games:/app/games
 
+  # LLM Monitor Service
+  llm-monitor:
+    build:
+      context: ./llm-monitor
+      dockerfile: Dockerfile
+      target: development
+    container_name: nexus-llm-monitor
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      LLM_MONITOR_PORT: 5174
+      VITE_MONITOR_BASE_PATH: /llm-monitor
+      VITE_MONITOR_API_BASE_URL: /api/v1
+      VITE_MONITOR_REFRESH_INTERVAL_MS: 5000
+      VITE_MONITOR_PAGE_SIZE: 50
+    ports:
+      - "${LLM_MONITOR_PORT:-5174}:${LLM_MONITOR_PORT:-5174}"
+    volumes:
+      - ./llm-monitor/src:/app/src
+      - ./llm-monitor/index.html:/app/index.html
+      - ./llm-monitor/vite.config.ts:/app/vite.config.ts
+      - ./llm-monitor/tsconfig.json:/app/tsconfig.json
+      - ./llm-monitor/tsconfig.node.json:/app/tsconfig.node.json
+      - ./llm-monitor/public:/app/public
+      - ./llm-monitor/package.json:/app/package.json
+
   # Nginx Gateway
   nginx:
     build:

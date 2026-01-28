@@ -22,7 +22,7 @@ const eventSource = new EventSource(url);
    - ❌ 增加前端复杂度，容易出错
 
 2. **修改 SDK 以支持 Headers**
-   - ❌ `oauth-sdk` 和 `service-auth-middleware` 是通用 SDK，不应为特定场景修改
+   - ❌ `oauth-sdk` 和 `service-auth-fastify` 是通用 SDK，不应为特定场景修改
    - ❌ 破坏 SDK 的通用性和可维护性
 
 3. **在 URL 中携带 Access Token**

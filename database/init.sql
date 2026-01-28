@@ -64,6 +64,35 @@ CREATE INDEX idx_history_room_id ON history(room_id);
 CREATE INDEX idx_history_turn_number ON history(room_id, turn_number);
 CREATE INDEX idx_history_timestamp ON history(timestamp);
 
+-- ============ LLM Interactions Table ============
+-- 记录LLM调用的完整请求与响应（含重试状态）
+CREATE TABLE IF NOT EXISTS llm_interactions (
+    interaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    interaction_group_id UUID NOT NULL,
+    room_id VARCHAR(16) NOT NULL REFERENCES rooms(room_id) ON DELETE CASCADE,
+    game_id VARCHAR(100),
+    role_id VARCHAR(100) NOT NULL,
+    model_name VARCHAR(255) NOT NULL,
+    system_prompt TEXT NOT NULL,
+    user_prompt TEXT NOT NULL,
+    response TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    attempt INTEGER NOT NULL DEFAULT 1,
+    outer_attempt INTEGER NOT NULL DEFAULT 1,
+    max_attempts INTEGER NOT NULL DEFAULT 3,
+    previous_error TEXT,
+    error_message TEXT,
+    response_time_ms INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_llm_interactions_status CHECK (status IN ('pending', 'retrying', 'success', 'failed', 'rejected'))
+);
+
+CREATE INDEX idx_llm_interactions_room_id ON llm_interactions(room_id);
+CREATE INDEX idx_llm_interactions_group ON llm_interactions(interaction_group_id);
+CREATE INDEX idx_llm_interactions_status ON llm_interactions(status);
+CREATE INDEX idx_llm_interactions_created_at ON llm_interactions(created_at);
+
 -- ============ Trigger: Update timestamp ============
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -75,6 +104,11 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER update_rooms_updated_at
     BEFORE UPDATE ON rooms
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_llm_interactions_updated_at
+    BEFORE UPDATE ON llm_interactions
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 

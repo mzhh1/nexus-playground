@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { useOAuth } from '@autolabz/oauth-sdk';
+import { useOAuth, getReturnToFromState } from '@autolabz/oauth-sdk';
 import '../../styles/global.css';
 
 type DecodedState = Record<string, unknown> | null;
@@ -173,10 +173,32 @@ const Callback: React.FC = () => {
     handleRedirect({ fetchUserinfo: true, redirectUri: import.meta.env.VITE_OAUTH_REDIRECT_URI })
       .then((res: any) => {
         console.log('[Callback] ✅ handleRedirect 成功:', res);
-        const state = decodeState(res?.state ?? null);
-        console.log('[Callback] 解析后的 state:', state);
-        const returnTo = state?.returnTo;
-        const target = typeof returnTo === 'string' && returnTo.length > 0 ? returnTo : '/';
+        
+        // 使用 SDK 提供的工具函数提取 returnTo
+        const returnTo = getReturnToFromState(res?.state);
+        console.log('[Callback] 提取的 returnTo:', returnTo);
+        
+        // 安全校验：确保 returnTo 是同源 URL，防止开放重定向攻击
+        let target = '/';
+        if (returnTo) {
+          try {
+            const returnToUrl = new URL(returnTo, window.location.origin);
+            // 只允许同源重定向
+            if (returnToUrl.origin === window.location.origin) {
+              target = returnToUrl.pathname + returnToUrl.search + returnToUrl.hash;
+            } else {
+              console.warn('[Callback] ⚠️ returnTo 不是同源 URL，使用默认路径:', returnToUrl.origin);
+            }
+          } catch (e) {
+            // 如果 returnTo 是相对路径，直接使用
+            if (returnTo.startsWith('/')) {
+              target = returnTo;
+            } else {
+              console.warn('[Callback] ⚠️ returnTo 格式无效，使用默认路径:', returnTo);
+            }
+          }
+        }
+        
         console.log('[Callback] 🎯 准备跳转到:', target);
         window.location.replace(target);
       })

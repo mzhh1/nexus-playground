@@ -1,53 +1,9 @@
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
-import { OAuthProvider, useOAuth } from '@autolabz/oauth-sdk';
+import { OAuthProvider, useOAuth, createStateWithReturnTo } from '@autolabz/oauth-sdk';
 import MyNexus from './MyNexus';
 
-type StatePayload = Record<string, unknown> & { nonce: string };
-
-function generateNonce(): string {
-  try {
-    const cryptoObj = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
-    if (cryptoObj?.randomUUID) {
-      return cryptoObj.randomUUID();
-    }
-    if (cryptoObj?.getRandomValues) {
-      const buffer = new Uint32Array(4);
-      cryptoObj.getRandomValues(buffer);
-      return Array.from(buffer, (value) => value.toString(16).padStart(8, '0')).join('');
-    }
-  } catch (error) {
-    console.warn('[AutoLoginGate] ⚠️ 无法通过 Web Crypto 生成 nonce，使用降级方案。', error);
-  }
-
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function encodeStatePayload(payload: StatePayload): string {
-  try {
-    const json = JSON.stringify(payload);
-    const urlEncoded = encodeURIComponent(json);
-
-    if (typeof globalThis !== 'undefined' && typeof globalThis.btoa === 'function') {
-      return globalThis.btoa(urlEncoded);
-    }
-
-    console.warn('[AutoLoginGate] ⚠️ btoa 不可用，使用 URL 编码的 state。');
-    return urlEncoded;
-  } catch (error) {
-    console.error('[AutoLoginGate] ❌ 编码 state 失败，使用 nonce 降级。', error);
-    return String(payload.nonce ?? Date.now());
-  }
-}
-
-function makeState(payload: Record<string, unknown> = {}): string {
-  const statePayload: StatePayload = {
-    ...payload,
-    nonce: generateNonce(),
-  };
-
-  return encodeStatePayload(statePayload);
-}
+// 已移除手动 state 创建函数，改用 SDK 的 createStateWithReturnTo
 
 function AutoLoginGate() {
   const { isInitialized, isAuthenticated, startLogin } = useOAuth();
@@ -122,9 +78,10 @@ function AutoLoginGate() {
       
       setHasAttemptedLogin(true);
       const redirectUri = import.meta.env.VITE_OAUTH_REDIRECT_URI;
-      const state = makeState({ returnTo: window.location.href });
+      // 使用 SDK 提供的工具函数创建包含 returnTo 的 state
+      const state = createStateWithReturnTo(window.location.href);
       console.log('[AutoLoginGate] redirectUri:', redirectUri);
-      console.log('[AutoLoginGate] state payload:', { returnTo: window.location.href });
+      console.log('[AutoLoginGate] returnTo:', window.location.href);
       startLogin({ redirectUri, state, scope: import.meta.env.VITE_OAUTH_SCOPE || 'openid profile email llmapi' });
     } else {
       console.log('[AutoLoginGate] ℹ️ 不触发登录，原因:', {

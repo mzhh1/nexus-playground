@@ -256,17 +256,60 @@ export class StateManager {
   }
 
   /**
+   * Update player status (online/offline/banned)
+   */
+  async updatePlayerStatus(
+    roomId: string,
+    playerId: string,
+    status: 'online' | 'offline' | 'banned'
+  ): Promise<{ success: boolean; error?: string }> {
+    return this.updateRoomState(roomId, (state) => {
+      const player = state.player_list[playerId];
+      
+      if (!player) {
+        throw new Error('PLAYER_NOT_FOUND');
+      }
+      
+      if (player.type !== 'human') {
+        throw new Error('CANNOT_UPDATE_LLM_STATUS');
+      }
+      
+      // Return a new object to avoid mutating the original state
+      return {
+        ...state,
+        player_list: {
+          ...state.player_list,
+          [playerId]: {
+            ...player,
+            status,
+          },
+        },
+      };
+    });
+  }
+
+  /**
    * Update role mapping
    */
   async updateRoleMapping(
     roomId: string,
-    roleMapping: RoleMapping
+    roleMapping: RoleMapping,
+    selectedPlayerCount?: number
   ): Promise<{ success: boolean; error?: string }> {
     return this.updateRoomState(roomId, (state) => {
       // Return a new object to avoid mutating the original state
+      const updates: Partial<RoomState> = {
+        role_mapping: roleMapping,
+      };
+      
+      // 如果提供了 selectedPlayerCount，也更新它
+      if (selectedPlayerCount !== undefined) {
+        updates.selected_player_count = selectedPlayerCount;
+      }
+      
       return {
         ...state,
-        role_mapping: roleMapping,
+        ...updates,
       };
     });
   }

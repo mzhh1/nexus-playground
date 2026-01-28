@@ -142,7 +142,7 @@ export class ActionProcessor {
         role_id: action.role_id,
         action,
         timestamp: new Date().toISOString(),
-        description: this.generateActionDescription(action),
+        description: ''/*this.generateActionDescription(action)*/,
       };
 
       // Update state
@@ -231,7 +231,7 @@ export class ActionProcessor {
 
   /**
    * Generate natural language description for action
-   */
+   
   private generateActionDescription(action: Action): string {
     if (action.params && Object.keys(action.params).length > 0) {
       const paramsStr = Object.entries(action.params)
@@ -242,7 +242,7 @@ export class ActionProcessor {
 
     return `${action.role_id} 执行 ${action.action_id}`;
   }
-
+  */
   /**
    * Get lock key for room
    */

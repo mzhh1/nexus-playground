@@ -36,3 +36,25 @@
 --     description TEXT
 -- );
 
+-- LLM interactions table structure:
+-- CREATE TABLE llm_interactions (
+--     interaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+--     interaction_group_id UUID NOT NULL,
+--     room_id VARCHAR(16) NOT NULL REFERENCES rooms(room_id) ON DELETE CASCADE,
+--     game_id VARCHAR(100),
+--     role_id VARCHAR(100) NOT NULL,
+--     model_name VARCHAR(255) NOT NULL,
+--     system_prompt TEXT NOT NULL,
+--     user_prompt TEXT NOT NULL,
+--     response TEXT,
+--     status VARCHAR(20) NOT NULL,
+--     attempt INTEGER NOT NULL,
+--     outer_attempt INTEGER NOT NULL,
+--     max_attempts INTEGER NOT NULL,
+--     previous_error TEXT,
+--     error_message TEXT,
+--     response_time_ms INTEGER,
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+-- );
+

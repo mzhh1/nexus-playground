@@ -1,0 +1,25 @@
+/**
+ * Lobby Container Styles
+ * 房间开放阶段容器样式
+ */
+
+.lobby-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--spacing-lg);
+}
+
+/* 响应式设计 */
+@media (max-width: 1024px) {
+  .lobby-container {
+    padding: var(--spacing-md);
+  }
+}
+
+@media (max-width: 768px) {
+  .lobby-container {
+    padding: var(--spacing-sm);
+  }
+}
+

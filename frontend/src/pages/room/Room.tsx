@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { AuthAvatar, useOAuth } from '@autolabz/oauth-sdk';
+import { useOAuth } from '@autolabz/oauth-sdk';
 import '@autolabz/oauth-sdk/dist/style.css';
 import { useRoom } from '../../hooks/useRoom';
 import { usePerspective } from '../../hooks/usePerspective';
@@ -13,11 +13,19 @@ import { useGamesMetadata, getGameName } from '../../hooks/useGamesMetadata';
 import { NexusControlBar } from '../../components/NexusControlBar';
 import { GameUIContainer } from '../../components/GameUIContainer';
 import { GameMessageBar } from '../../components/GameMessageBar';
-import { PlayerCard } from '../../components/PlayerCard';
-import { RoleMappingDisplay } from '../../components/RoleMappingDisplay';
+import { LobbyStatusBar } from '../../components/LobbyStatusBar';
+import { LobbyContainer } from '../../components/LobbyContainer';
+import { PlayerList } from '../../components/PlayerList';
+import { RoleMappingGraph } from '../../components/RoleMappingGraph';
 import { RoleMappingModal } from '../../components/RoleMappingModal';
+import { RoleTemplateSelector } from '../../components/PlayerCountSelector';
 import { LLMPlayerTemplateModal, LLMPlayerTemplate } from '../../components/LLMPlayerTemplateModal';
 import type { RoleMapping } from '../../lib/types';
+import { 
+  isMultiPlayerCountConfig, 
+  getRoleIdsForPlayerCount, 
+  getAvailablePlayerCounts 
+} from '../../lib/types';
 import '../../styles/global.css';
 
 const Room: React.FC = () => {
@@ -28,6 +36,10 @@ const Room: React.FC = () => {
   const [roleMapping, setRoleMapping] = useState<RoleMapping>({});
   const [isRoleMappingModalOpen, setIsRoleMappingModalOpen] = useState(false);
   const [isLLMTemplateModalOpen, setIsLLMTemplateModalOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+  
+  // 多人数配置游戏相关状态
+  const [selectedPlayerCount, setSelectedPlayerCount] = useState<number | null>(null);
 
   // Fetch games metadata
   const { games: AVAILABLE_GAMES } = useGamesMetadata();
@@ -41,6 +53,7 @@ const Room: React.FC = () => {
     selectGame,
     addPlayer,
     removePlayer,
+    updateRoleMapping,
     startGame,
     pauseGame,
     resumeGame,
@@ -68,6 +81,14 @@ const Room: React.FC = () => {
     },
     onGameRestarted: () => {
       console.log('Game restarted, refreshing room state...');
+      fetchRoom();
+    },
+    onRoleMappingUpdated: () => {
+      console.log('Role mapping updated, refreshing room state...');
+      fetchRoom();
+    },
+    onPlayerStatusChanged: (data: any) => {
+      console.log('Player status changed:', data);
       fetchRoom();
     },
   }), [fetchRoom]);
@@ -140,17 +161,41 @@ const Room: React.FC = () => {
     }
   }, [room?.role_mapping]);
 
+  // Sync selected player count with room
+  useEffect(() => {
+    if (room?.selected_player_count !== undefined) {
+      setSelectedPlayerCount(room.selected_player_count);
+    }
+  }, [room?.selected_player_count]);
+
+  useEffect(() => {
+    if (room?.room_status !== 'open') {
+      return;
+    }
+
+    if (room?.game_id) {
+      setSelectedGameId(room.game_id);
+    } else {
+      setSelectedGameId('');
+    }
+  }, [room?.game_id, room?.room_status]);
+
 
   // ========== Event Handlers ==========
 
   const handleSelectGame = async () => {
     if (!selectedGameId) return;
-    
+    if (room?.game_id === selectedGameId) return;
+
     try {
       await selectGame(selectedGameId);
-      setSelectedGameId('');
     } catch (err) {
       console.error('Failed to select game:', err);
+      if (room?.game_id) {
+        setSelectedGameId(room.game_id);
+      } else {
+        setSelectedGameId('');
+      }
     }
   };
 
@@ -222,19 +267,71 @@ const Room: React.FC = () => {
 
   const handleStartGame = async () => {
     try {
-      await startGame(roleMapping);
+      // 对于多人数配置游戏，传递选择的人数
+      const playerCount = isMultiPlayerCountGame ? effectivePlayerCount : undefined;
+      await startGame(roleMapping, playerCount ?? undefined);
     } catch (err) {
       console.error('Failed to start game:', err);
     }
   };
 
-  const handleSaveRoleMapping = (newMapping: RoleMapping) => {
+  const handleSaveRoleMapping = (newMapping: RoleMapping, playerCount?: number) => {
     setRoleMapping(newMapping);
+    if (playerCount !== undefined) {
+      setSelectedPlayerCount(playerCount);
+    }
     setIsRoleMappingModalOpen(false);
   };
 
   const handleCancelRoleMapping = () => {
     setIsRoleMappingModalOpen(false);
+  };
+  
+  const handlePlayerCountChange = async (count: number) => {
+    setSelectedPlayerCount(count);
+    // 清空角色映射（因为角色列表变了）
+    setRoleMapping({});
+    // 房主选择时立即保存到服务器
+    if (isOwner) {
+      try {
+        await updateRoleMapping({}, count);
+      } catch (err) {
+        console.error('Failed to update player count:', err);
+      }
+    }
+  };
+
+  const handleRoleMappingChange = async (newMapping: RoleMapping) => {
+    setRoleMapping(newMapping);
+    // 房主编辑时立即保存到服务器
+    if (isOwner) {
+      try {
+        await updateRoleMapping(newMapping, effectivePlayerCount ?? undefined);
+      } catch (err) {
+        console.error('Failed to update role mapping:', err);
+      }
+    }
+  };
+
+  const handleRandomAssign = () => {
+    if (!room) return;
+    const playerIds = Object.keys(room.player_list);
+    const n = Math.min(playerIds.length, roleIds.length);
+    
+    // 取前n个玩家和角色
+    const selectedPlayerIds = playerIds.slice(0, n);
+    const selectedRoleIds = roleIds.slice(0, n);
+    
+    // 随机打乱玩家和角色
+    const shuffledPlayers = [...selectedPlayerIds].sort(() => Math.random() - 0.5);
+    const shuffledRoles = [...selectedRoleIds].sort(() => Math.random() - 0.5);
+    
+    const randomMapping: RoleMapping = {};
+    for (let i = 0; i < n; i++) {
+      randomMapping[shuffledRoles[i]] = shuffledPlayers[i];
+    }
+    
+    handleRoleMappingChange(randomMapping);
   };
 
   const handleJoin = async () => {
@@ -255,6 +352,19 @@ const Room: React.FC = () => {
       alert('加入成功！');
     } catch (err) {
       alert('加入房间失败');
+    }
+  };
+
+  const handleCopyRoomLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setIsCopied(true);
+      setTimeout(() => {
+        setIsCopied(false);
+      }, 2000); // 2秒后恢复原文本
+    } catch (err) {
+      console.error('Failed to copy room link:', err);
+      alert('复制失败，请手动复制链接');
     }
   };
 
@@ -307,8 +417,9 @@ const Room: React.FC = () => {
   const isOpen = room ? room.room_status === 'open' : false;
   const isPlaying = room ? room.room_status === 'playing' : false;
   const canJoin = isOpen && !isInRoom && !isOwner;
+  // 在开放阶段也显示控制栏（当有游戏选择时）
   const shouldShowControlBar = room
-    ? isPlaying || room.room_status === 'paused' || (isOwner && room.game_id)
+    ? isPlaying || room.room_status === 'paused' || (room.game_id && (isOwner || isInRoom))
     : false;
   
   const baseContentPadding = isOpen ? 'var(--spacing-lg)' : 'var(--spacing-sm)';
@@ -329,14 +440,40 @@ const Room: React.FC = () => {
     ? playerList.some(([, player]) => player.type === 'human' && player.uid === user.id)
     : false;
 
-  // Get role IDs dynamically from game metadata
+  // 获取当前游戏的元数据
+  const currentGameMetadata = useMemo(() => {
+    if (!hasGameSelected || !room || !room.game_id) return null;
+    return AVAILABLE_GAMES.find(game => game.id === room.game_id) || null;
+  }, [hasGameSelected, room, AVAILABLE_GAMES]);
+  
+  // 检测是否为多人数配置游戏
+  const isMultiPlayerCountGame = useMemo(() => {
+    if (!currentGameMetadata) return false;
+    return isMultiPlayerCountConfig(currentGameMetadata.roleIds);
+  }, [currentGameMetadata]);
+  
+  // 获取可用的人数选项
+  const availablePlayerCounts = useMemo(() => {
+    if (!currentGameMetadata) return [];
+    return getAvailablePlayerCounts(currentGameMetadata.roleIds);
+  }, [currentGameMetadata]);
+  
+  // 从房间状态或本地状态获取选择的人数
+  const effectivePlayerCount = useMemo(() => {
+    // 优先使用房间状态中保存的人数
+    if (room?.selected_player_count) return room.selected_player_count;
+    // 其次使用本地选择的人数
+    if (selectedPlayerCount) return selectedPlayerCount;
+    // 默认返回 null
+    return null;
+  }, [room?.selected_player_count, selectedPlayerCount]);
+  
+  // 获取当前有效的角色ID列表
   // IMPORTANT: This useMemo must be called on every render, not conditionally
   const roleIds = useMemo(() => {
-    if (!hasGameSelected || !room || !room.game_id) return [];
-    
-    const gameMetadata = AVAILABLE_GAMES.find(game => game.id === room.game_id);
-    return gameMetadata?.roleIds || [];
-  }, [hasGameSelected, room, AVAILABLE_GAMES]);
+    if (!currentGameMetadata) return [];
+    return getRoleIdsForPlayerCount(currentGameMetadata.roleIds, effectivePlayerCount ?? undefined);
+  }, [currentGameMetadata, effectivePlayerCount]);
   
   const isMappingComplete = roleIds.length > 0 && roleIds.every(roleId => roleMapping[roleId]);
 
@@ -400,15 +537,16 @@ const Room: React.FC = () => {
       <div style={{ 
         flex: 1, 
         overflow: isOpen ? 'auto' : 'hidden',
+        overflowY: isOpen ? 'auto' : 'hidden', /* 明确禁用上下滚动 */
         display: isOpen ? 'block' : 'flex',
         flexDirection: isOpen ? undefined : 'column',
-        paddingTop: baseContentPadding,
-        paddingRight: baseContentPadding,
-        paddingBottom: contentPaddingBottom, /* 为底部消息栏留出空间 */
-        paddingLeft: baseContentPadding,
+        paddingTop: isOpen && shouldShowControlBar ? 0 : baseContentPadding,
+        paddingRight: isOpen && shouldShowControlBar ? 0 : baseContentPadding,
+        paddingBottom: isOpen && shouldShowControlBar ? '10px' : contentPaddingBottom, /* 为底部状态栏留出空间 */
+        paddingLeft: isOpen && shouldShowControlBar ? 0 : baseContentPadding,
         minHeight: 0
       }}>
-        <div className={isOpen ? "container" : ""} style={isOpen ? {} : { 
+        <div className={isOpen ? "" : ""} style={isOpen ? {} : { 
           flex: 1, 
           display: 'flex', 
           flexDirection: 'column',
@@ -416,132 +554,12 @@ const Room: React.FC = () => {
           width: '100%'
         }}>
           {/* Header - 只在开放状态显示，游戏中的头像已在控制栏 */}
-          {isOpen && (
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              marginBottom: 'var(--spacing-lg)' 
-            }}>
-              <h1>Room: {roomId}</h1>
-              <AuthAvatar
-                redirectUri={import.meta.env.VITE_OAUTH_REDIRECT_URI}
-                scope={import.meta.env.VITE_OAUTH_SCOPE || 'openid profile email llmapi'}
-                profileUrl={import.meta.env.VITE_OAUTH_PROFILE_URL}
-              />
-            </div>
-          )}
-          
           {error && <div className="error-message">{error}</div>}
 
           {/* ========== OPEN PHASE ========== */}
           {isOpen && (
-            <>
-              {/* Owner Controls */}
-              {isOwner && (
-                <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
-                  <h2>房主控制</h2>
-
-                  {/* Game Selection */}
-                  {!hasGameSelected && (
-                    <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                      <h3>选择游戏</h3>
-                      <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-                        <select
-                          value={selectedGameId}
-                          onChange={(e) => setSelectedGameId(e.target.value)}
-                          style={{ flex: 1 }}
-                        >
-                          <option value="">-- Select a Game --</option>
-                          {AVAILABLE_GAMES.map(game => (
-                            <option key={game.id} value={game.id}>
-                              {game.name}
-                            </option>
-                          ))}
-                        </select>
-                        <button onClick={handleSelectGame} disabled={!selectedGameId}>
-                          Select Game
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Player Management (after game selected) */}
-                  {hasGameSelected && (
-                    <>
-                      <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                        <h3>游戏: {room.game_id}</h3>
-                      </div>
-
-                      <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                        <h3>玩家管理</h3>
-                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-sm)' }}>
-                          <button
-                            onClick={handleAddSelf}
-                            disabled={!user || accountAlreadyInRoom}
-                          >
-                            + Add Self
-                          </button>
-                          <button onClick={handleAddLLMPlayer} className="secondary">+ Add LLM Player</button>
-                        </div>
-
-                        {/* Player List */}
-                        {hasPlayers && (
-                          <div style={{ 
-                            display: 'grid', 
-                            gap: 'var(--spacing-sm)', 
-                            marginTop: 'var(--spacing-sm)' 
-                          }}>
-                            {playerList.map(([pid, player]) => (
-                              <PlayerCard
-                                key={pid}
-                                playerId={pid}
-                                player={player}
-                                canRemove={true}
-                                onRemove={handleRemovePlayer}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Role Mapping Display (after players added) */}
-                      {hasPlayers && (
-                        <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                          <RoleMappingDisplay
-                            playerList={room.player_list}
-                            roleIds={roleIds}
-                            mapping={roleMapping}
-                            onEdit={() => setIsRoleMappingModalOpen(true)}
-                          />
-                        </div>
-                      )}
-
-                      {/* Start Game Button */}
-                      <div>
-                        <button
-                          onClick={handleStartGame}
-                          disabled={!isMappingComplete}
-                          style={{ width: '100%' }}
-                        >
-                          Start Game
-                        </button>
-                        {!isMappingComplete && (
-                          <p style={{ 
-                            marginTop: 'var(--spacing-xs)', 
-                            fontSize: '0.875rem', 
-                            color: 'var(--color-text-secondary)' 
-                          }}>
-                            请分配所有角色后才能开始游戏
-                          </p>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Visitor: Join Button */}
+            <LobbyContainer>
+              {/* Visitor: Join Button (未加入房间) */}
               {canJoin && (
                 <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
                   <h2>加入这个房间？</h2>
@@ -554,14 +572,150 @@ const Room: React.FC = () => {
                 </div>
               )}
 
-              {/* Visitor: Waiting Message (already joined) */}
-              {isInRoom && !isOwner && (
-                <div className="card">
-                  <h2>等待游戏开始...</h2>
-                  <p>您已加入房间。房主将很快开始游戏。</p>
+              {/* Owner Controls or Visitor View (已加入房间或房主) */}
+              {(isOwner || isInRoom) && (
+                <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+                    <h2 style={{ margin: 0 }}>{isOwner ? '房主控制' : '房间信息'}</h2>
+                    {isOwner && (
+                      <button 
+                        onClick={handleCopyRoomLink}
+                        className="secondary"
+                        style={{ 
+                          fontSize: '0.875rem',
+                          padding: '0.5rem 1rem',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {isCopied ? '✓ 已复制到剪切板' : '复制房间链接'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Game Selection */}
+                  <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                    <h3>{hasGameSelected ? '当前游戏' : '选择游戏'}</h3>
+                    {isOwner ? (
+                      <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                        <select
+                          value={selectedGameId}
+                          onChange={(e) => setSelectedGameId(e.target.value)}
+                          style={{ flex: 1 }}
+                        >
+                          <option value="">-- 请选择游戏 --</option>
+                          {selectedGameId && !AVAILABLE_GAMES.some(game => game.id === selectedGameId) && (
+                            <option value={selectedGameId} disabled>
+                              {selectedGameId}
+                            </option>
+                          )}
+                          {AVAILABLE_GAMES.map(game => (
+                            <option key={game.id} value={game.id}>
+                              {game.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={handleSelectGame}
+                          disabled={!selectedGameId || selectedGameId === (room?.game_id ?? '')}
+                        >
+                          {hasGameSelected ? '更新游戏' : '确认选择'}
+                        </button>
+                      </div>
+                    ) : (
+                      <p style={{ padding: 'var(--spacing-sm)', background: '#f3f4f6', borderRadius: '6px' }}>
+                        {room.game_id ? gameName || room.game_id : '未选择'}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Player Management (after game selected) */}
+                  {hasGameSelected && (
+                    <>
+                      <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                        <h3>玩家列表</h3>
+                        {isOwner && (
+                          <div style={{ display: 'flex', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-sm)' }}>
+                            <button
+                              onClick={handleAddSelf}
+                              disabled={!user || accountAlreadyInRoom}
+                            >
+                              + Add Self
+                            </button>
+                            <button onClick={handleAddLLMPlayer} className="secondary">+ Add LLM Player</button>
+                          </div>
+                        )}
+
+                        {/* Player List */}
+                        <PlayerList
+                          players={room.player_list}
+                          canRemove={isOwner}
+                          onRemove={handleRemovePlayer}
+                          emptyMessage="请添加玩家以开始游戏"
+                        />
+                      </div>
+
+                      {/* Role Template Selector (for multi-player-count games) */}
+                      {isMultiPlayerCountGame && hasPlayers && (
+                        <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                          <h3>角色模板</h3>
+                          <RoleTemplateSelector
+                            availableCounts={availablePlayerCounts}
+                            selectedCount={effectivePlayerCount}
+                            playerCountLabels={currentGameMetadata?.playerCountLabels}
+                            onSelect={handlePlayerCountChange}
+                            disabled={!isOwner}
+                            isOwner={isOwner}
+                          />
+                        </div>
+                      )}
+
+                      {/* Role Mapping Display (after players added) */}
+                      {hasPlayers && (
+                        <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-sm)' }}>
+                            <h3>角色分配</h3>
+                            {isOwner && (
+                              <button onClick={handleRandomAssign} className="secondary" style={{ fontSize: '0.875rem' }}>
+                                随机分配
+                              </button>
+                            )}
+                          </div>
+                          <RoleMappingGraph
+                            playerList={room.player_list}
+                            roleIds={roleIds}
+                            mapping={roleMapping}
+                            onChange={handleRoleMappingChange}
+                            readonly={!isOwner}
+                          />
+                        </div>
+                      )}
+
+                      {/* Start Game Button (Owner only) */}
+                      {isOwner && (
+                        <div>
+                          <button
+                            onClick={handleStartGame}
+                            disabled={!isMappingComplete}
+                            style={{ width: '100%' }}
+                          >
+                            Start Game
+                          </button>
+                          {!isMappingComplete && (
+                            <p style={{ 
+                              marginTop: 'var(--spacing-xs)', 
+                              fontSize: '0.875rem', 
+                              color: 'var(--color-text-secondary)' 
+                            }}>
+                              请分配所有角色后才能开始游戏
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
-            </>
+            </LobbyContainer>
           )}
 
           {/* ========== PLAYING/PAUSED/FINISHED PHASE ========== */}
@@ -608,6 +762,11 @@ const Room: React.FC = () => {
           initialMapping={roleMapping}
           onSave={handleSaveRoleMapping}
           onCancel={handleCancelRoleMapping}
+          isMultiPlayerCountGame={isMultiPlayerCountGame}
+          availablePlayerCounts={availablePlayerCounts}
+          initialPlayerCount={effectivePlayerCount}
+          onPlayerCountChange={handlePlayerCountChange}
+          playerCountLabels={currentGameMetadata?.playerCountLabels}
         />
       )}
 
@@ -618,7 +777,15 @@ const Room: React.FC = () => {
         onSelect={handleSelectLLMTemplate}
       />
 
-      {/* Message Bar - 固定在页面底部 */}
+      {/* Status Bar - 固定在页面底部 */}
+      {/* 开放阶段显示 LobbyStatusBar，游戏阶段显示 GameMessageBar */}
+      {isOpen && shouldShowControlBar && (
+        <LobbyStatusBar 
+          isOwner={isOwner} 
+          statusText="等待开始" 
+          isMappingComplete={isMappingComplete}
+        />
+      )}
       {!isOpen && room.game_id && perspective && currentRoleId && (
         <GameMessageBar perspective={perspective} />
       )}

@@ -635,3 +635,12 @@ fastify.decorate('appAuth', { llmClient: mockLLMClient });
 
 
 
+
+
+
+
+
+
+
+
+

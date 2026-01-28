@@ -91,6 +91,7 @@ const roomsPublicRoutes: FastifyPluginAsync = async (fastify) => {
         player_count: Object.keys(roomState.player_list).length,
         player_list: roomState.player_list,
         role_mapping: roomState.role_mapping,
+        selected_player_count: roomState.selected_player_count,
         has_game_state: roomState.game_state !== null,
         created_at: room.created_at,
       });

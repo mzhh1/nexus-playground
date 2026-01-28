@@ -23,9 +23,15 @@
   height: min(calc((100cqw - 2rem) / 0.9), calc(100cqh - 2rem));
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  padding: 5%;
+  padding: 2.5%;
   background: linear-gradient(135deg, #daa520 0%, #f0e68c 50%, #daa520 100%);
   box-sizing: border-box;
+}
+
+.board-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
 }
 
 /* 棋盘线条 */
@@ -178,7 +184,7 @@
 
 /* 棋子文字 */
 .piece-char {
-  font-size: clamp(12px, 3.5cqw, 32px);
+  font-size: clamp(14px, 4.5cqw, 40px);
   font-weight: bold;
   font-family: '楷体', 'KaiTi', 'STKaiti', serif;
   color: #fff;
@@ -206,7 +212,7 @@
   }
 
   .piece-char {
-    font-size: clamp(10px, 4cqw, 24px);
+    font-size: clamp(12px, 5cqw, 30px);
   }
 }
 
@@ -225,3 +231,31 @@
   }
 }
 
+/* 攻击数显示 */
+.attack-count {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(10px, 1.5cqw, 16px);
+  font-weight: bold;
+  color: #fff;
+  background-color: rgba(0, 0, 0, 0.4);
+  border-radius: 50%;
+  width: 1.5em;
+  height: 1.5em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.attack-count.on-piece {
+  background-color: rgba(255, 0, 0, 0.6);
+  width: 1.2em;
+  height: 1.2em;
+  font-size: clamp(12px, 2cqw, 20px);
+  top: 20%;
+  left: 80%;
+}

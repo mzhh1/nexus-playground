@@ -1,5 +1,5 @@
 import fp from 'fastify-plugin';
-import { authPlugin } from '@autolabz/service-auth-middleware';
+import { authPlugin } from '@autolabz/service-auth-fastify';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -25,9 +25,9 @@ export default fp(async function authPluginWrapper(fastify) {
   const authConfig = {
     // SIMPLE 模式占位（仅使用 OAuth userinfo 回落）
     jwtAlg: 'HS256' as const,
-    
+
     // OAuth userinfo 回落配置
-    authBaseUrl: process.env.AUTH_BASE_URL || 'https://114.132.91.247/api',
+    authBaseUrl: process.env.AUTH_BASE_URL || 'https://auth.mzhh.xyz/api',
     oauthUserinfoPath: process.env.OAUTH_USERINFO_PATH || '/oauth/userinfo',
     oauthUserinfoTimeoutMs: Number(process.env.OAUTH_USERINFO_TIMEOUT_MS || 3000),
   };

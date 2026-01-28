@@ -359,6 +359,26 @@
   font-size: 0.875rem;
 }
 
+.home-footer a {
+  color: white;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.6);
+  text-underline-offset: 0.25rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.home-footer a:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  text-decoration-color: white;
+  text-decoration-thickness: 2px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .hero-title {

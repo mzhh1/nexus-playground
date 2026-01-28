@@ -324,6 +324,14 @@ export interface GameMetadata {
    * 例如: "第3回合 - 轮到玩家X" 或 "游戏结束 - 玩家O获胜"
    */
   getStatusText?: (perspective: RolePerspective) => string;
+  
+  /**
+   * 是否启用 LLM 记忆系统
+   * - true: LLM 玩家可以在游戏过程中维护和更新记忆（适用于狼人杀、德州扑克等需要长期推理的游戏）
+   * - false: 不启用记忆（适用于井字棋、五子棋等完全信息游戏）
+   * @default false
+   */
+  enable_llm_memory?: boolean;
 }
 
 /**
@@ -481,6 +489,14 @@ export interface GameLogic {
     wholeHistory: HistoryEvent[],
     diffHistory: HistoryEvent[]
   ): RolePerspective;
+
+  /**
+   * 为LLM玩家生成状态提示词 (当需要支持LLM玩家时必须实现)
+   * 此方法由LLM执行器调用，游戏开发者可完全控制如何向LLM呈现游戏状态
+   * @param perspective 角色视角(包含状态、历史、角色信息等)
+   * @returns 状态提示词字符串(将由系统与行动提示、记忆、任务提示组合)
+   */
+  generateStatePrompt(perspective: RolePerspective): string;
 }
 ```
 
@@ -541,7 +557,92 @@ toRolePerspective(state: GameState, roleId: string, ...): RolePerspective {
 }
 ```
 
-### 4.3 游戏注册
+#### 4.2.4 LLM状态提示词生成
+
+`generateStatePrompt()` 方法用于自定义如何向LLM呈现游戏状态。你可以完全控制格式、内容和结构。
+
+```typescript
+// ✅ 推荐: 结构化的提示词
+generateStatePrompt(perspective: RolePerspective): string {
+  const { current_state, your_role } = perspective;
+  
+  return `# 游戏规则
+${perspective.global_rules}
+
+# 你的身份
+角色: ${your_role.identity}
+目标: ${your_role.goal}
+${your_role.is_current ? '**现在轮到你行动**' : '(目前不是你的回合)'}
+
+# 当前游戏状态
+${this.formatStateForLLM(current_state)}
+
+# 历史记录
+${this.formatHistoryForLLM(perspective.diff_history)}`;
+}
+
+// ✅ 自定义格式化方法
+private formatStateForLLM(state: any): string {
+  // 将状态格式化为易读的文本
+  return `棋盘:\n${this.renderBoard(state.board)}\n回合: ${state.turn}`;
+}
+
+// ❌ 避免: 直接JSON.stringify(完整信息可能过于冗长)
+generateStatePrompt(perspective: RolePerspective): string {
+  return JSON.stringify(perspective); // 不够友好
+}
+```
+
+**最佳实践**：
+- 使用清晰的章节标题（如"# 游戏规则"、"# 当前状态"）
+- 突出重要信息（如是否轮到该玩家）
+- 使用自然语言描述而非原始JSON（更易于LLM理解）
+- 只包含该角色应该知道的信息（遵循视角过滤原则）
+
+### 4.3 LLM 记忆系统（可选）
+
+**适用场景**：狼人杀、德州扑克等需要长期推理和策略规划的游戏。
+
+#### 启用方式
+
+在 `getMetadata()` 中设置 `enable_llm_memory: true`：
+
+```typescript
+getMetadata(): GameMetadata {
+  return {
+    id: 'werewolf',
+    name: '狼人杀',
+    // ... 其他配置
+    enable_llm_memory: true, // ✅ 启用 LLM 记忆
+  };
+}
+```
+
+#### 系统自动处理
+
+启用后，平台会自动管理 LLM 玩家的记忆：
+
+- ✅ **游戏开始时**：清空所有 LLM 玩家的记忆
+- ✅ **执行行动前**：将当前记忆注入到 Prompt
+- ✅ **执行行动后**：根据 LLM 返回自动更新记忆
+- ✅ **独立性保证**：每个 LLM 玩家的记忆完全独立
+
+#### 何时使用
+
+| 场景 | 是否启用 | 原因 |
+|------|---------|------|
+| **狼人杀** | ✅ true | 需要追踪玩家发言、身份伪装、复杂推理 |
+| **德州扑克** | ✅ true | 需要记住对手下注模式、历史行为 |
+| **井字棋/五子棋** | ❌ false | 完全信息游戏，`current_state` 已包含所有必要信息 |
+| **象棋** | ❌ false | 游戏状态自包含，无需额外记忆 |
+
+**游戏开发者无需额外代码**，只需设置一个标志位，平台自动处理一切！
+
+详细信息请参考 [LLM 玩家记忆系统使用指南](./LLM_MEMORY_GUIDE.md)。
+
+---
+
+### 4.4 游戏注册
 
 ```typescript
 // backend/src/games/registry.ts
@@ -1324,26 +1425,18 @@ export class LLMExecutor {
 
   /**
    * 构造LLM Prompt
+   * 注意: 实际实现中会调用 gameLogic.generateStatePrompt() 来生成状态部分
    */
   private buildPrompt(
     perspective: RolePerspective,
-    systemPrompt: string
+    systemPrompt: string,
+    gameLogic: GameLogic
   ): string {
+    // 调用游戏逻辑层的方法生成状态提示词
+    const statePrompt = gameLogic.generateStatePrompt(perspective);
+    
     return `
-你是一个游戏玩家。以下是当前游戏状态:
-
-【游戏规则】
-${perspective.global_rules}
-
-【你的角色】
-身份: ${perspective.your_role.identity}
-目标: ${perspective.your_role.goal}
-
-【历史记录】
-${JSON.stringify(perspective.whole_history, null, 2)}
-
-【当前状态】
-${JSON.stringify(perspective.current_state, null, 2)}
+${statePrompt}
 
 【合法行动】
 ${this.formatActionSpec(perspective.action_space_definition)}
@@ -1909,6 +2002,30 @@ export class TicTacToeLogic implements GameLogic {
 
     return perspective;
   }
+
+  generateStatePrompt(perspective: RolePerspective): string {
+    const { current_state, your_role } = perspective;
+    
+    // 将棋盘格式化为易读的文本
+    const boardStr = current_state.board
+      .map((row, i) => `  ${row.map(cell => cell || '_').join(' | ')}`)
+      .join('\n');
+    
+    return `# 游戏规则
+${perspective.global_rules}
+
+# 你的身份
+角色: ${your_role.identity}
+目标: ${your_role.goal}
+${your_role.is_current ? '**现在轮到你行动**' : '(目前不是你的回合)'}
+
+# 当前游戏状态
+第 ${current_state.turn} 回合
+棋盘 (3x3):
+${boardStr}
+
+${current_state.winner ? `游戏已结束，获胜者: ${current_state.winner}` : '游戏进行中'}`;
+  }
   
   getLegalActions(state: GameState, roleId: string): ActionSpec {
     // 观战者没有合法行动
@@ -2133,6 +2250,7 @@ export class MyGameLogic implements GameLogic {
       minPlayers: 2,
       maxPlayers: 4,
       roleIds: ['player_1', 'player_2'], // 定义游戏所需的角色
+      enable_llm_memory: false, // 是否启用 LLM 记忆（狼人杀等复杂推理游戏设为 true）
       getStatusText: (perspective) => {
         return `第${perspective.current_state.turn}回合`;
       }
@@ -2685,6 +2803,7 @@ export class TicTacToeLogic implements GameLogic {
       minPlayers: 2,
       maxPlayers: 2,
       roleIds: ['player_X', 'player_O'], // 定义井字棋的两个角色
+      enable_llm_memory: false, // 完全信息游戏，无需记忆
       getStatusText: (perspective: RolePerspective) => {
         const state = perspective.current_state;
         if (state.winner) {
@@ -2997,9 +3116,10 @@ export default { render: TicTacToeUI };
 - 不完美信息游戏可选择观战者看到的信息范围（完整/有限）
 
 **游戏开发者只需关注三件事:**
-1. **实现 `GameLogic` 接口** (后端纯逻辑)
-2. **在 `toRolePerspective()` 中生成消息内容并处理观战者** (状态提示 + 观战者支持)
-3. **实现 `GameUIPlugin` 接口** (前端纯渲染，不含状态消息)
+1. **实现 `GameLogic` 接口** (后端纯逻辑，支持固定或多人数角色配置)
+   - `toRolePerspective()`: 生成角色视角和消息内容，处理观战者
+   - `generateStatePrompt()`: 为LLM玩家生成友好的状态提示词
+2. **实现 `GameUIPlugin` 接口** (前端纯渲染，不含状态消息)
 
 **平台处理剩下的一切:**
 - 房间管理、状态同步、LLM调度、权限控制、事件广播
@@ -3007,4 +3127,144 @@ export default { render: TicTacToeUI };
 - 视角生成与缓存、SSE实时推送
 - 统一消息状态栏渲染、样式管理、国际化支持
 - 观战者自动分配、权限控制、视角推送
+- LLM 记忆管理（游戏开始时清空、执行行动时自动更新）
+
+---
+
+## 🎮 多人数配置游戏开发指南
+
+### 适用场景
+
+多人数配置适用于**同一游戏规则下，不同人数有不同角色组合**的游戏，例如：
+- **狼人杀**：6人局、8人局、12人局有不同的狼人和村民配置
+- **阿瓦隆**：5人、7人、10人局有不同的角色卡配置
+- **谁是卧底**：4人、6人、8人局
+
+### 实现步骤
+
+#### 1. 定义多人数角色配置
+
+```typescript
+// games/werewolf/logic/index.ts
+export class WerewolfLogic implements GameLogic {
+  getMetadata(): GameMetadata {
+    return {
+      id: 'werewolf',
+      name: '狼人杀',
+      description: '狼人和村民的对抗游戏...',
+      minPlayers: 6,
+      maxPlayers: 12,
+      
+      // ✅ 使用多人数配置格式
+      roleIds: {
+        6: [
+          'werewolf_1',
+          'werewolf_2',
+          'villager_1',
+          'villager_2',
+          'villager_3',
+          'seer',
+        ],
+        8: [
+          'werewolf_1',
+          'werewolf_2',
+          'werewolf_3',
+          'villager_1',
+          'villager_2',
+          'villager_3',
+          'villager_4',
+          'seer',
+        ],
+        12: [
+          'werewolf_1',
+          'werewolf_2',
+          'werewolf_3',
+          'werewolf_4',
+          'villager_1',
+          'villager_2',
+          'villager_3',
+          'villager_4',
+          'villager_5',
+          'villager_6',
+          'seer',
+          'witch',
+        ],
+      },
+      
+      // ✅ 可选：为每个人数配置提供描述
+      playerCountLabels: {
+        6: '6人标准局',
+        8: '8人进阶局',
+        12: '12人完整局',
+      },
+      
+      enable_llm_memory: true,
+    };
+  }
+  
+  // ... 其余实现与传统游戏相同
+}
+```
+
+#### 2. 游戏逻辑实现
+
+多人数配置游戏的逻辑实现与传统游戏**完全相同**，无需特殊处理：
+
+```typescript
+// initState、getCurrentRole、getLegalActions、applyAction 等方法
+// 实现方式与传统游戏一致，平台会自动处理人数选择
+initState(ctx: InitContext): GameState {
+  // ctx.players 已经是根据选择的人数配置的角色列表
+  // 例如 6人局: ['werewolf_1', 'werewolf_2', 'villager_1', ...]
+  return {
+    players: ctx.players,
+    // ... 初始化状态
+  };
+}
+```
+
+#### 3. 用户体验流程
+
+主人启动游戏时的流程：
+
+```
+1. 点击"编辑角色分配"
+   ↓
+2. 首先看到人数选择器（自动显示）
+   [6人标准局] [8人进阶局] [12人完整局]
+   ↓
+3. 选择人数后，显示对应的角色映射配置
+   werewolf_1 → 张三 (LLM)
+   werewolf_2 → 李四 (Human)
+   villager_1 → 王五 (LLM)
+   ...
+   ↓
+4. 配置完成后保存，开始游戏
+```
+
+### 平台自动处理的功能
+
+✅ **人数选择UI**：自动检测多人数配置并显示选择器  
+✅ **角色列表动态更新**：选择人数后自动切换角色列表  
+✅ **后端验证**：自动验证角色映射是否与选择的人数配置匹配  
+✅ **状态持久化**：自动保存选择的人数到房间状态  
+✅ **恢复游戏**：重新加载时自动恢复选择的人数配置  
+
+### 向后兼容性
+
+传统固定人数游戏（如井字棋）**无需修改**，继续使用数组格式：
+
+```typescript
+roleIds: ['player_X', 'player_O']  // ✅ 传统格式继续有效
+```
+
+平台会自动识别格式并采用对应的处理逻辑。
+
+---
+
+## 📚 相关文档
+
+- [LLM 玩家记忆系统使用指南](./LLM_MEMORY_GUIDE.md) - LLM 记忆功能详解、适用场景、使用示例
+- [README](./README.md) - 平台完整介绍与快速开始
+- [自动玩家系统架构](./AUTO_PLAYER_SYSTEM.md) - 自动玩家系统设计、接口定义、扩展指南
 

@@ -315,6 +315,50 @@ export class GomokuLogic implements GameLogic {
     return perspective;
   }
 
+  generateStatePrompt(perspective: RolePerspective): string {
+    const { 
+      global_rules, 
+      current_state, 
+      whole_history, 
+      diff_history,
+      your_role 
+    } = perspective;
+
+    // Format history
+    const historyText = whole_history.length > 0
+      ? whole_history.map(h => 
+          `Turn ${h.turn}: ${h.role_id} → ${h.action.action_id}${
+            h.action.params ? ` (${JSON.stringify(h.action.params)})` : ''
+          }${h.description ? ` - ${h.description}` : ''}`
+        ).join('\n')
+      : '(Game just started)';
+
+    const recentHistoryText = diff_history.length > 0
+      ? diff_history.map(h => 
+          `Turn ${h.turn}: ${h.role_id} → ${h.action.action_id}${
+            h.action.params ? ` (${JSON.stringify(h.action.params)})` : ''
+          }${h.description ? ` - ${h.description}` : ''}`
+        ).join('\n')
+      : '(No new events since your last turn)';
+
+    // Generate state prompt
+    return `# 游戏规则
+${global_rules}
+
+# 你为${your_role.identity}
+目标: ${your_role.goal}
+${your_role.is_current ? '**现在轮到你行动**' : '(目前不是你的回合)'}
+
+# 当前游戏状态
+${JSON.stringify(current_state)}
+
+# 完整历史记录
+${historyText}
+
+# 自上次行动以来的变化
+${recentHistoryText}`;
+  }
+
   // ============ Helper Methods ============
 
   /**

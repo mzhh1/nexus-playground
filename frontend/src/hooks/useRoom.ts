@@ -143,14 +143,33 @@ export function useRoom(roomId?: string) {
   }, [apiClient, resolveRoomId, refreshAfterMutation]);
 
   /**
-   * Start game
+   * Update role mapping
    */
-  const startGame = useCallback(async (roleMapping: Record<string, string>) => {
+  const updateRoleMapping = useCallback(async (roleMapping: Record<string, string>, selectedPlayerCount?: number) => {
     setError(null);
 
     try {
       const targetRoomId = resolveRoomId();
-      await apiClient.startGame(targetRoomId, roleMapping);
+      await apiClient.updateRoleMapping(targetRoomId, roleMapping, selectedPlayerCount);
+      await refreshAfterMutation();
+    } catch (err: any) {
+      const errorMsg = typeof err.response?.data?.error === 'string'
+        ? err.response.data.error
+        : err.response?.data?.message || err.message || 'Failed to update role mapping';
+      setError(errorMsg);
+      throw err;
+    }
+  }, [apiClient, resolveRoomId, refreshAfterMutation]);
+
+  /**
+   * Start game
+   */
+  const startGame = useCallback(async (roleMapping: Record<string, string>, selectedPlayerCount?: number) => {
+    setError(null);
+
+    try {
+      const targetRoomId = resolveRoomId();
+      await apiClient.startGame(targetRoomId, roleMapping, selectedPlayerCount);
       await refreshAfterMutation();
     } catch (err: any) {
       const errorMsg = typeof err.response?.data?.error === 'string'
@@ -270,6 +289,7 @@ export function useRoom(roomId?: string) {
     selectGame,
     addPlayer,
     removePlayer,
+    updateRoleMapping,
     startGame,
     pauseGame,
     resumeGame,

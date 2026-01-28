@@ -277,6 +277,29 @@ export class TicTacToeLogic implements GameLogic {
     return perspective;
   }
 
+  generateStatePrompt(perspective: RolePerspective): string {
+    const { 
+      // @ts-ignore
+      global_rules, 
+      current_state,
+      // @ts-ignore 
+      whole_history,
+      // @ts-ignore 
+      diff_history,
+      your_role 
+    } = perspective;
+    // Generate state prompt
+    return `# 游戏规则
+在3x3棋盘上，两位玩家轮流下棋，先将自己的三个棋子连成一线者获胜。
+
+# 你的身份为${your_role.identity}
+目标: ${your_role.goal}
+${your_role.is_current ? '**现在轮到你行动**' : '(目前不是你的回合)'}
+
+# 当前游戏状态
+${JSON.stringify(current_state)}`;
+  }
+
   // ============ Helper Methods ============
 
   /**

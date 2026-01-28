@@ -258,7 +258,13 @@ function HomeContent() {
 
       {/* Footer */}
       <footer className="home-footer">
-        <p>© 2025 Nexus Playground - LLM 原生游戏平台</p>
+        <p>
+          © 2025 Nexus Playground - LLM 原生游戏平台 - 
+          {' '} by
+        <a href="https://me.mzhh.xyz" target="_blank" rel="noopener noreferrer">
+          纸灰灰
+        </a>
+      </p>
       </footer>
     </div>
   );

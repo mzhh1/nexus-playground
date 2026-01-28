@@ -15,6 +15,8 @@ export interface PerspectiveEventCallbacks {
   onGameRestarted?: () => void;
   onPlayerJoined?: (data: any) => void;
   onPlayerLeft?: (data: any) => void;
+  onRoleMappingUpdated?: (data: any) => void;
+  onPlayerStatusChanged?: (data: any) => void;
 }
 
 export function usePerspective(
@@ -226,6 +228,26 @@ export function usePerspective(
           callbacksRef.current?.onPlayerLeft?.(data);
         } catch (err) {
           console.error('Failed to parse player_left data:', err);
+        }
+      });
+
+      eventSource.addEventListener('role_mapping_updated', (event) => {
+        console.log('Role mapping updated event:', event.data);
+        try {
+          const data = JSON.parse(event.data);
+          callbacksRef.current?.onRoleMappingUpdated?.(data);
+        } catch (err) {
+          console.error('Failed to parse role_mapping_updated data:', err);
+        }
+      });
+
+      eventSource.addEventListener('player_status_changed', (event) => {
+        console.log('Player status changed event:', event.data);
+        try {
+          const data = JSON.parse(event.data);
+          callbacksRef.current?.onPlayerStatusChanged?.(data);
+        } catch (err) {
+          console.error('Failed to parse player_status_changed data:', err);
         }
       });
 

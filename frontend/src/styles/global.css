@@ -244,10 +244,18 @@ input:focus, select:focus, textarea:focus {
   height: 100%;
   min-height: 0; /* Important for flex children */
   display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  align-items: stretch; /* 让子元素填满容器高度 */
+  overflow: hidden; /* 禁用容器本身的滚动，但游戏内部的滚动仍然工作 */
 }
+
+/* 让子元素填满容器，消除间隙 */
+.game-ui-container > * {
+  width: 100%;
+  height: 100%;
+  flex: 1; /* 确保填满可用空间 */
+}
+
+/* 对于需要居中显示的游戏（如象棋、五子棋），可以在游戏自己的容器中处理居中 */
 
 .error-message {
   color: var(--color-error);

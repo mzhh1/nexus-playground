@@ -23,6 +23,7 @@ import roomsPublicRoutes from './routes/rooms-public.js';
 import actionsRoutes from './routes/actions.js';
 import perspectivesProtectedRoutes from './routes/perspectives-protected.js';
 import perspectivesPublicRoutes from './routes/perspectives-public.js';
+import llmLogsPublicRoutes from './routes/llm-logs-public.js';
 
 // Runtime
 import { getEventBus } from './runtime/event-bus.js';
@@ -99,6 +100,7 @@ async function buildServer() {
       instance.register(gamesRoute); // Games metadata
       instance.register(roomsPublicRoutes); // Browse public rooms (no auth)
       instance.register(perspectivesPublicRoutes); // SSE stream with ticket auth
+      instance.register(llmLogsPublicRoutes); // LLM interaction logs (public)
       
       // Protected routes (require auth)
       instance.register(async (protectedInstance) => {
@@ -158,8 +160,9 @@ async function start() {
       'Available games'
     );
 
-    // Initialize event bus keepalive
+    // Initialize event bus with Fastify instance
     const eventBus = getEventBus();
+    eventBus.initialize(fastify);
     const keepaliveTimer = eventBus.startKeepaliveTimer(30000); // 30 seconds
 
     // Graceful shutdown

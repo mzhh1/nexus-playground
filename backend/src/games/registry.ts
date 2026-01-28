@@ -7,6 +7,7 @@ import { GameLogic } from './types.js';
 import TicTacToeLogic from '../../../games/tic-tac-toe/logic/index.js';
 import GomokuLogic from '../../../games/gomoku/logic/index.js';
 import XiangqiLogic from '../../../games/xiangqi/logic/index.js';
+import WerewolfLogic from '../../../games/werewolf/logic/index.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -16,6 +17,7 @@ export const gameRegistry: Record<string, GameLogic> = {
   'tic-tac-toe': TicTacToeLogic,
   'gomoku': GomokuLogic,
   'xiangqi': XiangqiLogic,
+  'werewolf': WerewolfLogic,
   // Add more games here as they are implemented
   // 'poker': PokerLogic,
   // 'go': GoLogic,

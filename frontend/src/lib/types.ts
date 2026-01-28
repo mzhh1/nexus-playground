@@ -98,6 +98,10 @@ export interface RoomInfo {
   role_mapping: RoleMapping;
   has_game_state: boolean;
   player_count?: number;
+  /**
+   * 选择的游戏人数（仅多人数配置游戏使用）
+   */
+  selected_player_count?: number;
   created_at: string;
   updated_at?: string;
 }
@@ -111,15 +115,80 @@ export interface GameMetadata {
   minPlayers: number;
   maxPlayers: number;
   /**
-   * List of role IDs required by the game
-   * Example: ["player_X", "player_O"] for tic-tac-toe
+   * 游戏角色配置
+   * 
+   * 支持两种格式：
+   * 
+   * 1. 固定角色列表（适用于固定人数游戏）
+   *    roleIds: ['player_X', 'player_O']
+   * 
+   * 2. 多人数配置（适用于可变人数游戏，如狼人杀）
+   *    roleIds: {
+   *      6: ['werewolf_1', 'werewolf_2', 'villager_1', ...],
+   *      8: ['werewolf_1', 'werewolf_2', 'werewolf_3', ...],
+   *      12: [...]
+   *    }
+   * 
+   * Example (固定人数): ["player_X", "player_O"] for tic-tac-toe
+   * Example (多人数): { 6: [...], 8: [...], 12: [...] } for werewolf
    */
-  roleIds: string[];
+  roleIds: string[] | Record<number, string[]>;
+  /**
+   * （可选）为多人数配置提供的人数描述
+   * 仅当 roleIds 为 Record<number, string[]> 时使用
+   * Example: { 6: '6人标准局', 8: '8人进阶局', 12: '12人完整局' }
+   */
+  playerCountLabels?: Record<number, string>;
   /**
    * Enable LLM memory system for this game
    * @default false
    */
   enable_llm_memory?: boolean;
+}
+
+// ============ Multi-Player Count Utilities ============
+
+/**
+ * 判断 roleIds 是否为多人数配置格式
+ */
+export function isMultiPlayerCountConfig(
+  roleIds: string[] | Record<number, string[]>
+): roleIds is Record<number, string[]> {
+  return typeof roleIds === 'object' && !Array.isArray(roleIds);
+}
+
+/**
+ * 获取指定人数的角色列表
+ */
+export function getRoleIdsForPlayerCount(
+  roleIds: string[] | Record<number, string[]>,
+  playerCount?: number
+): string[] {
+  // 传统格式：直接返回
+  if (Array.isArray(roleIds)) {
+    return roleIds;
+  }
+  
+  // 多人数配置：返回指定人数的角色列表
+  if (playerCount !== undefined && roleIds[playerCount]) {
+    return roleIds[playerCount];
+  }
+  
+  // 未指定人数或人数无效：返回最小支持人数的角色列表作为默认值
+  const counts = Object.keys(roleIds).map(Number).sort((a, b) => a - b);
+  return counts.length > 0 ? roleIds[counts[0]] : [];
+}
+
+/**
+ * 获取多人数配置游戏支持的所有人数选项
+ */
+export function getAvailablePlayerCounts(
+  roleIds: string[] | Record<number, string[]>
+): number[] {
+  if (isMultiPlayerCountConfig(roleIds)) {
+    return Object.keys(roleIds).map(Number).sort((a, b) => a - b);
+  }
+  return [];
 }
 
 // ============ API Response Types ============

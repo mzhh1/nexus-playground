@@ -75,8 +75,25 @@ export class GameAPI {
     return response.data;
   }
 
-  async startGame(roomId: string, roleMapping: RoleMapping): Promise<{ success: true }> {
-    const response = await this.client.post(`/rooms/${roomId}/start`, { role_mapping: roleMapping });
+  async updateRoleMapping(roomId: string, roleMapping: RoleMapping, selectedPlayerCount?: number): Promise<{ success: true }> {
+    const payload: { role_mapping: RoleMapping; selected_player_count?: number } = {
+      role_mapping: roleMapping,
+    };
+    if (selectedPlayerCount !== undefined) {
+      payload.selected_player_count = selectedPlayerCount;
+    }
+    const response = await this.client.post(`/rooms/${roomId}/update-role-mapping`, payload);
+    return response.data;
+  }
+
+  async startGame(roomId: string, roleMapping: RoleMapping, selectedPlayerCount?: number): Promise<{ success: true }> {
+    const payload: { role_mapping: RoleMapping; selected_player_count?: number } = {
+      role_mapping: roleMapping,
+    };
+    if (selectedPlayerCount !== undefined) {
+      payload.selected_player_count = selectedPlayerCount;
+    }
+    const response = await this.client.post(`/rooms/${roomId}/start`, payload);
     return response.data;
   }
 

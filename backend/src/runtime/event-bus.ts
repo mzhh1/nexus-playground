@@ -3,7 +3,7 @@
  * Manages Server-Sent Events (SSE) for real-time perspective updates
  */
 
-import { FastifyReply } from 'fastify';
+import { FastifyReply, FastifyInstance } from 'fastify';
 import { RolePerspective } from '../games/types.js';
 import logger from '../utils/logger.js';
 
@@ -16,8 +16,25 @@ export interface SSEClient {
   connectedAt: Date;
 }
 
+interface PlayerConnectionInfo {
+  roomId: string;
+  clientIds: Set<string>;
+  disconnectTimer?: NodeJS.Timeout; // Timer for grace period
+}
+
 export class EventBus {
   private clients: Map<string, SSEClient> = new Map();
+  private playerConnections: Map<string, PlayerConnectionInfo> = new Map(); // playerId -> connection info
+  private readonly OFFLINE_GRACE_PERIOD_MS = 10000; // 10 seconds grace period
+  private fastify: FastifyInstance | null = null;
+
+  /**
+   * Initialize EventBus with Fastify instance
+   */
+  initialize(fastify: FastifyInstance): void {
+    this.fastify = fastify;
+    logger.info('EventBus initialized with Fastify instance');
+  }
 
   /**
    * Register SSE client
@@ -57,6 +74,11 @@ export class EventBus {
       'SSE client registered'
     );
 
+    // Track player connection if playerId is provided
+    if (playerId) {
+      this.handlePlayerConnect(roomId, playerId, clientId);
+    }
+
     // Setup cleanup on connection close
     reply.raw.on('close', () => {
       this.unregisterClient(clientId);
@@ -76,6 +98,11 @@ export class EventBus {
 
     if (client) {
       this.clients.delete(clientId);
+
+      // Track player disconnection if playerId is provided
+      if (client.playerId) {
+        this.handlePlayerDisconnect(client.roomId, client.playerId, clientId);
+      }
 
       logger.info(
         {
@@ -239,6 +266,144 @@ export class EventBus {
     return setInterval(() => {
       this.sendKeepalive();
     }, intervalMs);
+  }
+
+  /**
+   * Handle player connection
+   */
+  private handlePlayerConnect(roomId: string, playerId: string, clientId: string): void {
+    let connInfo = this.playerConnections.get(playerId);
+
+    if (!connInfo) {
+      // First connection for this player
+      connInfo = {
+        roomId,
+        clientIds: new Set([clientId]),
+      };
+      this.playerConnections.set(playerId, connInfo);
+
+      // Player is coming online
+      this.setPlayerOnline(roomId, playerId);
+    } else {
+      // Player reconnecting or has multiple tabs
+      connInfo.clientIds.add(clientId);
+
+      // Cancel offline timer if exists (player reconnected within grace period)
+      if (connInfo.disconnectTimer) {
+        clearTimeout(connInfo.disconnectTimer);
+        connInfo.disconnectTimer = undefined;
+        logger.info({ roomId, playerId }, 'Player reconnected within grace period');
+      }
+    }
+  }
+
+  /**
+   * Handle player disconnection
+   */
+  private handlePlayerDisconnect(roomId: string, playerId: string, clientId: string): void {
+    const connInfo = this.playerConnections.get(playerId);
+
+    if (!connInfo) {
+      return;
+    }
+
+    // Remove this client from the set
+    connInfo.clientIds.delete(clientId);
+
+    // If no more connections, start grace period timer
+    if (connInfo.clientIds.size === 0) {
+      logger.info(
+        { roomId, playerId, gracePeriodMs: this.OFFLINE_GRACE_PERIOD_MS },
+        'All player connections closed, starting grace period'
+      );
+
+      connInfo.disconnectTimer = setTimeout(() => {
+        // Grace period expired, mark player as offline
+        this.playerConnections.delete(playerId);
+        this.setPlayerOffline(roomId, playerId);
+      }, this.OFFLINE_GRACE_PERIOD_MS);
+    }
+  }
+
+  /**
+   * Set player status to online
+   */
+  private async setPlayerOnline(roomId: string, playerId: string): Promise<void> {
+    try {
+      if (!this.fastify) {
+        logger.error('EventBus not initialized with Fastify instance');
+        return;
+      }
+
+      // Import dynamically to avoid circular dependency
+      const { createStateManager } = await import('./state-manager.js');
+      const stateManager = createStateManager(this.fastify);
+
+      await stateManager.updatePlayerStatus(roomId, playerId, 'online');
+
+      // Broadcast player status change
+      this.broadcastToRoom(roomId, 'player_status_changed', {
+        player_id: playerId,
+        status: 'online',
+        timestamp: new Date().toISOString(),
+      });
+
+      logger.info({ roomId, playerId }, 'Player status set to online');
+    } catch (error) {
+      logger.error({ error, roomId, playerId }, 'Failed to set player online');
+    }
+  }
+
+  /**
+   * Set player status to offline
+   */
+  private async setPlayerOffline(roomId: string, playerId: string): Promise<void> {
+    try {
+      if (!this.fastify) {
+        logger.error('EventBus not initialized with Fastify instance');
+        return;
+      }
+
+      // Import dynamically to avoid circular dependency
+      const { createStateManager } = await import('./state-manager.js');
+      const stateManager = createStateManager(this.fastify);
+
+      await stateManager.updatePlayerStatus(roomId, playerId, 'offline');
+
+      // Broadcast player status change
+      this.broadcastToRoom(roomId, 'player_status_changed', {
+        player_id: playerId,
+        status: 'offline',
+        timestamp: new Date().toISOString(),
+      });
+
+      logger.info({ roomId, playerId }, 'Player status set to offline');
+    } catch (error) {
+      logger.error({ error, roomId, playerId }, 'Failed to set player offline');
+    }
+  }
+
+  /**
+   * Check if player is online
+   */
+  isPlayerOnline(playerId: string): boolean {
+    const connInfo = this.playerConnections.get(playerId);
+    return connInfo !== undefined && connInfo.clientIds.size > 0;
+  }
+
+  /**
+   * Get online players in a room
+   */
+  getOnlinePlayersInRoom(roomId: string): string[] {
+    const onlinePlayers: string[] = [];
+
+    for (const [playerId, connInfo] of this.playerConnections.entries()) {
+      if (connInfo.roomId === roomId && connInfo.clientIds.size > 0) {
+        onlinePlayers.push(playerId);
+      }
+    }
+
+    return onlinePlayers;
   }
 }
 

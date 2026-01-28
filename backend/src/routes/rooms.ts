@@ -82,10 +82,11 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       display_name: string;
       model_name?: string;
       system_prompt?: string;
+      temperature?: number;
     };
   }>('/rooms/:roomId/add-player', async (request, reply) => {
     const { roomId } = request.params;
-    const { player_type, uid, display_name, model_name, system_prompt } = request.body;
+    const { player_type, uid, display_name, model_name, system_prompt, temperature } = request.body;
 
     if (!isValidRoomId(roomId)) {
       return reply.code(400).send({ error: 'Invalid room ID format' });
@@ -104,13 +105,14 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
           uid: uid || playerId,
           display_name,
           join_time: new Date().toISOString(),
-          status: 'online',
+          status: 'offline', // Will be set to 'online' when SSE connection is established
         };
       } else {
         player = {
           type: 'llm',
           model_name: model_name || 'gpt-4o-mini',
           system_prompt: system_prompt || '你是一个聪明的游戏玩家',
+          temperature: temperature ?? 0.7,
           display_name,
           join_time: new Date().toISOString(),
           status: 'active',
@@ -171,6 +173,47 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
+   * POST /api/v1/rooms/:roomId/update-role-mapping
+   * Update role mapping without starting the game
+   */
+  fastify.post<{
+    Params: { roomId: string };
+    Body: { role_mapping: Record<string, string>; selected_player_count?: number };
+  }>('/rooms/:roomId/update-role-mapping', async (request, reply) => {
+    const { roomId } = request.params;
+    const { role_mapping, selected_player_count } = request.body;
+    
+    if (!isValidRoomId(roomId)) {
+      return reply.code(400).send({ error: 'Invalid room ID format' });
+    }
+    
+    const owner = await ensureOwner(request, roomId);
+    if (!('ok' in owner && owner.ok)) {
+      return reply.code((owner as any).code).send({ error: (owner as any).error });
+    }
+
+    try {
+      const result = await stateManager.updateRoleMapping(roomId, role_mapping, selected_player_count);
+      if (!result.success) {
+        return reply.code(400).send({ error: result.error || 'Failed to update role mapping' });
+      }
+      
+      logger.info({ roomId, roleMapping: role_mapping, selectedPlayerCount: selected_player_count }, 'Role mapping updated');
+      
+      // Broadcast role mapping updated event
+      getEventBus().broadcastToRoom(roomId, 'role_mapping_updated', { 
+        role_mapping,
+        selected_player_count
+      });
+      
+      return reply.send({ success: true });
+    } catch (error) {
+      logger.error({ error, roomId }, 'Failed to update role mapping');
+      return reply.code(500).send({ error: 'Failed to update role mapping' });
+    }
+  });
+
+  /**
    * Helper function to broadcast game started/restarted events and initial perspectives
    */
   async function broadcastGameStarted(
@@ -202,10 +245,13 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.post<{
     Params: { roomId: string };
-    Body: { role_mapping: Record<string, string> };
+    Body: { 
+      role_mapping: Record<string, string>;
+      selected_player_count?: number;
+    };
   }>('/rooms/:roomId/start', async (request, reply) => {
     const { roomId } = request.params;
-    const { role_mapping } = request.body;
+    const { role_mapping, selected_player_count } = request.body;
     if (!isValidRoomId(roomId)) return reply.code(400).send({ error: 'Invalid room ID format' });
     const owner = await ensureOwner(request, roomId);
     if (!('ok' in owner && owner.ok)) return reply.code((owner as any).code).send({ error: (owner as any).error });
@@ -216,6 +262,56 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       const gameId = roomState.game_id as string;
       const gameLogic = getGameLogic(gameId);
       const metadata = gameLogic.getMetadata();
+
+      // 验证角色映射的合法性
+      const submittedRoleIds = Object.keys(role_mapping);
+      const metadataRoleIds = metadata.roleIds;
+      
+      let validRoleIds: string[];
+      
+      if (Array.isArray(metadataRoleIds)) {
+        // 传统格式：直接验证
+        validRoleIds = metadataRoleIds;
+      } else {
+        // 多人数配置：根据提交的人数或 selected_player_count 验证
+        const playerCount = selected_player_count || submittedRoleIds.length;
+        
+        if (!metadataRoleIds[playerCount]) {
+          const availableCounts = Object.keys(metadataRoleIds).join(', ');
+          return reply.code(400).send({
+            error: `Invalid player count: ${playerCount}. Available options: ${availableCounts}`
+          });
+        }
+        
+        validRoleIds = metadataRoleIds[playerCount];
+      }
+      
+      // 验证所有提交的角色都在有效列表中
+      const invalidRoles = submittedRoleIds.filter(id => !validRoleIds.includes(id));
+      if (invalidRoles.length > 0) {
+        return reply.code(400).send({
+          error: `Invalid role IDs: ${invalidRoles.join(', ')}. Expected roles: ${validRoleIds.join(', ')}`
+        });
+      }
+      
+      // 验证所有必需角色都已分配
+      const missingRoles = validRoleIds.filter(id => !submittedRoleIds.includes(id));
+      if (missingRoles.length > 0) {
+        return reply.code(400).send({
+          error: `Missing role assignments: ${missingRoles.join(', ')}`
+        });
+      }
+      
+      logger.info(
+        { 
+          roomId, 
+          gameId, 
+          roleCount: validRoleIds.length,
+          isMultiPlayerCount: !Array.isArray(metadataRoleIds),
+          selectedPlayerCount: selected_player_count 
+        },
+        'Role mapping validated successfully'
+      );
 
       // Clear LLM player memory if game enables memory system
       let updatedPlayerList = roomState.player_list;
@@ -242,6 +338,8 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
         room_status: 'playing',
         resume_locked: false,
         history: [],
+        // 保存选择的人数（仅多人数配置游戏）
+        selected_player_count: !Array.isArray(metadataRoleIds) ? selected_player_count : undefined,
       }));
       if (!result.success) return reply.code(500).send({ error: 'Failed to start game' });
       await roomDAO.updateStatus(roomId, 'playing');
@@ -465,7 +563,7 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
         uid: userId,
         display_name,
         join_time: new Date().toISOString(),
-        status: 'online' as const,
+        status: 'offline' as const, // Will be set to 'online' when SSE connection is established
       };
 
       // Add player to room

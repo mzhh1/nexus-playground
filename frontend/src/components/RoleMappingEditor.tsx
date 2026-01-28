@@ -23,17 +23,51 @@ const formatRoleLabel = (roleId: string): string => {
   return roleId;
 };
 
+/**
+ * 生成自动映射：将前n个玩家自动分配到前n个角色
+ * n = min(玩家数量, 角色数量)
+ */
+const generateAutoMapping = (playerList: PlayerList, roleIds: string[]): RoleMapping => {
+  const playerIds = Object.keys(playerList);
+  const n = Math.min(playerIds.length, roleIds.length);
+  
+  const autoMapping: RoleMapping = {};
+  for (let i = 0; i < n; i++) {
+    autoMapping[roleIds[i]] = playerIds[i];
+  }
+  
+  return autoMapping;
+};
+
 export const RoleMappingEditor: React.FC<RoleMappingEditorProps> = ({
   playerList,
   roleIds,
   initialMapping = {},
   onMappingChange,
 }) => {
-  const [mapping, setMapping] = useState<RoleMapping>(initialMapping);
+  const [mapping, setMapping] = useState<RoleMapping>(() => {
+    // 初始化时，如果 initialMapping 为空，自动生成映射
+    if (Object.keys(initialMapping).length === 0 && roleIds.length > 0) {
+      return generateAutoMapping(playerList, roleIds);
+    }
+    return initialMapping;
+  });
 
+  // 当 initialMapping 变化时更新映射，如果为空则自动填充
   useEffect(() => {
-    setMapping(initialMapping);
-  }, [initialMapping]);
+    if (Object.keys(initialMapping).length === 0 && roleIds.length > 0) {
+      // 如果初始映射为空，自动生成映射
+      const autoMapping = generateAutoMapping(playerList, roleIds);
+      setMapping(autoMapping);
+      // 通知父组件映射已更改
+      if (onMappingChange) {
+        onMappingChange(autoMapping);
+      }
+    } else {
+      setMapping(initialMapping);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMapping, playerList, roleIds]);
 
   const handleRoleAssignment = (roleId: string, playerId: string) => {
     const newMapping = { ...mapping };

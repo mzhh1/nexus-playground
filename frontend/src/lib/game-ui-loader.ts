@@ -12,6 +12,7 @@ const gameUIRegistry: Record<string, () => Promise<{ default: GameUIComponent }>
   'tic-tac-toe': () => import('../../games/tic-tac-toe/ui/ui.tsx'),
   'gomoku': () => import('../../games/gomoku/ui/ui.tsx'),
   'xiangqi': () => import('../../games/xiangqi/ui/ui.tsx'),
+  'werewolf': () => import('../../games/werewolf/ui/ui.tsx'),
   // Add more games here as they are created
   // 'game-id': () => import('../../games/game-id/ui/ui.tsx'),
 };
