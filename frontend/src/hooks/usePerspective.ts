@@ -20,8 +20,8 @@ export interface PerspectiveEventCallbacks {
 }
 
 export function usePerspective(
-  roomId: string | null, 
-  roleId: string | null, 
+  roomId: string | null,
+  roleId: string | null,
   playerId?: string,
   callbacks?: PerspectiveEventCallbacks
 ) {
@@ -29,12 +29,12 @@ export function usePerspective(
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const auth = useOAuth();
-  
+
   const eventSourceRef = useRef<EventSource | null>(null);
   const ticketRef = useRef<string | null>(null);
   const ticketExpiryRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef<number>(0);
-  const healthCheckIntervalRef = useRef<number | null>(null);
+  const healthCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const callbacksRef = useRef<PerspectiveEventCallbacks | undefined>(callbacks);
 
   // Update callbacks ref when it changes
@@ -78,10 +78,10 @@ export function usePerspective(
       }
 
       const data = await response.json();
-      
+
       // Store ticket expiry time
       ticketExpiryRef.current = Date.now() + (data.expiresIn * 1000);
-      
+
       return data.ticket;
     } catch (err) {
       console.error('Failed to get SSE ticket:', err);
@@ -121,7 +121,7 @@ export function usePerspective(
       const urlPath = `${baseURL}/rooms/${roomId}/perspectives/${roleId}/stream`;
       const params = new URLSearchParams();
       params.set('ticket', ticket);
-      
+
       if (playerId) {
         params.set('player_id', playerId);
       }
@@ -139,7 +139,7 @@ export function usePerspective(
         setConnected(true);
         setError(null);
         reconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful connection
-        
+
         // Start health check interval
         if (healthCheckIntervalRef.current) {
           clearInterval(healthCheckIntervalRef.current);
@@ -148,7 +148,7 @@ export function usePerspective(
           if (eventSourceRef.current) {
             const readyState = eventSourceRef.current.readyState;
             console.log('[SSE] Health check - ReadyState:', readyState);
-            
+
             // If connection is closed (readyState === 2), clean up
             if (readyState === 2) {
               console.warn('[SSE] Connection closed, cleaning up...');
@@ -258,17 +258,17 @@ export function usePerspective(
           error: err
         });
         setConnected(false);
-        
+
         // Clear health check on error
         if (healthCheckIntervalRef.current) {
           clearInterval(healthCheckIntervalRef.current);
           healthCheckIntervalRef.current = null;
         }
-        
+
         // Limit reconnection attempts to prevent infinite loops
         const MAX_RECONNECT_ATTEMPTS = 5;
         reconnectAttemptsRef.current += 1;
-        
+
         if (reconnectAttemptsRef.current > MAX_RECONNECT_ATTEMPTS) {
           console.error('Max reconnection attempts reached, stopping reconnection');
           setError('Failed to establish connection after multiple attempts');
@@ -278,12 +278,12 @@ export function usePerspective(
           }
           return;
         }
-        
+
         // Check if ticket is expiring or expired
         const now = Date.now();
         const ticketExpiry = ticketExpiryRef.current || 0;
         const ticketAge = ticketExpiry - now;
-        
+
         // If ticket expires in less than 10 seconds, get a new one
         if (ticketAge < 10000) {
           console.log(`Ticket expired or expiring, reconnecting with new ticket... (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
@@ -317,18 +317,18 @@ export function usePerspective(
    */
   const disconnect = useCallback(() => {
     console.log('[SSE] Disconnecting...');
-    
+
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
       setConnected(false);
     }
-    
+
     if (healthCheckIntervalRef.current) {
       clearInterval(healthCheckIntervalRef.current);
       healthCheckIntervalRef.current = null;
     }
-    
+
     ticketRef.current = null;
     ticketExpiryRef.current = null;
     reconnectAttemptsRef.current = 0;

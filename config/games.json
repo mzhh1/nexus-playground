@@ -1,0 +1,24 @@
+{
+    "games": [
+        {
+            "id": "tic-tac-toe",
+            "enabled": true,
+            "logicModule": "../../../games/tic-tac-toe/logic/index.js"
+        },
+        {
+            "id": "gomoku",
+            "enabled": true,
+            "logicModule": "../../../games/gomoku/logic/index.js"
+        },
+        {
+            "id": "xiangqi",
+            "enabled": true,
+            "logicModule": "../../../games/xiangqi/logic/index.js"
+        },
+        {
+            "id": "werewolf",
+            "enabled": true,
+            "logicModule": "../../../games/werewolf/logic/index.js"
+        }
+    ]
+}

@@ -1,13 +1,11 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_API_BASE_URL?: string;
-  readonly VITE_WS_BASE_URL?: string;
-  readonly VITE_SPECTATOR_ROLE_ID?: string;
-  // Add more env variables as needed
+  readonly VITE_GAME_CDN_BASE: string;
+  readonly VITE_ENABLED_GAMES: string;
+  readonly VITE_API_BASE_URL: string;
 }
 
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
-

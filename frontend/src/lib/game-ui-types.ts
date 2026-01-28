@@ -1,61 +1,32 @@
 /**
  * Game UI Type Definitions
- * Interface for game UI plugins
+ * Re-exports from @nexus/game-sdk for type consistency
  */
 
-import type { RolePerspective, Action } from './types';
+// Re-export from SDK for consistency with Module Federation
+export type {
+  GameUIProps,
+  GameUIComponent,
+  GameUIMetadata,
+  GameRemoteModule,
+  GameVersionInfo,
+} from '@nexus/game-sdk';
+
+// Also re-export core types for convenience
+export type {
+  RolePerspective,
+  Action,
+  ActionSpec,
+  ActionDefinition,
+} from '@nexus/game-sdk';
+
+// Legacy support: GameUIPlugin interface (deprecated, use GameUIComponent)
+import type { GameUIProps } from '@nexus/game-sdk';
 
 /**
- * Props passed to game UI components
- */
-export interface GameUIProps {
-  /**
-   * Role perspective (from backend)
-   */
-  perspective: RolePerspective;
-
-  /**
-   * Callback to submit an action
-   */
-  onAction: (action: Action) => void;
-
-  /**
-   * Is it current player's turn?
-   */
-  isMyTurn: boolean;
-
-  /**
-   * Is the game in read-only mode? (观察或终局暂停)
-   */
-  readonly: boolean;
-
-  /**
-   * Additional metadata
-   */
-  metadata?: {
-    roomId: string;
-    roleId: string;
-    playerId?: string;
-  };
-}
-
-/**
- * Game UI Plugin Interface
+ * @deprecated Use GameUIComponent from SDK instead
  */
 export interface GameUIPlugin {
-  /**
-   * Render function for the game UI
-   */
   render(props: GameUIProps): JSX.Element;
-
-  /**
-   * Optional: Custom styles
-   */
   styles?: string;
 }
-
-/**
- * Game UI component type
- */
-export type GameUIComponent = React.FC<GameUIProps>;
-

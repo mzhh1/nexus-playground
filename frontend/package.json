@@ -12,11 +12,14 @@
   },
   "dependencies": {
     "@autolabz/oauth-sdk": "^1.1.10",
+    "@nexus/game-sdk": "file:../packages/game-sdk",
+    "axios": "^1.6.7",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "axios": "^1.6.7"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@originjs/vite-plugin-federation": "^1.4.1",
+    "@types/node": "^25.0.10",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
@@ -33,4 +36,3 @@
     "npm": ">=9.0.0"
   }
 }
-
