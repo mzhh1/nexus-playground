@@ -9,12 +9,11 @@ import type { GameUIComponent } from './game-ui-types';
 // This is necessary because Vite's glob imports need to be statically analyzable
 // Note: In Docker, games directory is mounted at /app/games, so path is ../../games from src/lib/
 const gameUIRegistry: Record<string, () => Promise<{ default: GameUIComponent }>> = {
-  'tic-tac-toe': () => import('../../games/tic-tac-toe/ui/ui.tsx'),
-  'gomoku': () => import('../../games/gomoku/ui/ui.tsx'),
-  'xiangqi': () => import('../../games/xiangqi/ui/ui.tsx'),
-  'werewolf': () => import('../../games/werewolf/ui/ui.tsx'),
-  // Add more games here as they are created
-  // 'game-id': () => import('../../games/game-id/ui/ui.tsx'),
+  // 'tic-tac-toe': () => import('../../games/tic-tac-toe/ui/ui.tsx'),
+  // 'gomoku': () => import('../../games/gomoku/ui/ui.tsx'),
+  // 'xiangqi': () => import('../../games/xiangqi/ui/ui.tsx'),
+  // 'werewolf': () => import('../../games/werewolf/ui/ui.tsx'),
+  // Games are temporarily disabled for Phase 1 Vercel deployment
 };
 
 /**
@@ -28,10 +27,10 @@ export async function loadGameUI(gameId: string): Promise<GameUIComponent | null
       console.log('Available games:', Object.keys(gameUIRegistry));
       return null;
     }
-    
+
     // Load the module
     const module = await gameUIRegistry[gameId]();
-    
+
     // Return the default export (should be a React component)
     return module.default as GameUIComponent;
   } catch (error) {

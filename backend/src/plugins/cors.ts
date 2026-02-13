@@ -20,9 +20,11 @@ const corsPlugin: FastifyPluginAsync = async (fastify) => {
       const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
         'http://localhost',
         'http://localhost:80',
+        'https://nexus.mzhh.xyz',
       ];
 
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow Vercel preview deployments
+      if (origin && (origin.endsWith('.vercel.app') || allowedOrigins.includes(origin))) {
         cb(null, true);
         return;
       }
