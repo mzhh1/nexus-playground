@@ -2,11 +2,6 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-// 从环境变量读取端口配置
-const FRONTEND_PORT = parseInt(process.env.FRONTEND_PORT || '5173', 10);
-const NGINX_PORT = parseInt(process.env.NGINX_PORT || '80', 10);
-
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -18,8 +13,8 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0',
-    port: FRONTEND_PORT,
+    host: '0.0.0.0', // Listen on all interfaces for Docker access
+    port: 5173,      // Default port
     strictPort: true,
     watch: {
       usePolling: true, // For Docker compatibility
@@ -36,6 +31,12 @@ export default defineConfig({
       '.localhost',
       '.vercel.app' // Allow Vercel preview URLs
     ],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      }
+    }
   },
   build: {
     outDir: 'dist',
