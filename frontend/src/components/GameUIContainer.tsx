@@ -10,7 +10,7 @@ import type { GameUIComponent, GameUIProps } from '../lib/game-ui-types';
 interface GameUIContainerProps extends Omit<GameUIProps, 'perspective'> {
   gameId: string;
   perspective: GameUIProps['perspective'] | null;
-  uiConfig?: { mode: string; url: string };
+  uiConfig?: { mode: string; url: string; css?: string };
 }
 
 export const GameUIContainer: React.FC<GameUIContainerProps> = ({

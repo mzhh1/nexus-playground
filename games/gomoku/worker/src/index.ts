@@ -28,6 +28,18 @@ app.get('/game-ui.js', async (c) => {
     return newResponse;
 });
 
+// Special route for style.css
+app.get('/style.css', async (c) => {
+    const url = new URL(c.req.url);
+    const response = await c.env.ASSETS.fetch(new Request(url, c.req.raw));
+
+    // Create new response with CORS headers
+    const newResponse = new Response(response.body, response);
+    newResponse.headers.set('Access-Control-Allow-Origin', '*');
+    newResponse.headers.set('Content-Type', 'text/css');
+    return newResponse;
+});
+
 // 1. Metadata Endpoint
 app.get('/metadata', (c) => {
     const metadata = logic.getMetadata();
@@ -42,6 +54,7 @@ app.get('/metadata', (c) => {
         ui: {
             mode: 'url',
             url: `${uiBaseUrl}/game-ui.js`,
+            css: `${uiBaseUrl}/style.css`,
         },
     });
 });
