@@ -62,7 +62,7 @@ export const GameUIContainer: React.FC<GameUIContainerProps> = ({
     return () => {
       mounted = false;
     };
-  }, [gameId]);
+  }, [gameId, uiConfig]);
 
   if (loading) {
     return (

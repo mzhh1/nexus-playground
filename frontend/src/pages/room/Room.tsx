@@ -42,7 +42,7 @@ const Room: React.FC = () => {
   const [selectedPlayerCount, setSelectedPlayerCount] = useState<number | null>(null);
 
   // Fetch games metadata
-  const { games: AVAILABLE_GAMES } = useGamesMetadata();
+  const { games: AVAILABLE_GAMES, loading: metadataLoading } = useGamesMetadata();
 
   const {
     room,
@@ -490,11 +490,11 @@ const Room: React.FC = () => {
     );
   }
 
-  if (loading && !room) {
+  if ((loading && !room) || metadataLoading) {
     return (
       <div className="loading">
         <div className="spinner"></div>
-        <p>Loading room...</p>
+        <p>Loading room data...</p>
       </div>
     );
   }

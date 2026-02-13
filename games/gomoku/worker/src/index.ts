@@ -13,10 +13,10 @@ const app = new Hono<{ Bindings: Bindings }>();
 // Enable CORS
 app.use('/*', cors());
 
-// Special route for ui.js to ensure CORS headers
+// Special route for game-ui.js to ensure CORS headers
 // We renamed public/ui.js to public/_ui.js so direct access is bypassed
 // and we can serve it here with custom headers
-app.get('/ui.js', async (c) => {
+app.get('/game-ui.js', async (c) => {
     const url = new URL(c.req.url);
     url.pathname = '/_ui.js';
     const response = await c.env.ASSETS.fetch(new Request(url, c.req.raw));
@@ -41,7 +41,7 @@ app.get('/metadata', (c) => {
         ...metadata,
         ui: {
             mode: 'url',
-            url: `${uiBaseUrl}/ui.js`,
+            url: `${uiBaseUrl}/game-ui.js`,
         },
     });
 });

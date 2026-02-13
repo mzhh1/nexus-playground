@@ -33,8 +33,10 @@ export async function loadGameUI(gameId: string, uiConfig?: { mode: string; url:
         return module.default as GameUIComponent;
       } catch (err) {
         console.error(`Failed to load remote UI from ${uiConfig.url}:`, err);
-        // Fallback to registry if remote fails? or just throw?
-        // Let's continue to registry check as fallback or if not URL mode
+        if (err instanceof Error) {
+          console.error('Import error details:', err.message, err.stack);
+        }
+        // Fallback to registry check...
       }
     }
 

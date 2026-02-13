@@ -14,15 +14,17 @@ export default defineConfig({
         outDir: 'worker/public',
         emptyOutDir: false, // Don't empty, we might have other assets
         rollupOptions: {
-            external: ['react', 'react-dom', '@nexus/game-sdk'],
+            // Bundle everything to ensure it works in isolation
+            // external: ['react', 'react-dom', '@nexus/game-sdk'],
             output: {
-                // Ensure we get a single file named ui.js
-                entryFileNames: 'ui.js',
-                globals: {
-                    react: 'React',
-                    'react-dom': 'ReactDOM',
-                    '@nexus/game-sdk': 'NexusGameSDK',
-                },
+                // Ensure we get a single file named _ui.js to avoid static asset shadowing
+                // This forces requests to /ui.js to go through our Worker (which adds CORS)
+                entryFileNames: '_ui.js',
+                // globals: {
+                //     react: 'React',
+                //     'react-dom': 'ReactDOM',
+                //     '@nexus/game-sdk': 'NexusGameSDK',
+                // },
             },
         },
     },

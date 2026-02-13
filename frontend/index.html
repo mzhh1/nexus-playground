@@ -8,6 +8,22 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Expose React to window for Import Map shims -->
+    <script type="module">
+      import React from 'react';
+      import ReactDOM from 'react-dom/client';
+      window.React = React;
+      window.ReactDOM = ReactDOM;
+    </script>
+    <!-- Import Map for remote modules -->
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "/react-shim.js",
+          "react-dom": "/react-dom-shim.js"
+        }
+      }
+    </script>
     <script type="module" src="/src/pages/index/main.tsx"></script>
   </body>
 </html>
