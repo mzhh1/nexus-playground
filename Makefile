@@ -24,6 +24,9 @@ help: ## 显示帮助信息
 	@awk 'BEGIN {FS = ":.*##"; printf "使用方法: make $(GREEN)<target>$(NC)\n\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BLUE)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ 基础操作
+build-games: ## 构建游戏资产 (Gomoku Only Phase 1)
+	@echo "$(BLUE)🔨 构建游戏资产...$(NC)"
+	cd games/gomoku && npm run build:logic
 
 build: ## 构建所有服务
 	@echo "$(BLUE)🔨 构建所有服务...$(NC)"
@@ -80,7 +83,7 @@ health: ## 检查服务健康状态
 
 ##@ 重新构建服务
 
-rebuild: down build up ## 完全重建所有服务（停止->构建->启动）
+rebuild: down build-games build up ## 完全重建所有服务（停止->构建游戏->构建容器->启动）
 
 rebuild-backend: ## 重新构建后端服务
 	@echo "$(BLUE)🔄 重新构建后端服务...$(NC)"

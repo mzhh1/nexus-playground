@@ -1,0 +1,21 @@
+{
+    "name": "nexus-playground",
+    "private": true,
+    "scripts": {
+        "build": "turbo run build",
+        "dev": "turbo run dev",
+        "lint": "turbo run lint",
+        "clean": "turbo run clean",
+        "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    },
+    "devDependencies": {
+        "turbo": "^1.11.3",
+        "prettier": "^3.2.4",
+        "typescript": "^5.3.3",
+        "eslint": "^8.56.0"
+    },
+    "packageManager": "pnpm@8.15.1",
+    "engines": {
+        "node": ">=18"
+    }
+}

@@ -3,25 +3,56 @@
  * Central registry for all available games
  */
 
-import { GameLogic } from './types.js';
-import TicTacToeLogic from '../../../games/tic-tac-toe/logic/index.js';
-import GomokuLogic from '../../../games/gomoku/logic/index.js';
-import XiangqiLogic from '../../../games/xiangqi/logic/index.js';
-import WerewolfLogic from '../../../games/werewolf/logic/index.js';
+import fs from 'fs';
+import path from 'path';
+import { GameLogic } from '@nexus/game-sdk';
+import { loadGameLogic } from './asset-loader.js';
 import logger from '../utils/logger.js';
 
 /**
  * Game registry - maps game ID to game logic implementation
  */
-export const gameRegistry: Record<string, GameLogic> = {
-  'tic-tac-toe': TicTacToeLogic,
-  'gomoku': GomokuLogic,
-  'xiangqi': XiangqiLogic,
-  'werewolf': WerewolfLogic,
-  // Add more games here as they are implemented
-  // 'poker': PokerLogic,
-  // 'go': GoLogic,
-};
+export const gameRegistry: Record<string, GameLogic> = {};
+
+const ASSETS_DIR = process.env.GAME_ASSETS_DIR || '/app/game-assets';
+
+/**
+ * Initialize game registry by scanning assets directory
+ */
+export async function initializeRegistry() {
+  logger.info({ assetsDir: ASSETS_DIR }, 'Initializing game registry...');
+
+  if (!fs.existsSync(ASSETS_DIR)) {
+    logger.warn('Game assets directory not found, skipping dynamic load');
+    return;
+  }
+
+  try {
+    const entries = fs.readdirSync(ASSETS_DIR, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const gameId = entry.name;
+        // Check for logic.mjs (Phase 1 convention)
+        const logicPath = path.join(ASSETS_DIR, gameId, 'logic.mjs');
+
+        if (fs.existsSync(logicPath)) {
+          try {
+            const logic = await loadGameLogic(gameId, logicPath);
+            gameRegistry[gameId] = logic;
+            logger.info({ gameId }, 'Registered game');
+          } catch (err) {
+            logger.error({ gameId, err }, 'Failed to register game');
+          }
+        }
+      }
+    }
+  } catch (error) {
+    logger.error({ error }, 'Failed to scan game assets directory');
+  }
+
+  logger.info({ games: Object.keys(gameRegistry) }, 'Game registry initialization complete');
+}
 
 /**
  * Get game logic by ID
@@ -31,12 +62,12 @@ export const gameRegistry: Record<string, GameLogic> = {
  */
 export function getGameLogic(gameId: string): GameLogic {
   const logic = gameRegistry[gameId];
-  
+
   if (!logic) {
     logger.error({ gameId, availableGames: Object.keys(gameRegistry) }, 'Game not found in registry');
     throw new Error(`Game logic not found: ${gameId}`);
   }
-  
+
   return logic;
 }
 

@@ -1,0 +1,34 @@
+{
+    "name": "@nexus/game-sdk",
+    "version": "1.0.0",
+    "type": "module",
+    "description": "Nexus Game SDK - Core types and utilities for game development",
+    "main": "dist/index.js",
+    "module": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "require": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsup src/index.ts --format esm,cjs --dts",
+        "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
+        "lint": "eslint src --ext .ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "zod": "^3.22.4",
+        "nanoid": "^5.0.4"
+    },
+    "devDependencies": {
+        "tsup": "^8.0.1",
+        "typescript": "^5.3.3",
+        "eslint": "^8.56.0"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}

@@ -101,12 +101,12 @@ async function buildServer() {
       instance.register(roomsPublicRoutes); // Browse public rooms (no auth)
       instance.register(perspectivesPublicRoutes); // SSE stream with ticket auth
       instance.register(llmLogsPublicRoutes); // LLM interaction logs (public)
-      
+
       // Protected routes (require auth)
       instance.register(async (protectedInstance) => {
         // Register auth plugin only for protected routes
         await protectedInstance.register(authPlugin);
-        
+
         // All routes here require authentication
         protectedInstance.register(myNexusRoutes);
         protectedInstance.register(roomsRoutes); // Room management requires auth
@@ -130,28 +130,33 @@ async function buildServer() {
   return fastify;
 }
 
+import { initializeRegistry } from './games/registry.js';
+
 /**
  * Start server
  */
 async function start() {
   try {
-    const port = parseInt(process.env.BACKEND_PORT || process.env.PORT || '3000', 10);
+    // Initialize game registry before starting server
+    await initializeRegistry();
+
+    const verifiedPort = parseInt(process.env.BACKEND_PORT || process.env.PORT || '3000', 10);
     const host = process.env.HOST || '0.0.0.0';
 
     logger.info('Starting Nexus Playground Backend...');
     logger.info({
       nodeEnv: process.env.NODE_ENV,
-      port,
+      port: verifiedPort,
       host,
     }, 'Configuration');
 
     // Build and start server
     const fastify = await buildServer();
 
-    await fastify.listen({ port, host });
+    await fastify.listen({ port: verifiedPort, host });
 
     logger.info(
-      { port, host, address: fastify.server.address() },
+      { port: verifiedPort, host, address: fastify.server.address() },
       'Server started successfully'
     );
 

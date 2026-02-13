@@ -2,7 +2,9 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "lib": ["ES2023"],
+    "lib": [
+      "ES2023"
+    ],
     "outDir": "./dist",
     "strict": true,
     "esModuleInterop": true,
@@ -20,20 +22,21 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
     "paths": {
-      "@games/*": ["../games/*"],
-      "@/*": ["./src/*"]
+      "@games/*": [
+        "../games/*"
+      ],
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
   "include": [
     "src/**/*",
-    "src/types/**/*.d.ts",
-    "../games/**/logic/**/*"
+    "src/types/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "**/*.test.ts",
-    "../games/**/ui/**/*"
+    "**/*.test.ts"
   ]
 }
-

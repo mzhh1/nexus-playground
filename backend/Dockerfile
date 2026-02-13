@@ -15,44 +15,61 @@ RUN npm ci
 # Copy source code
 COPY backend/src ./src
 
-# Copy game modules to parent directory to match tsconfig paths
-COPY games /app/games
+# ============ Build SDK ============
+# Copy SDK source
+COPY packages/game-sdk /app/packages/game-sdk
+
+# Install SDK dependencies (production only) - SDK is pre-built
+WORKDIR /app/packages/game-sdk
+RUN npm install --omit=dev
+
+# ============ Build Backend ============
+WORKDIR /app/backend
+# Install SDK as local dependency
+RUN npm install ../packages/game-sdk
 
 # Build TypeScript
 RUN npm run build
 
 # ============ Stage 2: Production ============
+# ============ Stage 2: Production ============
 FROM node:18-alpine
 
+# Use /app as base for shared node_modules
+WORKDIR /app
+
+# 1. Install SDK in /app/node_modules (Shared by Backend and Assets)
+COPY packages/game-sdk ./packages/game-sdk
+WORKDIR /app/packages/game-sdk
+RUN npm install --omit=dev
+
+WORKDIR /app
+# Initialize a package.json to install the local SDK package
+RUN npm init -y && npm install ./packages/game-sdk --omit=dev
+
+# 2. Install Backend Dependencies
 WORKDIR /app/backend
-
-# Install production dependencies only
 COPY backend/package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev
 
-# Copy tsconfig for path resolution
+# 3. Copy Code (Backend & Assets)
+COPY --from=builder /app/backend/dist ./dist
 COPY backend/tsconfig.json ./
 
-# Copy built files from builder
-COPY --from=builder /app/backend/dist ./dist
+# Copy pre-built Gomoku asset
+COPY games/gomoku/dist /app/game-assets/gomoku
 
-# Copy game modules (needed at runtime for registry)
-COPY --from=builder /app/games /app/games
+# Runtime Config
+ENV NODE_ENV=production
+ENV GAME_ASSETS_DIR=/app/game-assets
+# NODE_PATH ensures backend can find modules in /app/node_modules too if standard resolution fails (though standard resolution should find parent)
+ENV NODE_PATH=/app/node_modules
 
-# Create non-root user
-RUN addgroup -g 1001 -S nexus && \
-    adduser -S nexus -u 1001 && \
-    chown -R nexus:nexus /app
-
-USER nexus
-
-# Expose backend port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD node -e "import('http').then(http => http.default.get('http://127.0.0.1:3000/api/v1/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}))"
 
 # Start the server
-CMD ["node", "dist/backend/src/index.js"]
+CMD ["node", "dist/index.js"]
 

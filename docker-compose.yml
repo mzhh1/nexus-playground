@@ -77,7 +77,7 @@ services:
       - "${BACKEND_PORT}:${BACKEND_PORT}"
     volumes:
       - ./backend/src:/app/src
-      - ./games:/app/games
+      - ./games/gomoku/dist:/app/game-assets/gomoku:ro
       - ./certs/ca.pem:/app/certs/ca.pem:ro
 
   # Frontend Service

@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Nexus Playground Backend - LLM-native game platform server",
-  "main": "dist/backend/src/index.js",
+  "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/backend/src/index.js",
+    "start": "node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 0",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
