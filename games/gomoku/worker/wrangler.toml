@@ -1,0 +1,11 @@
+name = "gomoku-worker"
+main = "src/index.ts"
+compatibility_date = "2024-02-08"
+
+# 开启 Assets 功能 (托管 public 目录)
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[observability]
+enabled = true

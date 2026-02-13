@@ -10,6 +10,7 @@ import type { GameUIComponent, GameUIProps } from '../lib/game-ui-types';
 interface GameUIContainerProps extends Omit<GameUIProps, 'perspective'> {
   gameId: string;
   perspective: GameUIProps['perspective'] | null;
+  uiConfig?: { mode: string; url: string };
 }
 
 export const GameUIContainer: React.FC<GameUIContainerProps> = ({
@@ -19,6 +20,7 @@ export const GameUIContainer: React.FC<GameUIContainerProps> = ({
   isMyTurn,
   readonly,
   metadata,
+  uiConfig,
 }) => {
   const [GameUI, setGameUI] = useState<GameUIComponent | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,7 +34,7 @@ export const GameUIContainer: React.FC<GameUIContainerProps> = ({
       setError(null);
 
       try {
-        const ui = await loadGameUI(gameId);
+        const ui = await loadGameUI(gameId, uiConfig);
 
         if (!mounted) return;
 
@@ -44,7 +46,7 @@ export const GameUIContainer: React.FC<GameUIContainerProps> = ({
         }
       } catch (err) {
         if (!mounted) return;
-        
+
         console.error('Failed to load game UI:', err);
         setError(`Failed to load game UI: ${err}`);
         setGameUI(null);

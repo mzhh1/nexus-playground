@@ -116,13 +116,13 @@ export class AutoPlayerCoordinator {
 
       // 2. Check if game has ended
       const gameLogic = getGameLogic(roomState.game_id);
-      if (gameLogic.isTerminal(roomState.game_state)) {
+      if (await gameLogic.isTerminal(roomState.game_state)) {
         logger.info({ roomId }, 'AutoPlayerCoordinator: Game has ended');
         return;
       }
 
       // 3. Get current role
-      const currentRole = gameLogic.getCurrentRole(roomState.game_state);
+      const currentRole = await gameLogic.getCurrentRole(roomState.game_state);
       const playerId = roomState.role_mapping[currentRole];
 
       if (!playerId) {

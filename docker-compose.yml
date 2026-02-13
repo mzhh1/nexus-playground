@@ -71,10 +71,11 @@ services:
       OAUTH_APP_CLIENT_SECRET: ${OAUTH_APP_CLIENT_SECRET}
       LLMAPI_BASE_URL: ${LLMAPI_BASE_URL}
       SPECTATOR_ROLE_ID: ${SPECTATOR_ROLE_ID}
+      GOMOKU_WORKER_URL: ${GOMOKU_WORKER_URL}
       # Node.js 使用自定义 CA 证书
       NODE_EXTRA_CA_CERTS: /app/certs/ca.pem
     ports:
-      - "${BACKEND_PORT}:${BACKEND_PORT}"
+      - "${BACKEND_PORT:-3000}:${BACKEND_PORT:-3000}"
     volumes:
       - ./backend/src:/app/src
       - ./games/gomoku/dist:/app/game-assets/gomoku:ro
@@ -148,7 +149,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "${NGINX_PORT}:80"
+      - "${NGINX_PORT:-51001}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 

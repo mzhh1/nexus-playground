@@ -1,0 +1,42 @@
+
+> @nexus-playground/backend@1.0.0 typecheck /home/ubuntu/code/nexus-playground/backend
+> tsc --noEmit
+
+src/games/registry.ts(32,7): error TS2741: Property 'generateStatePrompt' is missing in type 'RemoteGameLogic' but required in type 'GameLogic<GameState>'.
+src/games/remote-logic.ts(15,14): error TS2420: Class 'RemoteGameLogic' incorrectly implements interface 'GameLogic<GameState>'.
+  Property 'generateStatePrompt' is missing in type 'RemoteGameLogic' but required in type 'GameLogic<GameState>'.
+src/routes/llm-logs-public.ts(19,24): error TS2488: Type 'Promise<GameMetadata[]>' must have a '[Symbol.iterator]()' method that returns an iterator.
+src/routes/rooms.ts(279,14): error TS18048: 'metadataRoleIds' is possibly 'undefined'.
+src/routes/rooms.ts(280,47): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(o: {}): string[]', gave the following error.
+    Argument of type 'Record<number, string[]> | undefined' is not assignable to parameter of type '{}'.
+      Type 'undefined' is not assignable to type '{}'.
+  Overload 2 of 2, '(o: object): string[]', gave the following error.
+    Argument of type 'Record<number, string[]> | undefined' is not assignable to parameter of type 'object'.
+      Type 'undefined' is not assignable to type 'object'.
+src/routes/rooms.ts(286,24): error TS18048: 'metadataRoleIds' is possibly 'undefined'.
+src/routes/rooms.ts(337,21): error TS1308: 'await' expressions are only allowed within async functions and at the top levels of modules.
+src/routes/rooms.ts(482,21): error TS1308: 'await' expressions are only allowed within async functions and at the top levels of modules.
+src/runtime/action-processor.ts(144,9): error TS2322: Type 'string' is not assignable to type 'number'.
+src/runtime/llm-executor.ts(508,41): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(508,58): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(509,17): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(509,49): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(510,32): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(510,50): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(512,17): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(513,33): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(677,30): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(691,15): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(691,55): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(692,63): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(694,74): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(700,15): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(700,55): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(701,63): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(703,74): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(719,15): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(719,31): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(720,74): error TS18046: 'schema' is of type 'unknown'.
+src/runtime/llm-executor.ts(722,74): error TS18046: 'schema' is of type 'unknown'.
+ ELIFECYCLE  Command failed with exit code 2.

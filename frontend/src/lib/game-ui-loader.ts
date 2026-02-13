@@ -19,20 +19,33 @@ const gameUIRegistry: Record<string, () => Promise<{ default: GameUIComponent }>
 /**
  * Load game UI component dynamically
  */
-export async function loadGameUI(gameId: string): Promise<GameUIComponent | null> {
+/**
+ * Load game UI component dynamically
+ */
+export async function loadGameUI(gameId: string, uiConfig?: { mode: string; url: string }): Promise<GameUIComponent | null> {
   try {
-    // Check if the game is registered
-    if (!(gameId in gameUIRegistry)) {
-      console.error(`Game UI not registered for ${gameId}`);
-      console.log('Available games:', Object.keys(gameUIRegistry));
-      return null;
+    // 1. Try loading from URL if config provided
+    if (uiConfig?.mode === 'url' && uiConfig.url) {
+      console.log(`Loading remote Game UI for ${gameId} from ${uiConfig.url}`);
+      try {
+        /* @vite-ignore */
+        const module = await import(/* @vite-ignore */ uiConfig.url);
+        return module.default as GameUIComponent;
+      } catch (err) {
+        console.error(`Failed to load remote UI from ${uiConfig.url}:`, err);
+        // Fallback to registry if remote fails? or just throw?
+        // Let's continue to registry check as fallback or if not URL mode
+      }
     }
 
-    // Load the module
-    const module = await gameUIRegistry[gameId]();
+    // 2. Check if the game is registered locally
+    if (gameId in gameUIRegistry) {
+      const module = await gameUIRegistry[gameId]();
+      return module.default as GameUIComponent;
+    }
 
-    // Return the default export (should be a React component)
-    return module.default as GameUIComponent;
+    console.error(`Game UI not registered for ${gameId}`);
+    return null;
   } catch (error) {
     console.error(`Failed to load game UI for ${gameId}:`, error);
     return null;

@@ -21,10 +21,10 @@ import { RoleMappingModal } from '../../components/RoleMappingModal';
 import { RoleTemplateSelector } from '../../components/PlayerCountSelector';
 import { LLMPlayerTemplateModal, LLMPlayerTemplate } from '../../components/LLMPlayerTemplateModal';
 import type { RoleMapping } from '../../lib/types';
-import { 
-  isMultiPlayerCountConfig, 
-  getRoleIdsForPlayerCount, 
-  getAvailablePlayerCounts 
+import {
+  isMultiPlayerCountConfig,
+  getRoleIdsForPlayerCount,
+  getAvailablePlayerCounts
 } from '../../lib/types';
 import '../../styles/global.css';
 
@@ -37,7 +37,7 @@ const Room: React.FC = () => {
   const [isRoleMappingModalOpen, setIsRoleMappingModalOpen] = useState(false);
   const [isLLMTemplateModalOpen, setIsLLMTemplateModalOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-  
+
   // 多人数配置游戏相关状态
   const [selectedPlayerCount, setSelectedPlayerCount] = useState<number | null>(null);
 
@@ -113,7 +113,7 @@ const Room: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
-    
+
     if (id) {
       setRoomId(id);
     }
@@ -242,7 +242,7 @@ const Room: React.FC = () => {
       // 生成 5 位随机字符后缀，避免名称重复
       const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
       const uniqueName = `${template.name}_${randomSuffix}`;
-      
+
       await addPlayer({
         player_type: 'llm',
         display_name: uniqueName,
@@ -286,7 +286,7 @@ const Room: React.FC = () => {
   const handleCancelRoleMapping = () => {
     setIsRoleMappingModalOpen(false);
   };
-  
+
   const handlePlayerCountChange = async (count: number) => {
     setSelectedPlayerCount(count);
     // 清空角色映射（因为角色列表变了）
@@ -317,20 +317,20 @@ const Room: React.FC = () => {
     if (!room) return;
     const playerIds = Object.keys(room.player_list);
     const n = Math.min(playerIds.length, roleIds.length);
-    
+
     // 取前n个玩家和角色
     const selectedPlayerIds = playerIds.slice(0, n);
     const selectedRoleIds = roleIds.slice(0, n);
-    
+
     // 随机打乱玩家和角色
     const shuffledPlayers = [...selectedPlayerIds].sort(() => Math.random() - 0.5);
     const shuffledRoles = [...selectedRoleIds].sort(() => Math.random() - 0.5);
-    
+
     const randomMapping: RoleMapping = {};
     for (let i = 0; i < n; i++) {
       randomMapping[shuffledRoles[i]] = shuffledPlayers[i];
     }
-    
+
     handleRoleMappingChange(randomMapping);
   };
 
@@ -421,7 +421,7 @@ const Room: React.FC = () => {
   const shouldShowControlBar = room
     ? isPlaying || room.room_status === 'paused' || (room.game_id && (isOwner || isInRoom))
     : false;
-  
+
   const baseContentPadding = isOpen ? 'var(--spacing-lg)' : 'var(--spacing-sm)';
   const contentPaddingBottom = !isOpen && room?.game_id && perspective
     ? '60px'
@@ -445,19 +445,19 @@ const Room: React.FC = () => {
     if (!hasGameSelected || !room || !room.game_id) return null;
     return AVAILABLE_GAMES.find(game => game.id === room.game_id) || null;
   }, [hasGameSelected, room, AVAILABLE_GAMES]);
-  
+
   // 检测是否为多人数配置游戏
   const isMultiPlayerCountGame = useMemo(() => {
     if (!currentGameMetadata) return false;
     return isMultiPlayerCountConfig(currentGameMetadata.roleIds);
   }, [currentGameMetadata]);
-  
+
   // 获取可用的人数选项
   const availablePlayerCounts = useMemo(() => {
     if (!currentGameMetadata) return [];
     return getAvailablePlayerCounts(currentGameMetadata.roleIds);
   }, [currentGameMetadata]);
-  
+
   // 从房间状态或本地状态获取选择的人数
   const effectivePlayerCount = useMemo(() => {
     // 优先使用房间状态中保存的人数
@@ -467,14 +467,14 @@ const Room: React.FC = () => {
     // 默认返回 null
     return null;
   }, [room?.selected_player_count, selectedPlayerCount]);
-  
+
   // 获取当前有效的角色ID列表
   // IMPORTANT: This useMemo must be called on every render, not conditionally
   const roleIds = useMemo(() => {
     if (!currentGameMetadata) return [];
     return getRoleIdsForPlayerCount(currentGameMetadata.roleIds, effectivePlayerCount ?? undefined);
   }, [currentGameMetadata, effectivePlayerCount]);
-  
+
   const isMappingComplete = roleIds.length > 0 && roleIds.every(roleId => roleMapping[roleId]);
 
   // ========== Early Returns (AFTER all hooks) ==========
@@ -534,8 +534,8 @@ const Room: React.FC = () => {
         />
       )}
 
-      <div style={{ 
-        flex: 1, 
+      <div style={{
+        flex: 1,
         overflow: isOpen ? 'auto' : 'hidden',
         overflowY: isOpen ? 'auto' : 'hidden', /* 明确禁用上下滚动 */
         display: isOpen ? 'block' : 'flex',
@@ -546,9 +546,9 @@ const Room: React.FC = () => {
         paddingLeft: isOpen && shouldShowControlBar ? 0 : baseContentPadding,
         minHeight: 0
       }}>
-        <div className={isOpen ? "" : ""} style={isOpen ? {} : { 
-          flex: 1, 
-          display: 'flex', 
+        <div className={isOpen ? "" : ""} style={isOpen ? {} : {
+          flex: 1,
+          display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
           width: '100%'
@@ -578,10 +578,10 @@ const Room: React.FC = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
                     <h2 style={{ margin: 0 }}>{isOwner ? '房主控制' : '房间信息'}</h2>
                     {isOwner && (
-                      <button 
+                      <button
                         onClick={handleCopyRoomLink}
                         className="secondary"
-                        style={{ 
+                        style={{
                           fontSize: '0.875rem',
                           padding: '0.5rem 1rem',
                           whiteSpace: 'nowrap'
@@ -701,10 +701,10 @@ const Room: React.FC = () => {
                             Start Game
                           </button>
                           {!isMappingComplete && (
-                            <p style={{ 
-                              marginTop: 'var(--spacing-xs)', 
-                              fontSize: '0.875rem', 
-                              color: 'var(--color-text-secondary)' 
+                            <p style={{
+                              marginTop: 'var(--spacing-xs)',
+                              fontSize: '0.875rem',
+                              color: 'var(--color-text-secondary)'
                             }}>
                               请分配所有角色后才能开始游戏
                             </p>
@@ -720,9 +720,9 @@ const Room: React.FC = () => {
 
           {/* ========== PLAYING/PAUSED/FINISHED PHASE ========== */}
           {!isOpen && room.game_id && perspective && currentRoleId && (
-            <div className="card" style={{ 
-              height: '100%', 
-              display: 'flex', 
+            <div className="card" style={{
+              height: '100%',
+              display: 'flex',
               flexDirection: 'column',
               minHeight: 0,
               overflow: 'hidden',
@@ -737,8 +737,10 @@ const Room: React.FC = () => {
                 metadata={{
                   roomId: room.room_id,
                   roleId: currentRoleId,
+                  roleId: currentRoleId,
                   playerId: playerId || undefined,
                 }}
+                uiConfig={currentGameMetadata?.ui}
               />
             </div>
           )}
@@ -780,9 +782,9 @@ const Room: React.FC = () => {
       {/* Status Bar - 固定在页面底部 */}
       {/* 开放阶段显示 LobbyStatusBar，游戏阶段显示 GameMessageBar */}
       {isOpen && shouldShowControlBar && (
-        <LobbyStatusBar 
-          isOwner={isOwner} 
-          statusText="等待开始" 
+        <LobbyStatusBar
+          isOwner={isOwner}
+          statusText="等待开始"
           isMappingComplete={isMappingComplete}
         />
       )}

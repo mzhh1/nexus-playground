@@ -15,10 +15,6 @@ const allowedStatuses: LLMInteractionStatus[] = [
   'rejected',
 ];
 
-const gameNameMap = new Map<string, string>();
-for (const metadata of getAllGamesMetadata()) {
-  gameNameMap.set(metadata.id, metadata.name);
-}
 
 type ListQuerystring = {
   status?: string;
@@ -39,45 +35,52 @@ type DetailParams = {
   interactionId: string;
 };
 
-function normalizeTimestamp(value: Date | string | null): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date.toISOString();
-}
-
-function decorateInteraction(row: LLMInteractionRow) {
-  return {
-    interaction_id: row.interaction_id,
-    interaction_group_id: row.interaction_group_id,
-    room_id: row.room_id,
-    game_id: row.game_id,
-    game_name: row.game_id ? gameNameMap.get(row.game_id) ?? row.game_id : null,
-    role_id: row.role_id,
-    model_name: row.model_name,
-    system_prompt: row.system_prompt,
-    user_prompt: row.user_prompt,
-    response: row.response,
-    status: row.status,
-    attempt: row.attempt,
-    outer_attempt: row.outer_attempt,
-    max_attempts: row.max_attempts,
-    previous_error: row.previous_error,
-    error_message: row.error_message,
-    response_time_ms: row.response_time_ms,
-    created_at: normalizeTimestamp(row.created_at),
-    updated_at: normalizeTimestamp(row.updated_at),
-  };
-}
-
 const llmLogsPublicRoutes: FastifyPluginAsync = async (fastify) => {
   const llmLogDAO = createLLMLogDAO(fastify);
+
+  // Initialize game name map
+  const gamesMetadata = await getAllGamesMetadata();
+  const gameNameMap = new Map<string, string>();
+  for (const metadata of gamesMetadata) {
+    gameNameMap.set(metadata.id, metadata.name);
+  }
+
+  function normalizeTimestamp(value: Date | string | null): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return date.toISOString();
+  }
+
+  function decorateInteraction(row: LLMInteractionRow) {
+    return {
+      interaction_id: row.interaction_id,
+      interaction_group_id: row.interaction_group_id,
+      room_id: row.room_id,
+      game_id: row.game_id,
+      game_name: row.game_id ? gameNameMap.get(row.game_id) ?? row.game_id : null,
+      role_id: row.role_id,
+      model_name: row.model_name,
+      system_prompt: row.system_prompt,
+      user_prompt: row.user_prompt,
+      response: row.response,
+      status: row.status,
+      attempt: row.attempt,
+      outer_attempt: row.outer_attempt,
+      max_attempts: row.max_attempts,
+      previous_error: row.previous_error,
+      error_message: row.error_message,
+      response_time_ms: row.response_time_ms,
+      created_at: normalizeTimestamp(row.created_at),
+      updated_at: normalizeTimestamp(row.updated_at),
+    };
+  }
 
   fastify.get<{ Querystring: ListQuerystring }>('/llm-logs', async (request, reply) => {
     try {

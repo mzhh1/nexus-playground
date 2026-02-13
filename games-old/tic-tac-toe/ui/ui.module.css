@@ -1,0 +1,119 @@
+/* Tic-Tac-Toe UI Styles */
+
+.tic-tac-toe-ui {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--spacing-xl, 2rem);
+}
+
+/* 
+ * Game status is now handled by platform's unified message bar
+ * No need for game-specific status styles
+ */
+
+/* Board */
+.tic-tac-toe-board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 0.5rem);
+  padding: var(--spacing-md, 1rem);
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-lg, 1rem);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.board-row {
+  display: flex;
+  gap: var(--spacing-sm, 0.5rem);
+}
+
+.board-cell {
+  width: 120px;
+  height: 120px;
+  font-size: 3.5rem;
+  font-weight: bold;
+  background-color: var(--color-bg, #ffffff);
+  border: 3px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-md, 0.75rem);
+  cursor: not-allowed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-base, 0.2s ease);
+  color: var(--color-text, #1f2937);
+  user-select: none;
+}
+
+.board-cell.clickable {
+  cursor: pointer;
+  border-color: var(--color-primary, #3b82f6);
+  background-color: var(--color-bg, #fafafa);
+}
+
+.board-cell.clickable:hover {
+  background-color: var(--color-bg-secondary, #f0f9ff);
+  transform: scale(1.08);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(59, 130, 246, 0.3));
+  border-color: var(--color-primary, #2563eb);
+}
+
+.board-cell.clickable:active {
+  transform: scale(1.02);
+}
+
+.board-cell.x {
+  color: #3b82f6;
+}
+
+.board-cell.o {
+  color: #ef4444;
+}
+
+.board-cell:disabled {
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .tic-tac-toe-ui {
+    padding: var(--spacing-lg, 1.5rem);
+  }
+
+  .board-cell {
+    width: 90px;
+    height: 90px;
+    font-size: 2.75rem;
+    border-width: 2px;
+  }
+}
+
+@media (max-width: 480px) {
+  .tic-tac-toe-ui {
+    padding: var(--spacing-md, 1rem);
+  }
+
+  .tic-tac-toe-board {
+    padding: var(--spacing-sm, 0.5rem);
+  }
+
+  .board-cell {
+    width: 70px;
+    height: 70px;
+    font-size: 2.25rem;
+    border-width: 2px;
+  }
+}
+
+/* Very small devices */
+@media (max-width: 360px) {
+  .board-cell {
+    width: 60px;
+    height: 60px;
+    font-size: 2rem;
+  }
+}
+

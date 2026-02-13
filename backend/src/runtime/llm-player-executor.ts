@@ -75,7 +75,7 @@ export class LLMPlayerExecutor implements AutoPlayerExecutor {
 
       const playerId = roomState.role_mapping[currentRoleId];
       const llmPlayer = roomState.player_list[playerId];
-      logger.debug({llmPlayer}, 'LLMPlayerExecutor: LLM player');
+      logger.debug({ llmPlayer }, 'LLMPlayerExecutor: LLM player');
       if (!llmPlayer || llmPlayer.type !== 'llm') {
         logger.warn(
           { roomId, roleId: currentRoleId, playerId },
@@ -86,7 +86,7 @@ export class LLMPlayerExecutor implements AutoPlayerExecutor {
 
       // 2. Check if game enables LLM memory
       const gameLogic = getGameLogic(roomState.game_id!);
-      const metadata = gameLogic.getMetadata();
+      const metadata = await gameLogic.getMetadata();
       const memoryEnabled = metadata.enable_llm_memory === true;
       const currentMemory = memoryEnabled ? (llmPlayer.memory || '') : null;
 
@@ -136,7 +136,7 @@ export class LLMPlayerExecutor implements AutoPlayerExecutor {
 
         const interactionGroupId = randomUUID();
         const llmExecutor = createLLMExecutor(this.fastify);
-        
+
         const result = await llmExecutor.executeMemoryUpdate(
           roomId,
           currentRoleId,
@@ -207,7 +207,7 @@ export class LLMPlayerExecutor implements AutoPlayerExecutor {
 
       // 4. Unified retry loop for all error types
       let previousError: string | undefined;
-      
+
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         logger.info(
           { roomId, roleId: currentRoleId, attempt, maxAttempts },
@@ -286,7 +286,7 @@ export class LLMPlayerExecutor implements AutoPlayerExecutor {
             { roomId, roleId: currentRoleId, action: result.action, error: actionResult.error, attempt },
             'LLMPlayerExecutor: Action rejected by game logic'
           );
-          
+
           // Store error message for next retry
           previousError = actionResult.error || '行动无效';
 
@@ -304,7 +304,7 @@ export class LLMPlayerExecutor implements AutoPlayerExecutor {
               );
             }
           }
-          
+
           if (attempt === maxAttempts) {
             logger.error(
               { roomId, roleId: currentRoleId, action: result.action, error: actionResult.error },
@@ -312,7 +312,7 @@ export class LLMPlayerExecutor implements AutoPlayerExecutor {
             );
             return false;
           }
-          
+
           // Exponential backoff before retry
           const backoffMs = Math.pow(2, attempt - 1) * 500; // 500ms, 1s, 2s
           await this.sleep(backoffMs);
@@ -395,8 +395,8 @@ export class LLMPlayerExecutor implements AutoPlayerExecutor {
       return update.content;
     } else {
       // append mode
-      return currentMemory 
-        ? `${currentMemory}\n${update.content}` 
+      return currentMemory
+        ? `${currentMemory}\n${update.content}`
         : update.content;
     }
   }

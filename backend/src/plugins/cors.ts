@@ -20,6 +20,8 @@ const corsPlugin: FastifyPluginAsync = async (fastify) => {
       const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
         'http://localhost',
         'http://localhost:80',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
         'https://nexus.mzhh.xyz',
       ];
 

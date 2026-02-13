@@ -16,7 +16,7 @@ export class ActionProcessor {
   constructor(
     private fastify: FastifyInstance,
     private stateManager: StateManager
-  ) {}
+  ) { }
 
   /**
    * Process action with distributed locking
@@ -103,7 +103,7 @@ export class ActionProcessor {
       const gameLogic = getGameLogic(roomState.game_id);
 
       // Validate it's the role's turn
-      const currentRole = gameLogic.getCurrentRole(roomState.game_state);
+      const currentRole = await gameLogic.getCurrentRole(roomState.game_state);
 
       if (currentRole !== action.role_id) {
         return {
@@ -125,7 +125,7 @@ export class ActionProcessor {
       }
 
       // Apply action
-      const actionResult = gameLogic.applyAction(roomState.game_state, action);
+      const actionResult = await gameLogic.applyAction(roomState.game_state, action);
 
       if (!actionResult.success) {
         logger.warn({ roomId, action, error: actionResult.error }, 'Action validation failed');
@@ -141,15 +141,15 @@ export class ActionProcessor {
         turn: roomState.history.length + 1,
         role_id: action.role_id,
         action,
-        timestamp: new Date().toISOString(),
+        timestamp: Date.now(),
         description: ''/*this.generateActionDescription(action)*/,
       };
 
       // Update state
-      const updateResult = await this.stateManager.updateRoomState(roomId, (state) => {
+      const updateResult = await this.stateManager.updateRoomState(roomId, async (state) => {
         // Check if game is finished
-        const isTerminal = gameLogic.isTerminal(actionResult.nextState);
-        
+        const isTerminal = await gameLogic.isTerminal(actionResult.nextState);
+
         // Return a new object to avoid mutating the original state
         return {
           ...state,

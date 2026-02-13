@@ -106,40 +106,7 @@ async applyAction(action) {
 - [ ] **跨域配置 (CORS)**：修改后端插件，允许 Vercel 域名跨域与 Credentials。
 - [ ] **部署验证**：确保 Vercel 前端能连接 Docker 后端 WebSocket。
 
-### 阶段二：逻辑卡带抽离 (Cartridge Extraction)
 
-**目标**：将 `games/` 目录下的游戏重构为独立的 npm 包，彻底与 `backend` 解耦。
-
-- [ ] **Monorepo 重组**：引入 `pnpm-workspace`，将 `games/gomoku` 转化为 `@nexus-games/gomoku` 包。
-- [ ] **统一构建标准**：
-  - Output A: `dist/logic.js` (纯 JS)
-  - Output B: `dist/ui.mjs` (React 组件)
-- [ ] **后端改造**：`registry.ts` 改为从 `node_modules` 导入逻辑，不再依赖源码目录。
-
-### 阶段三：主机迁移 (Host Migration)
-
-**目标**：用 Cloudflare Workers + Durable Objects 替换 Docker 中的 `backend`。
-
-- [ ] **新建 Host 项目**：基于 Hono 框架初始化 Worker。
-- [ ] **移植核心运行时**：
-  - `ActionProcessor` -> `RoomDO`
-  - Redis Storage -> DO Internal Storage
-  - SSE -> Native WebSockets
-- [ ] **数据迁移**：PostgreSQL -> Cloudflare D1 (SQLite)。
-- [ ] **验证**：本地 `wrangler dev` 启动 Host，对接 Vercel 前端。
-
-### 阶段四：智能卡带实现 (Smart Cartridges)
-
-**目标**：将游戏逻辑部署为独立 Worker，实现完全体 Trinity。
-
-- [ ] **游戏 Worker 化**：为每个游戏创建 `wrangler.toml`。
-- [ ] **实现双接口**：
-  - `fetch` 处理 `/rpc/*` (逻辑)
-  - `fetch` 处理 `/ui.mjs` (静态资源)
-- [ ] **Host 集成**：配置 Service Bindings 连接 Host 与 Cartridge。
-- [ ] **前端重构**：动态导入 URL 改为 `https://xyz.workers.dev/ui.mjs`。
-
----
 
 ## ✅ 最终形态架构图
 

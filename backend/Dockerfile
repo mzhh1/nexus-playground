@@ -3,58 +3,52 @@
 # ============ Stage 1: Build ============
 FROM node:18-alpine AS builder
 
-WORKDIR /app/backend
+# Install pnpm
+RUN npm install -g pnpm
 
-# Copy package files
-COPY backend/package*.json ./
-COPY backend/tsconfig.json ./
+WORKDIR /app
 
-# Install dependencies
-RUN npm ci
+# Copy workspace config
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 
-# Copy source code
-COPY backend/src ./src
+# Copy packages
+COPY packages/game-sdk ./packages/game-sdk
+COPY backend ./backend
 
-# ============ Build SDK ============
-# Copy SDK source
-COPY packages/game-sdk /app/packages/game-sdk
+# Install dependencies (frozen-lockfile is default for pnpm i in CI)
+RUN pnpm install --frozen-lockfile
 
-# Install SDK dependencies (production only) - SDK is pre-built
+# Build SDK
 WORKDIR /app/packages/game-sdk
-RUN npm install --omit=dev
+RUN pnpm run build
 
-# ============ Build Backend ============
+# Build Backend
 WORKDIR /app/backend
-# Install SDK as local dependency
-RUN npm install ../packages/game-sdk
+RUN pnpm run build
 
-# Build TypeScript
-RUN npm run build
-
-# ============ Stage 2: Production ============
 # ============ Stage 2: Production ============
 FROM node:18-alpine
 
-# Use /app as base for shared node_modules
+# Install pnpm
+RUN npm install -g pnpm
+
 WORKDIR /app
 
-# 1. Install SDK in /app/node_modules (Shared by Backend and Assets)
+# Copy workspace config for minimal install
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/game-sdk ./packages/game-sdk
-WORKDIR /app/packages/game-sdk
-RUN npm install --omit=dev
+COPY backend/package.json ./backend/
 
-WORKDIR /app
-# Initialize a package.json to install the local SDK package
-RUN npm init -y && npm install ./packages/game-sdk --omit=dev
+# Install production dependencies only
+RUN pnpm install --prod --frozen-lockfile
 
-# 2. Install Backend Dependencies
-WORKDIR /app/backend
-COPY backend/package*.json ./
-RUN npm ci --omit=dev
+# Copy built artifacts
+COPY --from=builder /app/packages/game-sdk/dist ./packages/game-sdk/dist
+COPY --from=builder /app/backend/dist ./backend/dist
 
-# 3. Copy Code (Backend & Assets)
-COPY --from=builder /app/backend/dist ./dist
-COPY backend/tsconfig.json ./
+# Copy other necessary backend files
+COPY backend/src ./backend/src
+COPY backend/tsconfig.json ./backend/
 
 # Copy pre-built Gomoku asset
 COPY games/gomoku/dist /app/game-assets/gomoku
@@ -62,11 +56,13 @@ COPY games/gomoku/dist /app/game-assets/gomoku
 # Runtime Config
 ENV NODE_ENV=production
 ENV GAME_ASSETS_DIR=/app/game-assets
-# NODE_PATH ensures backend can find modules in /app/node_modules too if standard resolution fails (though standard resolution should find parent)
-ENV NODE_PATH=/app/node_modules
+
+# Set workdir to backend to run it
+WORKDIR /app/backend
 
 EXPOSE 3000
 
+# Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD node -e "import('http').then(http => http.default.get('http://127.0.0.1:3000/api/v1/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}))"
 

@@ -52,7 +52,7 @@ function HomeContent() {
         setGames(data.games || []);
       } catch (error) {
         console.error('Error fetching games:', error);
-        setGamesError('无法加载游戏列表');
+        setGamesError(`无法加载游戏列表: ${error instanceof Error ? error.message : String(error)}`);
       } finally {
         setGamesLoading(false);
       }
@@ -259,12 +259,12 @@ function HomeContent() {
       {/* Footer */}
       <footer className="home-footer">
         <p>
-          © 2025 Nexus Playground - LLM 原生游戏平台 - 
+          © 2025 Nexus Playground - LLM 原生游戏平台 -
           {' '} by
-        <a href="https://me.mzhh.xyz" target="_blank" rel="noopener noreferrer">
-          纸灰灰
-        </a>
-      </p>
+          <a href="https://me.mzhh.xyz" target="_blank" rel="noopener noreferrer">
+            纸灰灰
+          </a>
+        </p>
       </footer>
     </div>
   );

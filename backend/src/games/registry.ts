@@ -8,6 +8,7 @@ import path from 'path';
 import { GameLogic } from '@nexus/game-sdk';
 import { loadGameLogic } from './asset-loader.js';
 import logger from '../utils/logger.js';
+import { RemoteGameLogic } from './remote-logic.js';
 
 /**
  * Game registry - maps game ID to game logic implementation
@@ -22,6 +23,20 @@ const ASSETS_DIR = process.env.GAME_ASSETS_DIR || '/app/game-assets';
 export async function initializeRegistry() {
   logger.info({ assetsDir: ASSETS_DIR }, 'Initializing game registry...');
 
+  // 1. Register Remote Games (from Env)
+  if (process.env.GOMOKU_WORKER_URL) {
+    try {
+      const gomokuLogic = new RemoteGameLogic('gomoku', process.env.GOMOKU_WORKER_URL);
+      // Verify connection by fetching metadata
+      await gomokuLogic.getMetadata();
+      gameRegistry['gomoku'] = gomokuLogic;
+      logger.info({ gameId: 'gomoku', url: process.env.GOMOKU_WORKER_URL }, 'Registered remote game');
+    } catch (error) {
+      logger.error({ error, url: process.env.GOMOKU_WORKER_URL }, 'Failed to register remote gomoku game');
+    }
+  }
+
+  // 2. Register Local Games (from Assets Dir)
   if (!fs.existsSync(ASSETS_DIR)) {
     logger.warn('Game assets directory not found, skipping dynamic load');
     return;
@@ -33,6 +48,12 @@ export async function initializeRegistry() {
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const gameId = entry.name;
+
+        // Skip if already registered (e.g. via remote)
+        if (gameRegistry[gameId]) {
+          continue;
+        }
+
         // Check for logic.mjs (Phase 1 convention)
         const logicPath = path.join(ASSETS_DIR, gameId, 'logic.mjs');
 
@@ -92,8 +113,12 @@ export function gameExists(gameId: string): boolean {
  * Get all game metadata
  * @returns Array of game metadata
  */
-export function getAllGamesMetadata() {
-  return Object.values(gameRegistry).map(logic => logic.getMetadata());
+export async function getAllGamesMetadata() {
+  const metadataList = [];
+  for (const logic of Object.values(gameRegistry)) {
+    metadataList.push(await logic.getMetadata());
+  }
+  return metadataList;
 }
 
 // Log available games on startup

@@ -1,0 +1,7 @@
+packages:
+  - 'packages/*'
+  - 'backend'
+  - 'frontend'
+  - 'llm-monitor'
+  - 'games/*'
+  - 'games/*/worker'

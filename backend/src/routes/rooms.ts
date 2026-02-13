@@ -58,11 +58,11 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       await roomDAO.updateGameId(roomId, game_id);
       const result = await stateManager.selectGame(roomId, game_id);
       if (!result.success) return reply.code(500).send({ error: 'Failed to select game' });
-      
+
       // Clear all player perspective caches when changing game
       await perspectiveGenerator.invalidateAllPerspectives(roomId);
       logger.debug({ roomId, gameId: game_id }, 'Cleared perspective caches on game selection');
-      
+
       logger.info({ roomId, gameId: game_id }, 'Game selected');
       return reply.send({ success: true, game_id });
     } catch (error) {
@@ -123,13 +123,13 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await stateManager.addPlayer(roomId, playerId, player);
       if (!result.success) return reply.code(400).send({ error: result.error || 'Failed to add player' });
       logger.info({ roomId, playerId, playerType: player_type }, 'Player added');
-      
+
       // Broadcast player joined event
-      getEventBus().broadcastToRoom(roomId, 'player_joined', { 
-        player_id: playerId, 
-        player 
+      getEventBus().broadcastToRoom(roomId, 'player_joined', {
+        player_id: playerId,
+        player
       });
-      
+
       return reply.send({ success: true, player_id: playerId, player });
     } catch (error) {
       logger.error({ error, roomId }, 'Failed to add player');
@@ -159,12 +159,12 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await stateManager.removePlayer(roomId, player_id);
       if (!result.success) return reply.code(400).send({ error: result.error || 'Failed to remove player' });
       logger.info({ roomId, playerId: player_id }, 'Player removed');
-      
+
       // Broadcast player left event
-      getEventBus().broadcastToRoom(roomId, 'player_left', { 
-        player_id 
+      getEventBus().broadcastToRoom(roomId, 'player_left', {
+        player_id
       });
-      
+
       return reply.send({ success: true });
     } catch (error) {
       logger.error({ error, roomId, playerId: player_id }, 'Failed to remove player');
@@ -182,11 +182,11 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
   }>('/rooms/:roomId/update-role-mapping', async (request, reply) => {
     const { roomId } = request.params;
     const { role_mapping, selected_player_count } = request.body;
-    
+
     if (!isValidRoomId(roomId)) {
       return reply.code(400).send({ error: 'Invalid room ID format' });
     }
-    
+
     const owner = await ensureOwner(request, roomId);
     if (!('ok' in owner && owner.ok)) {
       return reply.code((owner as any).code).send({ error: (owner as any).error });
@@ -197,15 +197,15 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       if (!result.success) {
         return reply.code(400).send({ error: result.error || 'Failed to update role mapping' });
       }
-      
+
       logger.info({ roomId, roleMapping: role_mapping, selectedPlayerCount: selected_player_count }, 'Role mapping updated');
-      
+
       // Broadcast role mapping updated event
-      getEventBus().broadcastToRoom(roomId, 'role_mapping_updated', { 
+      getEventBus().broadcastToRoom(roomId, 'role_mapping_updated', {
         role_mapping,
         selected_player_count
       });
-      
+
       return reply.send({ success: true });
     } catch (error) {
       logger.error({ error, roomId }, 'Failed to update role mapping');
@@ -245,7 +245,7 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.post<{
     Params: { roomId: string };
-    Body: { 
+    Body: {
       role_mapping: Record<string, string>;
       selected_player_count?: number;
     };
@@ -261,31 +261,33 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       if (!roomState || !roomState.game_id) return reply.code(400).send({ error: 'Game not selected' });
       const gameId = roomState.game_id as string;
       const gameLogic = getGameLogic(gameId);
-      const metadata = gameLogic.getMetadata();
+      const metadata = await gameLogic.getMetadata();
 
       // 验证角色映射的合法性
       const submittedRoleIds = Object.keys(role_mapping);
       const metadataRoleIds = metadata.roleIds;
-      
-      let validRoleIds: string[];
-      
-      if (Array.isArray(metadataRoleIds)) {
+
+      let validRoleIds: string[] = [];
+
+      if (!metadataRoleIds) {
+        validRoleIds = []; // Should handle this case, maybe throw error
+      } else if (Array.isArray(metadataRoleIds)) {
         // 传统格式：直接验证
         validRoleIds = metadataRoleIds;
       } else {
         // 多人数配置：根据提交的人数或 selected_player_count 验证
         const playerCount = selected_player_count || submittedRoleIds.length;
-        
+
         if (!metadataRoleIds[playerCount]) {
           const availableCounts = Object.keys(metadataRoleIds).join(', ');
           return reply.code(400).send({
             error: `Invalid player count: ${playerCount}. Available options: ${availableCounts}`
           });
         }
-        
+
         validRoleIds = metadataRoleIds[playerCount];
       }
-      
+
       // 验证所有提交的角色都在有效列表中
       const invalidRoles = submittedRoleIds.filter(id => !validRoleIds.includes(id));
       if (invalidRoles.length > 0) {
@@ -293,7 +295,7 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
           error: `Invalid role IDs: ${invalidRoles.join(', ')}. Expected roles: ${validRoleIds.join(', ')}`
         });
       }
-      
+
       // 验证所有必需角色都已分配
       const missingRoles = validRoleIds.filter(id => !submittedRoleIds.includes(id));
       if (missingRoles.length > 0) {
@@ -301,14 +303,14 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
           error: `Missing role assignments: ${missingRoles.join(', ')}`
         });
       }
-      
+
       logger.info(
-        { 
-          roomId, 
-          gameId, 
+        {
+          roomId,
+          gameId,
           roleCount: validRoleIds.length,
           isMultiPlayerCount: !Array.isArray(metadataRoleIds),
-          selectedPlayerCount: selected_player_count 
+          selectedPlayerCount: selected_player_count
         },
         'Role mapping validated successfully'
       );
@@ -330,11 +332,11 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
         );
       }
 
-      const result = await stateManager.updateRoomState(roomId, (state) => ({
+      const result = await stateManager.updateRoomState(roomId, async (state) => ({
         ...state,
         role_mapping,
         player_list: updatedPlayerList,
-        game_state: gameLogic.initState({ players: Object.keys(role_mapping) }),
+        game_state: await gameLogic.initState({ players: Object.keys(role_mapping) }),
         room_status: 'playing',
         resume_locked: false,
         history: [],
@@ -343,10 +345,10 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       }));
       if (!result.success) return reply.code(500).send({ error: 'Failed to start game' });
       await roomDAO.updateStatus(roomId, 'playing');
-      
+
       // Broadcast game started event and initial perspectives
       await broadcastGameStarted(roomId, gameId, role_mapping, 'game_started');
-      
+
       return reply.send({ success: true });
     } catch (error) {
       logger.error({ error, roomId }, 'Failed to start game');
@@ -385,7 +387,7 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
 
           await stateManager.updateRoomStatus(roomId, 'playing', { resumeLocked: false });
           await roomDAO.updateStatus(roomId, 'playing');
-          
+
           // Trigger auto player coordinator when resuming (async, non-blocking)
           setImmediate(() => {
             autoPlayerCoordinator.checkAndExecuteCurrentTurn(roomId).catch((err) => {
@@ -456,7 +458,7 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const gameLogic = getGameLogic(gameId);
-      const metadata = gameLogic.getMetadata();
+      const metadata = await gameLogic.getMetadata();
 
       // Clear LLM player memory if game enables memory system
       let updatedPlayerList = roomState.player_list;
@@ -476,10 +478,10 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Restart game with same role mapping
-      const result = await stateManager.updateRoomState(roomId, (state) => ({
+      const result = await stateManager.updateRoomState(roomId, async (state) => ({
         ...state,
         player_list: updatedPlayerList,
-        game_state: gameLogic.initState({ players: Object.keys(roleMapping) }),
+        game_state: await gameLogic.initState({ players: Object.keys(roleMapping) }),
         room_status: 'playing',
         resume_locked: false,
         history: [],
@@ -546,8 +548,8 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       // Check if user is already in the room
       for (const [playerId, player] of Object.entries(roomState.player_list)) {
         if (player.type === 'human' && player.uid === userId) {
-          return reply.send({ 
-            success: true, 
+          return reply.send({
+            success: true,
             player_id: playerId,
             message: 'Already in room'
           });
@@ -575,10 +577,10 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
 
       logger.info({ roomId, playerId, userId, displayName: display_name }, 'User joined room');
 
-      return reply.send({ 
-        success: true, 
+      return reply.send({
+        success: true,
         player_id: playerId,
-        player 
+        player
       });
     } catch (error) {
       logger.error({ error, roomId, userId }, 'Failed to join room');

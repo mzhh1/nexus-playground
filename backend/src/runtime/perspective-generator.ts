@@ -16,7 +16,7 @@ export class PerspectiveGenerator {
   constructor(
     private fastify: FastifyInstance,
     private stateManager: StateManager
-  ) {}
+  ) { }
 
   /**
    * Generate perspective for a role
@@ -58,7 +58,7 @@ export class PerspectiveGenerator {
       const diffHistory = this.calculateDiffHistory(roomState.history, roleId);
 
       // Generate perspective
-      const perspective = gameLogic.toRolePerspective(
+      const perspective = await gameLogic.toRolePerspective(
         roomState.game_state,
         roleId,
         roomState.history,

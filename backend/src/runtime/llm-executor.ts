@@ -17,7 +17,7 @@ interface LLMActionResponse {
   reasoning?: string; // Optional: LLM's reasoning for debugging
   action_id: string;
   params?: Record<string, any>;
-  
+
   /**
    * Memory update (only used when game enables LLM memory)
    */
@@ -107,12 +107,12 @@ export class LLMExecutor {
 
       // 2. Call LLM API (non-streaming)
       const llmClient = this.fastify.appAuth.llmClient;
-      
+
       logger.debug(
         { roomId, roleId, promptLength: userPrompt.length },
         'LLM executor: Calling LLM API'
       );
-      logger.debug({systemPrompt,userPrompt }, 'LLM executor: User prompt');
+      logger.debug({ systemPrompt, userPrompt }, 'LLM executor: User prompt');
       const content = await llmClient.getChatContent({
         model: modelName,
         messages: [
@@ -139,7 +139,7 @@ export class LLMExecutor {
           { roomId, roleId, attempt, response: content },
           'LLM executor: Failed to parse valid action from LLM response'
         );
-        
+
         await this.llmLogDAO.updateInteraction(interactionId, {
           status: 'failed',
           response: content,
@@ -164,7 +164,7 @@ export class LLMExecutor {
           errorMessage: validationResult.error || 'Generated action did not pass validation',
           responseTimeMs,
         });
-        
+
         return { error: validationResult.error || 'Generated action did not pass validation', logId: interactionId };
       }
 
@@ -285,13 +285,13 @@ export class LLMExecutor {
 
       // 2. Call LLM API
       const llmClient = this.fastify.appAuth.llmClient;
-      
+
       logger.debug(
         { roomId, roleId, promptLength: userPrompt.length },
         'LLM executor: Calling LLM API for memory update only'
       );
       logger.debug({ systemPrompt, userPrompt }, 'LLM executor: User prompt for memory update');
-      
+
       const content = await llmClient.getChatContent({
         model: modelName,
         messages: [
@@ -315,7 +315,7 @@ export class LLMExecutor {
           { roomId, roleId, response: content },
           'LLM executor: Failed to parse valid memory update from LLM response'
         );
-        
+
         await this.llmLogDAO.updateInteraction(interactionId, {
           status: 'failed',
           response: content,
@@ -419,12 +419,12 @@ ${currentMemory || '(暂无记忆)'}
     try {
       // Clean response: remove markdown code block markers if present
       let cleanedResponse = response.trim();
-      
+
       const markdownMatch = cleanedResponse.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
       if (markdownMatch) {
         cleanedResponse = markdownMatch[1].trim();
       }
-      
+
       // Try to parse as JSON
       const parsed = JSON.parse(cleanedResponse) as {
         reasoning?: string;
@@ -443,7 +443,7 @@ ${currentMemory || '(暂无记忆)'}
           { mode: parsed.memory_update.mode, contentLength: parsed.memory_update.content.length },
           'LLM executor: Parsed memory-only update'
         );
-        
+
         return {
           memory_update: {
             mode: parsed.memory_update.mode as 'append' | 'replace',
@@ -505,12 +505,13 @@ ${currentMemory || '(暂无记忆)'}
         // Parameterized action
         const paramsLines = Object.entries(a.params_schema)
           .map(([key, schema]) => {
-            let line = `    * ${key} (${schema.type}): ${schema.description || ''}`;
-            if (schema.minimum !== undefined || schema.maximum !== undefined) {
-              line += ` [范围: ${schema.minimum}-${schema.maximum}]`;
+            const s = schema as any;
+            let line = `    * ${key} (${s.type}): ${s.description || ''}`;
+            if (s.minimum !== undefined || s.maximum !== undefined) {
+              line += ` [范围: ${s.minimum}-${s.maximum}]`;
             }
-            if (schema.enum) {
-              line += ` [可选值: ${schema.enum.join(', ')}]`;
+            if (s.enum) {
+              line += ` [可选值: ${s.enum.join(', ')}]`;
             }
             return line;
           })
@@ -539,8 +540,8 @@ ${previousError ? `
 请重新分析当前局势，选择一个**合法且有效**的行动。`: ''}`;
 
     // Select task prompt based on whether memory is enabled (system-generated)
-    const taskPrompt = currentMemory !== null 
-      ? TASK_PROMPT_WITH_MEMORY 
+    const taskPrompt = currentMemory !== null
+      ? TASK_PROMPT_WITH_MEMORY
       : TASK_PROMPT_NO_MEMORY;
 
     return `${statePrompt}${memorySection}${actionPrompt}${taskPrompt}`;
@@ -559,13 +560,13 @@ ${previousError ? `
     try {
       // Clean response: remove markdown code block markers if present
       let cleanedResponse = response.trim();
-      
+
       // Remove markdown code block markers (```json ... ``` or ``` ... ```)
       const markdownMatch = cleanedResponse.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
       if (markdownMatch) {
         cleanedResponse = markdownMatch[1].trim();
       }
-      
+
       // Try to parse as JSON
       const parsed = JSON.parse(cleanedResponse) as LLMActionResponse;
 
@@ -582,7 +583,7 @@ ${previousError ? `
 
       // Validate and extract memory_update if present
       let memory_update: { mode: 'append' | 'replace'; content: string } | undefined;
-      
+
       if (parsed.memory_update) {
         if (
           parsed.memory_update.mode &&
@@ -642,7 +643,7 @@ ${previousError ? `
       const availableActions = action_space_definition.actions.map(a => a.action_id);
       const errorMsg = `行动ID "${action.action_id}" 不在可用行动列表中。`;
       logger.warn(
-        { 
+        {
           action_id: action.action_id,
           available: availableActions
         },
@@ -674,7 +675,8 @@ ${previousError ? `
         }
 
         const value = action.params[key];
-        const expectedType = schema.type;
+        const s = schema as any;
+        const expectedType = s.type;
 
         // Type checking
         if (expectedType === 'number' || expectedType === 'integer') {
@@ -686,21 +688,21 @@ ${previousError ? `
             );
             return { valid: false, error: errorMsg };
           }
-          
+
           // Range validation
-          if (schema.minimum !== undefined && value < schema.minimum) {
-            const errorMsg = `参数 "${key}" 的值 ${value} 低于最小值 ${schema.minimum}`;
+          if (s.minimum !== undefined && value < s.minimum) {
+            const errorMsg = `参数 "${key}" 的值 ${value} 低于最小值 ${s.minimum}`;
             logger.warn(
-              { action_id: action.action_id, param: key, value, minimum: schema.minimum },
+              { action_id: action.action_id, param: key, value, minimum: s.minimum },
               'LLM executor: Parameter value below minimum'
             );
             return { valid: false, error: errorMsg };
           }
-          
-          if (schema.maximum !== undefined && value > schema.maximum) {
-            const errorMsg = `参数 "${key}" 的值 ${value} 超过最大值 ${schema.maximum}`;
+
+          if (s.maximum !== undefined && value > s.maximum) {
+            const errorMsg = `参数 "${key}" 的值 ${value} 超过最大值 ${s.maximum}`;
             logger.warn(
-              { action_id: action.action_id, param: key, value, maximum: schema.maximum },
+              { action_id: action.action_id, param: key, value, maximum: s.maximum },
               'LLM executor: Parameter value above maximum'
             );
             return { valid: false, error: errorMsg };
@@ -714,12 +716,12 @@ ${previousError ? `
             );
             return { valid: false, error: errorMsg };
           }
-          
+
           // Enum validation
-          if (schema.enum && !schema.enum.includes(value)) {
-            const errorMsg = `参数 "${key}" 的值 "${value}" 不在允许的值列表中。允许的值：${schema.enum.join(', ')}`;
+          if (s.enum && !s.enum.includes(value)) {
+            const errorMsg = `参数 "${key}" 的值 "${value}" 不在允许的值列表中。允许的值：${s.enum.join(', ')}`;
             logger.warn(
-              { action_id: action.action_id, param: key, value, allowed: schema.enum },
+              { action_id: action.action_id, param: key, value, allowed: s.enum },
               'LLM executor: Parameter value not in allowed enum values'
             );
             return { valid: false, error: errorMsg };

@@ -1,0 +1,423 @@
+import type {
+  RolePerspective,
+  HistoryEvent,
+  isSpectator as isSpectatorRole,
+} from '../../../backend/src/games/types.js';
+import type { Identity, Camp, NightSubPhase, WerewolfState } from './types.js';
+import { WEREWOLF_RULES } from './config.js';
+import {
+  getAlivePlayers,
+  getWerewolfTeammates,
+  getSeerHistory,
+  getCamp,
+} from './utils.js';
+import { formatStateToNaturalLanguage } from './stateFormatter.js';
+import actionPrompts from './action-prompts.json' assert { type: 'json' };
+
+// ============ 视角生成模块 ============
+
+/**
+ * 生成角色视角
+ */
+export function toRolePerspective(
+  state: WerewolfState,
+  roleId: string,
+  wholeHistory: HistoryEvent[],
+  diffHistory: HistoryEvent[],
+  getLegalActionsCallback: (s: WerewolfState, rid: string) => any,
+  isSpectatorFn: typeof isSpectatorRole
+): RolePerspective {
+  const knownIdentity = state.identities[roleId] ?? null;
+  const isSpectator = isSpectatorFn(roleId) || knownIdentity === null;
+  const identity = isSpectator ? null : knownIdentity;
+  const isAlive = identity ? state.alive[roleId] : false;
+  // 特殊情况：猎人开枪和遗言阶段，即使已死亡也算当前行动者
+  const isHunterShooting = state.phase === 'hunter_shoot' && state.pendingRoles[0] === roleId;
+  const isGivingLastWords = state.phase === 'last_words' && state.pendingRoles.includes(roleId);
+  const isDeadButActive = isHunterShooting || isGivingLastWords;
+  const isCurrent = !isSpectator && (isAlive || isDeadButActive) && state.pendingRoles[0] === roleId;
+
+  const baseState: Record<string, any> = {
+    phase: state.phase,
+    day: state.day,
+    night_sub_phase: state.phase === 'night' ? state.nightSubPhase : null,
+    alive_players: getAlivePlayers(state),
+    dead_players: state.dead_players,
+    alive_identity: state.alive_identity,
+    last_night_deaths: state.lastNightDeaths.map(({ cause, ...rest }) => rest),
+    last_day_exile: state.lastDayExile,
+  };
+
+  if (!isSpectator) {
+    baseState.my_role_id = roleId;
+  }
+
+  if (state.phase === 'day_discussion') {
+    baseState.current_speaker = state.pendingRoles[0] ?? null;
+  }
+
+  if (state.phase === 'day_voting') {
+    baseState.current_votes = state.currentDayVotes;
+  }
+
+  if (state.phase === 'hunter_shoot') {
+    baseState.hunter_pending = state.pendingRoles[0] ?? null;
+  }
+
+  if (state.phase === 'last_words') {
+    baseState.last_words_pending = state.pendingRoles;
+  }
+
+  const todaySpeeches = state.speechHistory.filter((record) => record.day === state.day);
+  if (todaySpeeches.length > 0) {
+    baseState.speech_history = todaySpeeches.map(({ timestamp, ...rest }) => rest);
+  }
+
+  // 传递所有天的遗言历史，而不是只传递当天的
+  if (state.lastWordsHistory.length > 0) {
+    baseState.last_words_history = state.lastWordsHistory;
+  }
+
+  if (isSpectator) {
+    baseState.pending_roles = state.pendingRoles;
+  }
+
+  const identityInfo = getIdentitySpecificState(state, roleId, identity, isSpectator);
+  const currentState = { ...baseState, ...identityInfo };
+  cleanseUndefined(currentState);
+
+  if (!isSpectator) {
+    delete currentState.pending_roles;
+  }
+
+  // 特殊情况：猎人开枪和遗言阶段，即使已死亡，也需要生成行动列表
+  const needActionSpace = !isSpectator && (isAlive || isDeadButActive);
+  const actionSpace = needActionSpace ? getLegalActionsCallback(state, roleId) : { actions: [] };
+
+  const perspective: RolePerspective = {
+    global_rules: WEREWOLF_RULES,
+    whole_history: wholeHistory,
+    diff_history: diffHistory,
+    current_state: currentState,
+    your_role: {
+      identity: isSpectator ? 'Spectator (观战者)' : describeIdentity(identity!),
+      goal: isSpectator ? '观看对局，学习推理与博弈策略。' : describeGoal(identity!),
+      is_current: isCurrent,
+    },
+    action_space_definition: actionSpace,
+    message: buildPerspectiveMessage(state, identity, isAlive, isSpectator, isCurrent),
+  };
+
+  return perspective;
+}
+
+/**
+ * 生成 LLM 状态提示词
+ */
+export function generateStatePrompt(perspective: RolePerspective): string {
+  const { 
+    global_rules, 
+    current_state, 
+    your_role 
+  } = perspective;
+
+  const roleIdText = current_state.my_role_id ? `ID: ${current_state.my_role_id}\n` : '';
+
+  // 使用新的自然语言格式化模块
+  const formattedState = formatStateToNaturalLanguage(current_state);
+
+  // 构建最终的提示词
+  const sections: string[] = [];
+
+  // 1. 游戏规则
+  sections.push(`# 游戏规则\n${global_rules}`);
+
+  // 2. 你的身份
+  sections.push(`# 你的身份
+${roleIdText}角色: ${your_role.identity}
+目标: ${your_role.goal}
+${your_role.is_current ? '**现在轮到你行动**' : '(目前不是你的回合)'}`);
+
+  // 3. 全局信息（公开信息）
+  if (formattedState.globalInfo) {
+    sections.push(`# 全局信息（公开信息）
+${formattedState.globalInfo}`);
+  }
+
+  // 4. 你的视角信息（私有信息）
+  if (formattedState.perspectiveInfo) {
+    sections.push(`# 你的视角信息（私有信息）
+${formattedState.perspectiveInfo}`);
+  }
+
+  // 5. 行动提示（如果有可用行动且不是观战者）
+  const actionPrompt = getActionPrompt(perspective);
+  if (actionPrompt) {
+    sections.push(`# 行动提示\n${actionPrompt}`);
+  }
+
+  return sections.join('\n\n');
+}
+
+/**
+ * 获取行动提示（从 action-prompts.json）
+ * 只在有可用行动时返回提示
+ */
+function getActionPrompt(perspective: RolePerspective): string | null {
+  const { current_state, action_space_definition } = perspective;
+  
+  // 如果没有可用行动，不显示提示
+  if (!action_space_definition.actions || action_space_definition.actions.length === 0) {
+    return null;
+  }
+
+  // 如果是观战者，不显示提示
+  if (!current_state.my_role_id) {
+    return null;
+  }
+
+  const phase = current_state.phase as string;
+  const nightSubPhase = current_state.night_sub_phase as string | null;
+
+  // 夜晚阶段：根据子阶段获取提示
+  if (phase === 'night' && nightSubPhase) {
+    const nightPrompts = (actionPrompts as any).night;
+    return nightPrompts?.[nightSubPhase]?.prompt || null;
+  }
+
+  // 其他阶段：使用 default 提示
+  const phasePrompts = (actionPrompts as any)[phase];
+  return phasePrompts?.default?.prompt || null;
+}
+
+/**
+ * 获取身份特定状态
+ */
+export function getIdentitySpecificState(
+  state: WerewolfState,
+  roleId: string,
+  identity: Identity | null,
+  isSpectator: boolean
+): Record<string, any> {
+  // 游戏结束时，所有玩家都能看到所有身份
+  if (state.phase === 'game_over') {
+    const baseInfo: Record<string, any> = {
+      all_identities: state.identities,
+      night_history : state.nightHistory,
+      vote_history : state.voteHistory,
+      death_history : state.deathHistory,
+      current_night_actions : state.currentNightActions
+    };
+    
+    return baseInfo;
+  }
+
+  if (isSpectator) {
+    return {
+      all_identities: state.identities,
+      night_history: state.nightHistory,
+      vote_history: state.voteHistory,
+      death_history: state.deathHistory,
+      current_night_actions: state.currentNightActions,
+    };
+  }
+
+  if (!identity) {
+    return {};
+  }
+
+  switch (identity) {
+    case 'werewolf':
+      return {
+        teammates: getWerewolfTeammates(state, roleId),
+        werewolf_votes: state.currentNightActions.werewolf_votes,
+        werewolf_target: state.currentNightActions.werewolf_target,
+      };
+    case 'seer':
+      return {
+        seer_checks: getSeerHistory(state),
+        last_check: state.currentNightActions.seer_target
+          ? {
+              target: state.currentNightActions.seer_target,
+              result: state.currentNightActions.seer_result,
+            }
+          : null,
+      };
+    case 'witch':
+      return {
+        antidote_available: !state.witchPotions.antidote_used,
+        poison_available: !state.witchPotions.poison_used,
+        tonight_werewolf_target: state.currentNightActions.werewolf_target,
+        tonight_poison_target: state.currentNightActions.witch_poison_target,
+      };
+    case 'guard':
+      return {
+        last_guard_target: state.lastGuardTarget,
+      };
+    case 'hunter':
+      return {
+        can_shoot: state.hunterCanShoot,
+        is_alive: state.hunterAlive,
+      };
+    default:
+      return {};
+  }
+}
+
+/**
+ * 清除 undefined 字段
+ */
+function cleanseUndefined(target: Record<string, any>): void {
+  Object.keys(target).forEach((key) => {
+    if (target[key] === undefined) {
+      delete target[key];
+    }
+  });
+}
+
+/**
+ * 描述身份
+ */
+export function describeIdentity(identity: Identity): string {
+  const labels: Record<Identity, string> = {
+    werewolf: '狼人',
+    seer: '预言家',
+    witch: '女巫',
+    hunter: '猎人',
+    guard: '守卫',
+    villager: '平民',
+  };
+  return labels[identity];
+}
+
+/**
+ * 描述目标
+ */
+export function describeGoal(identity: Identity): string {
+  switch (identity) {
+    case 'werewolf':
+      return '隐藏身份，与狼队友协作击杀所有好人阵营角色。';
+    case 'seer':
+      return '夜晚查验玩家身份，将结论传递给好人阵营并找出狼人。';
+    case 'witch':
+      return '合理使用解药与毒药，守护同阵营并惩罚狼人。';
+    case 'hunter':
+      return '即便阵亡也要选择合适目标带走，帮助好人阵营。';
+    case 'guard':
+      return '夜晚守护关键角色，避免狼人屠杀核心力量。';
+    case 'villager':
+      return '通过发言和投票辨别狼人，与神职协同守护村庄。';
+    default:
+      return '帮助己方阵营取得胜利。';
+  }
+}
+
+/**
+ * 获取阵营标签
+ */
+export function getCampLabel(camp: Camp | null): string {
+  if (camp === 'werewolf') {
+    return '狼人阵营';
+  }
+  if (camp === 'villager') {
+    return '好人阵营';
+  }
+  return '未知阵营';
+}
+
+/**
+ * 构建视角消息
+ */
+export function buildPerspectiveMessage(
+  state: WerewolfState,
+  identity: Identity | null,
+  isAlive: boolean,
+  isSpectator: boolean,
+  isCurrent: boolean
+): string {
+  if (state.phase === 'game_over') {
+    const campLabel = getCampLabel(state.winner);
+    if (isSpectator || !identity) {
+      return `👀 观战模式 - ${campLabel}获胜`;
+    }
+
+    const myCamp = getCamp(identity);
+    if (state.winner && myCamp === state.winner) {
+      return `🎉 游戏结束 - ${campLabel}获胜，你的阵营取得胜利！`;
+    }
+    return `😔 游戏结束 - ${campLabel}获胜，你的阵营遗憾落败。`;
+  }
+
+  if (isSpectator) {
+    return buildSpectatorMessage(state);
+  }
+
+  if (!isAlive) {
+    return '💀 你已出局，可以继续观战并等待游戏结果。';
+  }
+
+  switch (state.phase) {
+    case 'night': {
+      const label = formatNightSubPhase(state.nightSubPhase);
+      if (isCurrent) {
+        return `🌙 第${state.day}夜 - ${label}，请立即行动。`;
+      }
+      return `🌙 第${state.day}夜 - ${label}进行中，请耐心等待。`;
+    }
+    case 'day_discussion':
+      return isCurrent
+        ? `☀️ 第${state.day}天 - 轮到你发言，分享你的分析。`
+        : `☀️ 第${state.day}天 - 等待其他玩家发言。`;
+    case 'day_voting':
+      return isCurrent
+        ? `🗳️ 第${state.day}天 - 请投票决定要放逐的玩家。`
+        : `🗳️ 第${state.day}天 - 等待其他玩家完成投票。`;
+    case 'last_words':
+      return isCurrent
+        ? '💬 你即将阵亡，请发表你的遗言。'
+        : '💬 等待即将阵亡的玩家发表遗言。';
+    case 'hunter_shoot':
+      return identity === 'hunter'
+        ? '🔫 你已阵亡，可以选择是否带走一名玩家。'
+        : '🔫 猎人在行动，请稍候片刻。';
+    default:
+      return '⏳ 等待游戏推进。';
+  }
+}
+
+/**
+ * 构建观战者消息
+ */
+export function buildSpectatorMessage(state: WerewolfState): string {
+  switch (state.phase) {
+    case 'night':
+      return `👀 观战模式 - 第${state.day}夜，${formatNightSubPhase(state.nightSubPhase)}。`;
+    case 'day_discussion':
+      return `👀 观战模式 - 第${state.day}天，讨论阶段。`;
+    case 'day_voting':
+      return `👀 观战模式 - 第${state.day}天，投票阶段。`;
+    case 'last_words':
+      return `👀 观战模式 - 第${state.day}天，遗言阶段。`;
+    case 'hunter_shoot':
+      return '👀 观战模式 - 猎人正在发动技能。';
+    default:
+      return '👀 观战模式 - 游戏进行中。';
+  }
+}
+
+/**
+ * 格式化夜晚子阶段
+ */
+export function formatNightSubPhase(subPhase: NightSubPhase): string {
+  const labels: Record<Exclude<NightSubPhase, null>, string> = {
+    guard: '守卫行动',
+    werewolf: '狼人行动',
+    seer: '预言家查验',
+    witch: '女巫用药',
+  };
+  if (!subPhase) {
+    return '夜晚阶段';
+  }
+  return labels[subPhase];
+}
+

@@ -13,7 +13,7 @@ const gamesRoute: FastifyPluginAsync = async (fastify) => {
    */
   fastify.get('/games', async (_request, reply) => {
     try {
-      const games = getAllGamesMetadata();
+      const games = await getAllGamesMetadata();
       return reply.send({ games });
     } catch (error) {
       fastify.log.error(error, 'Failed to get games metadata');

@@ -4,7 +4,7 @@
  */
 
 // Explicitly re-export common types from SDK to avoid shadowing issues
-export {
+export type {
   BaseGameLogic,
   GameLogic,
   GameMetadata,
@@ -13,16 +13,23 @@ export {
   Action,
   ActionResult,
   RolePerspective,
-  isSpectator,
-  SPECTATOR_ROLE_ID,
-  // Add other SDK types as needed by consumers
-  ActionDefinition,
   JsonSchemaProperty,
+  ValidationResult,
+  GameState as SDKGameState,
+  HistoryEvent as SDKHistoryEvent,
+  PlayerList as SDKPlayerList,
+  RoleMapping as SDKRoleMapping,
+  ActionDefinition,
   HumanPlayer,
   LLMPlayer,
   Player,
   RoomInfo,
-  ValidationResult,
+} from '@nexus/game-sdk';
+
+export {
+  isSpectator,
+  SPECTATOR_ROLE_ID,
+  // Add other SDK types as needed by consumers
   cloneState,
   validateAction,
   isMultiPlayerCountConfig,

@@ -4,8 +4,9 @@
     "type": "module",
     "main": "./dist/logic.mjs",
     "scripts": {
-        "build": "npm run build:logic",
+        "build": "npm run build:logic && npm run build:ui",
         "build:logic": "tsup",
+        "build:ui": "vite build -c vite.config.ui.ts",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
