@@ -13,6 +13,21 @@ const app = new Hono<{ Bindings: Bindings }>();
 // Enable CORS
 app.use('/*', cors());
 
+// Special route for ui.js to ensure CORS headers
+// We renamed public/ui.js to public/_ui.js so direct access is bypassed
+// and we can serve it here with custom headers
+app.get('/ui.js', async (c) => {
+    const url = new URL(c.req.url);
+    url.pathname = '/_ui.js';
+    const response = await c.env.ASSETS.fetch(new Request(url, c.req.raw));
+
+    // Create new response with CORS headers
+    const newResponse = new Response(response.body, response);
+    newResponse.headers.set('Access-Control-Allow-Origin', '*');
+    newResponse.headers.set('Content-Type', 'application/javascript');
+    return newResponse;
+});
+
 // 1. Metadata Endpoint
 app.get('/metadata', (c) => {
     const metadata = logic.getMetadata();
