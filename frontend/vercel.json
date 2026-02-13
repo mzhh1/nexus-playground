@@ -1,6 +1,22 @@
 {
     "rewrites": [
         {
+            "source": "/oauth-app/callback",
+            "destination": "/callback.html"
+        },
+        {
+            "source": "/oauth/callback",
+            "destination": "/callback.html"
+        },
+        {
+            "source": "/room",
+            "destination": "/room.html"
+        },
+        {
+            "source": "/my-nexus",
+            "destination": "/my-nexus.html"
+        },
+        {
             "source": "/(.*)",
             "destination": "/index.html"
         }
