@@ -13,16 +13,16 @@ import { usePerspective } from '../../hooks/usePerspective';
 import { useAction } from '../../hooks/useAction';
 import { useGamesMetadata, getGameName } from '../../hooks/useGamesMetadata';
 import type { RoleMapping, LLMPlayerTemplate } from '../../lib/types';
-import { NexusControlBar } from '../../components/room/NexusControlBar';
-import { PlayerList } from '../../components/room/PlayerList';
-import { RoleTemplateSelector } from '../../components/room/RoleTemplateSelector';
-import { RoleMappingGraph } from '../../components/room/RoleMappingGraph';
-import { RoleMappingModal } from '../../components/room/RoleMappingModal';
-import { LLMPlayerTemplateModal } from '../../components/room/LLMPlayerTemplateModal';
-import { LobbyStatusBar } from '../../components/room/LobbyStatusBar';
-import { GameMessageBar } from '../../components/room/GameMessageBar';
-import { LobbyContainer } from '../../components/room/LobbyContainer';
-import { GameUIContainer } from '../../components/room/GameUIContainer';
+import { NexusControlBar } from '../../components/NexusControlBar';
+import { PlayerList } from '../../components/PlayerList';
+import { RoleTemplateSelector } from '../../components/PlayerCountSelector'; // Start by assuming export, will verify
+import { RoleMappingGraph } from '../../components/RoleMappingGraph';
+import { RoleMappingModal } from '../../components/RoleMappingModal';
+import { LLMPlayerTemplateModal } from '../../components/LLMPlayerTemplateModal';
+import { LobbyStatusBar } from '../../components/LobbyStatusBar';
+import { GameMessageBar } from '../../components/GameMessageBar';
+import { LobbyContainer } from '../../components/LobbyContainer';
+import { GameUIContainer } from '../../components/GameUIContainer';
 import { isMultiPlayerCountConfig, getAvailablePlayerCounts, getRoleIdsForPlayerCount } from '../../lib/types';
 
 const Room: React.FC = () => {
