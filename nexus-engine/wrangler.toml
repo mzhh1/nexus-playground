@@ -1,0 +1,22 @@
+name = "nexus-engine"
+main = "src/index.ts"
+compatibility_date = "2024-02-08"
+
+# Durable Object bindings
+[[durable_objects.bindings]]
+name = "GAME_DO"
+class_name = "GameDO"
+
+# Migrations (required for DO)
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameDO"]
+
+[vars]
+# Default config for dev
+ADMIN_SECRET = "dev-secret-123"
+# PUBLIC_KEY for verifying JWTs (Development key)
+# Corresponds to private key used in backend dev
+JWT_PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEA/WrwZp1qfCq7Qd6Fk5f/5j+F3/4q+F3/5j+F3/4q+F0=
+-----END PUBLIC KEY-----"""

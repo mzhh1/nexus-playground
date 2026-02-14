@@ -14,6 +14,8 @@ import logger from '../utils/logger.js';
 import { getGameLogic } from '../games/registry.js';
 import { getEventBus } from '../runtime/event-bus.js';
 import { broadcastPerspectivesToAllPlayers } from '../utils/perspective-broadcast.js';
+import { nexusEngine } from '../runtime/nexus-engine-client.js';
+import { getGameWorkerUrl } from '../games/registry.js';
 
 const roomsRoutes: FastifyPluginAsync = async (fastify) => {
   const roomDAO = createRoomDAO(fastify);
@@ -220,14 +222,19 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
     roomId: string,
     gameId: string,
     roleMapping: Record<string, string>,
-    eventType: 'game_started' | 'game_restarted'
+    eventType: 'game_started' | 'game_restarted',
+    engineConfig?: any
   ) {
     // Clear perspective cache for all roles (important for restart/start)
     // This ensures that when clients reconnect (e.g., page refresh), they get the fresh perspective
     await perspectiveGenerator.invalidateAllPerspectives(roomId);
 
     // Broadcast game started/restarted event
-    getEventBus().broadcastToRoom(roomId, eventType, { game_id: gameId, role_mapping: roleMapping });
+    getEventBus().broadcastToRoom(roomId, eventType, {
+      game_id: gameId,
+      role_mapping: roleMapping,
+      engine_config: engineConfig
+    });
 
     // Generate and broadcast initial perspectives to all players (including spectators)
     await broadcastPerspectivesToAllPlayers(roomId, stateManager, perspectiveGenerator, getEventBus());
@@ -346,8 +353,39 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
       if (!result.success) return reply.code(500).send({ error: 'Failed to start game' });
       await roomDAO.updateStatus(roomId, 'playing');
 
+      // 4. Create Room in Nexus Engine
+      const gameWorkerUrl = getGameWorkerUrl(gameId);
+      let engineConfig = null;
+
+      if (gameWorkerUrl) {
+        try {
+          const engineRoom = await nexusEngine.createRoom({
+            roomId: roomId, // Use same ID or let engine generate
+            gameWorkerUrl,
+            config: {
+              maxPlayers: validRoleIds.length,
+              // Pass other config if needed
+            },
+            context: {
+              ownerId: owner.room.owner_uid,
+              gameId
+            }
+          });
+          logger.info({ roomId, engineRoom }, 'Created Nexus Engine room');
+          engineConfig = {
+            connectUrl: engineRoom.connectUrl,
+            engineRoomId: engineRoom.roomId
+          };
+        } catch (e) {
+          logger.error({ error: e, roomId }, 'Failed to create Nexus Engine room (continuing with legacy flow if needed)');
+          // For now, we might want to fail hard if Engine is required
+          // return reply.code(500).send({ error: 'Failed to create game engine container' });
+        }
+      }
+
       // Broadcast game started event and initial perspectives
-      await broadcastGameStarted(roomId, gameId, role_mapping, 'game_started');
+      // Include engine config
+      await broadcastGameStarted(roomId, gameId, role_mapping, 'game_started', engineConfig);
 
       return reply.send({ success: true });
     } catch (error) {
@@ -585,6 +623,60 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (error) {
       logger.error({ error, roomId, userId }, 'Failed to join room');
       return reply.code(500).send({ error: 'Failed to join room' });
+    }
+  });
+
+  /**
+   * GET /api/v1/rooms/:roomId/engine-connection
+   * Get WebSocket URL and Token for Nexus Engine
+   */
+  fastify.get<{ Params: { roomId: string } }>('/rooms/:roomId/engine-connection', async (request, reply) => {
+    const { roomId } = request.params;
+    const userId = (request as any).auth?.userId;
+
+    if (!isValidRoomId(roomId) || !userId) {
+      return reply.code(400).send({ error: 'Invalid request' });
+    }
+
+    try {
+       const roomState = await stateManager.getRoomState(roomId);
+       if (!roomState || roomState.room_status !== 'playing') {
+           return reply.code(400).send({ error: 'Game not running' });
+       }
+       
+       // Deterministic URL for M0 (Assuming engine uses same Host)
+       // In PROD, we should probably store the specific Engine URL in DB
+       // For now, we reconstruct it using env var
+       const engineBaseUrl = process.env.NEXUS_ENGINE_URL || 'http://localhost:8787';
+       const wsUrl = engineBaseUrl.replace('http', 'ws') + `/connect/${roomId}`;
+       
+       // Determine role
+       // Note: Token generation logic is simplified here.
+       // In a real scenario, we check if user is in player_list or role_mapping
+       // to assign correct role.
+       let role = 'spectator';
+       for (const [r, u] of Object.entries(roomState.role_mapping || {})) {
+           // role_mapping maps RoleID -> PlayerID
+           // We need to look up PlayerID -> UserID in player_list
+           const playerId = u;
+           const player = roomState.player_list[playerId];
+           if (player && player.uid === userId) {
+               role = r;
+               break;
+           }
+       }
+       
+       const token = nexusEngine.generateToken(roomId, userId, role);
+       
+       return reply.send({
+           url: wsUrl,
+           token,
+           role
+       });
+
+    } catch (error) {
+        logger.error({ error, roomId }, 'Failed to get engine connection');
+        return reply.code(500).send({ error: 'Server error' });
     }
   });
 };

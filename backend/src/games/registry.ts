@@ -127,3 +127,12 @@ logger.info(
   'Game registry initialized'
 );
 
+/**
+ * Get game worker URL (if available)
+ */
+export function getGameWorkerUrl(gameId: string): string | undefined {
+  if (gameId === 'gomoku') {
+    return process.env.GOMOKU_WORKER_URL;
+  }
+  return undefined;
+}

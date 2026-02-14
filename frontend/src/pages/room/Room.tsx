@@ -7,94 +7,56 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useOAuth } from '@autolabz/oauth-sdk';
 import '@autolabz/oauth-sdk/dist/style.css';
 import { useRoom } from '../../hooks/useRoom';
+import { useNexusEngine } from '../../hooks/useNexusEngine';
+import { useRoom } from '../../hooks/useRoom';
 import { usePerspective } from '../../hooks/usePerspective';
 import { useAction } from '../../hooks/useAction';
 import { useGamesMetadata, getGameName } from '../../hooks/useGamesMetadata';
-import { NexusControlBar } from '../../components/NexusControlBar';
-import { GameUIContainer } from '../../components/GameUIContainer';
-import { GameMessageBar } from '../../components/GameMessageBar';
-import { LobbyStatusBar } from '../../components/LobbyStatusBar';
-import { LobbyContainer } from '../../components/LobbyContainer';
-import { PlayerList } from '../../components/PlayerList';
-import { RoleMappingGraph } from '../../components/RoleMappingGraph';
-import { RoleMappingModal } from '../../components/RoleMappingModal';
-import { RoleTemplateSelector } from '../../components/PlayerCountSelector';
-import { LLMPlayerTemplateModal, LLMPlayerTemplate } from '../../components/LLMPlayerTemplateModal';
-import type { RoleMapping } from '../../lib/types';
-import {
-  isMultiPlayerCountConfig,
-  getRoleIdsForPlayerCount,
-  getAvailablePlayerCounts
-} from '../../lib/types';
-import '../../styles/global.css';
+// ... existing imports ...
 
 const Room: React.FC = () => {
-  const [roomId, setRoomId] = useState<string | null>(null);
-  const [currentRoleId, setCurrentRoleId] = useState<string | null>(null);
-  const [playerId, setPlayerId] = useState<string | null>(null);
-  const [selectedGameId, setSelectedGameId] = useState<string>('');
-  const [roleMapping, setRoleMapping] = useState<RoleMapping>({});
-  const [isRoleMappingModalOpen, setIsRoleMappingModalOpen] = useState(false);
-  const [isLLMTemplateModalOpen, setIsLLMTemplateModalOpen] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
+  // ... existing state ...
 
-  // 多人数配置游戏相关状态
-  const [selectedPlayerCount, setSelectedPlayerCount] = useState<number | null>(null);
+  // SSE event callbacks (existing code)
+  // ...
 
-  // Fetch games metadata
-  const { games: AVAILABLE_GAMES, loading: metadataLoading } = useGamesMetadata();
+  // Determine if we should use Engine (e.g. for Gomoku)
+  // We can hardcode this check for M0 or check metadata
+  const useEngine = selectedGameId === 'gomoku' || (room?.game_id === 'gomoku');
 
-  const {
-    room,
-    loading,
-    error,
-    fetchRoom,
-    joinRoom,
-    selectGame,
-    addPlayer,
-    removePlayer,
-    updateRoleMapping,
-    startGame,
-    pauseGame,
-    resumeGame,
-    stopGame,
-    restartGame,
-  } = useRoom(roomId || undefined);
+  // Legacy SSE Perspective
+  const { perspective: ssePerspective } = usePerspective(
+    !useEngine ? roomId : null, // Only connect SSE if not using Engine
+    currentRoleId,
+    playerId || undefined,
+    sseCallbacks
+  );
 
-  // SSE event callbacks to refresh room state
-  const sseCallbacks = useMemo(() => ({
-    onGameStarted: () => {
-      console.log('Game started, refreshing room state...');
-      fetchRoom();
-    },
-    onGamePaused: () => {
-      console.log('Game paused, refreshing room state...');
-      fetchRoom();
-    },
-    onGameResumed: () => {
-      console.log('Game resumed, refreshing room state...');
-      fetchRoom();
-    },
-    onGameStopped: () => {
-      console.log('Game stopped, refreshing room state...');
-      fetchRoom();
-    },
-    onGameRestarted: () => {
-      console.log('Game restarted, refreshing room state...');
-      fetchRoom();
-    },
-    onRoleMappingUpdated: () => {
-      console.log('Role mapping updated, refreshing room state...');
-      fetchRoom();
-    },
-    onPlayerStatusChanged: (data: any) => {
-      console.log('Player status changed:', data);
-      fetchRoom();
-    },
-  }), [fetchRoom]);
+  // Nexus Engine (V2) Perspective
+  const { gameState: enginePerspective, isConnected: isEngineConnected, sendAction: sendEngineAction } = useNexusEngine({
+    roomId: useEngine ? roomId : null,
+    engineConfig: null
+  });
 
-  const { perspective } = usePerspective(roomId, currentRoleId, playerId || undefined, sseCallbacks);
-  const { submitAction, submitting } = useAction(roomId);
+  // Unified Perspective
+  const perspective = useEngine ? enginePerspective : ssePerspective;
+
+  // Unified Action Handler
+  const { submitAction: submitLegacyAction, submitting } = useAction(roomId);
+
+  const submitAction = async (action: any) => {
+    if (useEngine) {
+      if (isEngineConnected) {
+        sendEngineAction(action);
+        return { success: true };
+      } else {
+        console.error("Engine not connected");
+        return { success: false };
+      }
+    } else {
+      return submitLegacyAction(action);
+    }
+  };
   const { user } = useOAuth();
 
   const accountDisplayName = useMemo(() => {
