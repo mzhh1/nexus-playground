@@ -733,7 +733,6 @@ const Room: React.FC = () => {
                 metadata={{
                   roomId: room.room_id,
                   roleId: currentRoleId,
-                  roleId: currentRoleId,
                   playerId: playerId || undefined,
                 }}
                 uiConfig={currentGameMetadata?.ui}

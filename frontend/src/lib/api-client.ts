@@ -20,18 +20,19 @@
 
 import { useOAuth } from '@autolabz/oauth-sdk';
 import axios, { type AxiosInstance } from 'axios';
-import type { 
-  RoomInfo, 
-  RolePerspective, 
-  Action, 
-  RoleMapping, 
+import type {
+  RoomInfo,
+  RolePerspective,
+  Action,
+  RoleMapping,
+  EngineConnectionResponse,
 } from './types';
 
 /**
  * Game API: Type-safe wrapper around Axios instance
  */
 export class GameAPI {
-  constructor(private client: AxiosInstance) {}
+  constructor(private client: AxiosInstance) { }
 
   // ============ My Nexus APIs ============
 
@@ -144,7 +145,7 @@ export class GameAPI {
  */
 export function useGameAPI() {
   const { apiClient, getAccessToken } = useOAuth();
-  
+
   // Create a new axios instance specifically for game backend API
   // Don't reuse OAuth SDK's client to avoid interfering with its userinfo calls
   const gameAxios = axios.create({
@@ -154,7 +155,7 @@ export function useGameAPI() {
       'Content-Type': 'application/json',
     },
   });
-  
+
   // Request interceptor: Add authorization and client ID headers
   gameAxios.interceptors.request.use(
     async (config) => {
@@ -162,32 +163,32 @@ export function useGameAPI() {
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
-      
+
       // Add X-Client-Id header for backend auth middleware
       const clientId = import.meta.env.VITE_OAUTH_CLIENT_ID;
       if (clientId) {
         config.headers['X-Client-Id'] = clientId;
       }
-      
+
       return config;
     },
     (error) => Promise.reject(error)
   );
-  
+
   // Response interceptor: Handle 401 by refreshing token
   gameAxios.interceptors.response.use(
     (response) => response,
     async (error) => {
       const originalRequest = error.config;
-      
+
       // If 401 and haven't retried yet
       if (error.response?.status === 401 && !originalRequest._retry) {
         originalRequest._retry = true;
-        
+
         try {
           // Use OAuth SDK's refresh mechanism
           await apiClient.refreshAccessToken();
-          
+
           // Retry with new token
           const newToken = await getAccessToken();
           if (newToken) {
@@ -199,11 +200,11 @@ export function useGameAPI() {
           return Promise.reject(refreshError);
         }
       }
-      
+
       return Promise.reject(error);
     }
   );
-  
+
   return new GameAPI(gameAxios);
 }
 

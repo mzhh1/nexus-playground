@@ -168,12 +168,12 @@ export function getRoleIdsForPlayerCount(
   if (Array.isArray(roleIds)) {
     return roleIds;
   }
-  
+
   // 多人数配置：返回指定人数的角色列表
   if (playerCount !== undefined && roleIds[playerCount]) {
     return roleIds[playerCount];
   }
-  
+
   // 未指定人数或人数无效：返回最小支持人数的角色列表作为默认值
   const counts = Object.keys(roleIds).map(Number).sort((a, b) => a - b);
   return counts.length > 0 ? roleIds[counts[0]] : [];
@@ -204,3 +204,9 @@ export interface ApiSuccess {
   [key: string]: any;
 }
 
+
+export interface EngineConnectionResponse {
+  url: string;
+  token: string;
+  role: string;
+}

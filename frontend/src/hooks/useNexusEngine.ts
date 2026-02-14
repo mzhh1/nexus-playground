@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useOAuth } from '@autolabz/oauth-sdk';
+import { useGameAPI } from '../lib/api-client';
 
 interface EngineConfig {
     connectUrl: string;
@@ -16,7 +17,8 @@ export function useNexusEngine({ roomId, engineConfig }: UseNexusEngineProps) {
     const [isConnected, setIsConnected] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const wsRef = useRef<WebSocket | null>(null);
-    const { user, getAccessToken } = useOAuth();
+    const { user } = useOAuth();
+    const gameApi = useGameAPI();
 
     // Connect to Engine
     useEffect(() => {
@@ -27,20 +29,15 @@ export function useNexusEngine({ roomId, engineConfig }: UseNexusEngineProps) {
         const connectToEngine = async () => {
             try {
                 // Get Connection Info (URL + Token) from Backend
-                const headers: Record<string, string> = {
-                    'Content-Type': 'application/json'
-                };
-                const token = getAccessToken();
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-
-                const res = await fetch(`/api/v1/rooms/${roomId}/engine-connection`, { headers });
-                if (!res.ok) {
-                    console.warn("Nexus Engine connection info not available yet");
+                let connectionInfo;
+                try {
+                    connectionInfo = await gameApi.getEngineConnection(roomId);
+                } catch (e) {
+                    console.warn("Nexus Engine connection info not available yet or request failed");
                     return;
                 }
 
-                const data = await res.json();
-                const { url, token: engineToken } = data;
+                const { url, token: engineToken } = connectionInfo;
 
                 // Connect WebSocket
                 const wsUrl = new URL(url);
