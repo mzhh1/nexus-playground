@@ -33,7 +33,7 @@ export function useNexusEngine({ roomId, engineConfig }: UseNexusEngineProps) {
                 try {
                     connectionInfo = await gameApi.getEngineConnection(roomId);
                 } catch (e) {
-                    console.warn("Nexus Engine connection info not available yet or request failed");
+                    console.warn("Nexus Engine connection info not available yet or request failed", e);
                     return;
                 }
 
