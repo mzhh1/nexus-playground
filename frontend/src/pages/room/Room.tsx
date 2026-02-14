@@ -67,8 +67,11 @@ const Room: React.FC = () => {
   );
 
   // Nexus Engine (V2) Perspective
+  // Only connect if game is running and using engine
+  const shouldConnectEngine = useEngine && room?.room_status === 'playing';
+
   const { gameState: enginePerspective, isConnected: isEngineConnected, sendAction: sendEngineAction } = useNexusEngine({
-    roomId: useEngine ? roomId : null,
+    roomId: shouldConnectEngine ? roomId : null,
     engineConfig: null
   });
 
