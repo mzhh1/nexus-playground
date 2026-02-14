@@ -67,11 +67,8 @@ const Room: React.FC = () => {
   );
 
   // Nexus Engine (V2) Perspective
-  // Only connect if game is running and using engine
-  const shouldConnectEngine = useEngine && room?.room_status === 'playing';
-
   const { gameState: enginePerspective, isConnected: isEngineConnected, sendAction: sendEngineAction } = useNexusEngine({
-    roomId: shouldConnectEngine ? roomId : null,
+    roomId: useEngine ? roomId : null,
     engineConfig: null
   });
 
@@ -127,12 +124,12 @@ const Room: React.FC = () => {
 
   // Determine current role and player ID
   useEffect(() => {
-    if (!room || !user?.id) return;
+    if (!room) return;
 
     // Check if we're already in the room
-    const myPlayerId = Object.entries(room.player_list).find(
+    const myPlayerId = user?.id ? Object.entries(room.player_list).find(
       ([_, player]) => player.type === 'human' && player.uid === user.id
-    )?.[0];
+    )?.[0] : undefined;
 
     if (myPlayerId) {
       setPlayerId(myPlayerId);
@@ -150,6 +147,11 @@ const Room: React.FC = () => {
         const spectatorRoleId = import.meta.env.VITE_SPECTATOR_ROLE_ID || 'spectator';
         setCurrentRoleId(spectatorRoleId);
       }
+    } else {
+      // User is not in the player list -> Spectator
+      setPlayerId(null);
+      const spectatorRoleId = import.meta.env.VITE_SPECTATOR_ROLE_ID || 'spectator';
+      setCurrentRoleId(spectatorRoleId);
     }
   }, [room, user?.id]);
 
