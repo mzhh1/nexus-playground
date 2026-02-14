@@ -53,6 +53,11 @@ export class GameAPI {
     return response.data;
   }
 
+  async getEngineConnection(roomId: string): Promise<EngineConnectionResponse> {
+    const response = await this.client.get<EngineConnectionResponse>(`/rooms/${roomId}/engine-connection`);
+    return response.data;
+  }
+
   // ============ Owner Operations (Room-based) ============
 
   async selectGame(roomId: string, gameId: string): Promise<{ success: true; game_id: string }> {
