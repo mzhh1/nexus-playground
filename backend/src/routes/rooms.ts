@@ -660,7 +660,7 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
            // We need to look up PlayerID -> UserID in player_list
            const playerId = u;
            const player = roomState.player_list[playerId];
-           if (player && player.uid === userId) {
+           if (player && player.type === "human" && player.uid === userId) {
                role = r;
                break;
            }

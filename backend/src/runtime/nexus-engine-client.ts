@@ -52,7 +52,7 @@ export class NexusEngineClient {
      * Generate a JWT token for frontend to connect to Engine
      * (In production this should use jsonwebtoken with private key)
      */
-    generateToken(roomId: string, userId: string, role: string): string {
+    generateToken(_roomId: string, userId: string, role: string): string {
         // For M0/MVP, we use a simple format that our detailed engine implementation can parse
         // Format: userId:role
         // or actually construct a fake JWT structure if the engine expects it

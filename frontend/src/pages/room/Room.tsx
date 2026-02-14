@@ -12,13 +12,47 @@ import { useRoom } from '../../hooks/useRoom';
 import { usePerspective } from '../../hooks/usePerspective';
 import { useAction } from '../../hooks/useAction';
 import { useGamesMetadata, getGameName } from '../../hooks/useGamesMetadata';
-// ... existing imports ...
+import type { RoleMapping, LLMPlayerTemplate } from '../../lib/types';
+import { NexusControlBar } from '../../components/room/NexusControlBar';
+import { PlayerList } from '../../components/room/PlayerList';
+import { RoleTemplateSelector } from '../../components/room/RoleTemplateSelector';
+import { RoleMappingGraph } from '../../components/room/RoleMappingGraph';
+import { RoleMappingModal } from '../../components/room/RoleMappingModal';
+import { LLMPlayerTemplateModal } from '../../components/room/LLMPlayerTemplateModal';
+import { LobbyStatusBar } from '../../components/room/LobbyStatusBar';
+import { GameMessageBar } from '../../components/room/GameMessageBar';
+import { LobbyContainer } from '../../components/room/LobbyContainer';
+import { GameUIContainer } from '../../components/room/GameUIContainer';
+import { isMultiPlayerCountConfig, getAvailablePlayerCounts, getRoleIdsForPlayerCount } from '../../lib/types';
 
 const Room: React.FC = () => {
-  // ... existing state ...
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [playerId, setPlayerId] = useState<string | null>(null);
+  const [currentRoleId, setCurrentRoleId] = useState<string | null>(null);
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+  const [roleMapping, setRoleMapping] = useState<RoleMapping>({});
+  const [selectedPlayerCount, setSelectedPlayerCount] = useState<number | null>(null);
 
-  // SSE event callbacks (existing code)
-  // ...
+  const [isRoleMappingModalOpen, setIsRoleMappingModalOpen] = useState(false);
+  const [isLLMTemplateModalOpen, setIsLLMTemplateModalOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  // Hooks
+  const { room, loading, error, fetchRoom, joinRoom, addPlayer, removePlayer, startGame, pauseGame, resumeGame, stopGame, restartGame, selectGame, updateRoleMapping } = useRoom(roomId);
+  const { games: AVAILABLE_GAMES, loading: metadataLoading } = useGamesMetadata();
+
+  // SSE Callbacks
+  const sseCallbacks = useMemo(() => ({
+    onRoomUpdated: () => {
+      fetchRoom();
+    },
+    onGameStarted: () => {
+      fetchRoom();
+    },
+    onGameEnded: () => {
+      fetchRoom();
+    }
+  }), [fetchRoom]);
 
   // Determine if we should use Engine (e.g. for Gomoku)
   // We can hardcode this check for M0 or check metadata
