@@ -16,12 +16,10 @@ export class GameDO extends DurableObject {
     app: Hono = new Hono();
 
     // --- Persistent state (loaded from storage) ---
-    roomId: string | null = null;
     ownerId: string | null = null;
-    gameId: string | null = null;  // selected game ID (e.g. 'gomoku')
     phase: RoomPhase = 'lobby';
-    lobbyPlayers: Record<string, { displayName: string; isBot?: boolean }> = {};
-    roleMapping: Record<string, string> = {};  // roleId -> userId (OAuth IDs)
+    lobbyPlayers: Record<string, { displayName: string }> = {};
+    roleMapping: Record<string, string> = {};  // roleId -> userId
     gameConfig: GameConfig | null = null;
 
     // --- Game state (only active during 'playing' phase) ---
@@ -38,9 +36,7 @@ export class GameDO extends DurableObject {
 
         // Load persisted state
         this.doState.blockConcurrencyWhile(async () => {
-            this.roomId = (await this.doState.storage.get("roomId")) || null;
             this.ownerId = (await this.doState.storage.get("ownerId")) || null;
-            this.gameId = (await this.doState.storage.get("gameId")) || null;
             this.phase = (await this.doState.storage.get("phase")) || 'lobby';
             this.lobbyPlayers = (await this.doState.storage.get("lobbyPlayers")) || {};
             this.roleMapping = (await this.doState.storage.get("roleMapping")) || {};
@@ -60,31 +56,38 @@ export class GameDO extends DurableObject {
          */
         this.app.post("/init", async (c) => {
             const body = await c.req.json<{
-                roomId: string;
                 ownerId: string;
                 gameWorkerUrl?: string;
                 config?: any;
+                context?: any;
             }>();
 
             // Idempotent: if already initialized for this owner, just return success
-            if (this.ownerId === body.ownerId && this.roomId === body.roomId) {
-                console.log(`[GameDO] Already initialized for room ${this.roomId}, phase=${this.phase}`);
+            if (this.ownerId === body.ownerId) {
+                console.log(`[GameDO] Already initialized for owner ${this.ownerId}, phase=${this.phase}`);
                 return c.json({ success: true, alreadyInitialized: true, phase: this.phase });
             }
 
-            this.roomId = body.roomId;
             this.ownerId = body.ownerId;
-            this.gameId = null;
             this.phase = 'lobby';
             this.lobbyPlayers = {};
             this.roleMapping = {};
-            this.gameConfig = null;
             this.gameState = null;
             this.history = [];
 
+            if (body.gameWorkerUrl) {
+                this.gameConfig = {
+                    gameWorkerUrl: body.gameWorkerUrl,
+                    maxPlayers: body.config?.maxPlayers || 2,
+                    ...body.config,
+                };
+            } else {
+                this.gameConfig = null;
+            }
+
             await this.persistAll();
 
-            console.log(`[GameDO] Initialized. Room: ${this.roomId}, Owner: ${this.ownerId}`);
+            console.log(`[GameDO] Initialized. Owner: ${this.ownerId}`);
             return c.json({ success: true });
         });
 
@@ -128,7 +131,7 @@ export class GameDO extends DurableObject {
                 connectedUsers: Array.from(this.connections.values()).map(p => ({
                     userId: p.userId,
                     displayName: p.displayName,
-                    role: this.getRoleForUser(p.userId),
+                    role: p.role,
                     isOwner: p.isOwner,
                     connected: p.connected
                 }))
@@ -228,9 +231,6 @@ export class GameDO extends DurableObject {
                 break;
             case 'GAME_RESTART':
                 await this.handleGameRestart(player);
-                break;
-            case 'LOBBY_ADD_BOT':
-                await this.handleAddBot(player, data.payload);
                 break;
 
             // --- Game messages ---
@@ -343,31 +343,7 @@ export class GameDO extends DurableObject {
         this.broadcastLobbyUpdate();
     }
 
-    async handleAddBot(player: Player, payload: { botId: string; displayName: string; config?: any }) {
-        if (!player.isOwner) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Only owner can add bots" }));
-            return;
-        }
-
-        if (this.phase !== 'lobby') {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Cannot add bots during play" }));
-            return;
-        }
-
-        const botId = payload.botId || `bot_${crypto.randomUUID()}`;
-
-        this.lobbyPlayers[botId] = {
-            displayName: payload.displayName || `Bot ${botId.slice(0, 4)}`,
-            isBot: true
-        };
-
-        // Persist
-        await this.doState.storage.put("lobbyPlayers", this.lobbyPlayers);
-
-        this.broadcastLobbyUpdate();
-    }
-
-    async handleSetGame(player: Player, payload: { gameId: string; gameWorkerUrl: string; config?: any }) {
+    async handleSetGame(player: Player, payload: { gameWorkerUrl: string; config?: any }) {
         if (!player.isOwner) {
             player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Only owner can set game" }));
             return;
@@ -378,19 +354,13 @@ export class GameDO extends DurableObject {
             return;
         }
 
-        this.gameId = payload.gameId;
         this.gameConfig = {
             gameWorkerUrl: payload.gameWorkerUrl,
             maxPlayers: payload.config?.maxPlayers || 2,
             ...payload.config,
         };
 
-        // Clear role mapping when game changes (roles may differ)
-        this.roleMapping = {};
-
-        await this.doState.storage.put("gameId", this.gameId);
         await this.doState.storage.put("gameConfig", this.gameConfig);
-        await this.doState.storage.put("roleMapping", this.roleMapping);
         this.broadcastLobbyUpdate();
     }
 
@@ -642,17 +612,15 @@ export class GameDO extends DurableObject {
         const players: Record<string, any> = {};
         for (const [userId, info] of Object.entries(this.lobbyPlayers)) {
             players[userId] = {
-                ...info, // includes isBot
-                connected: connectedUsers.has(userId) || !!info.isBot,
+                ...info,
+                connected: connectedUsers.has(userId),
                 isOwner: userId === this.ownerId,
                 role: this.getRoleForUser(userId),
             };
         }
 
         return {
-            roomId: this.roomId,
             ownerId: this.ownerId,
-            gameId: this.gameId,
             phase: this.phase,
             players,
             roleMapping: this.roleMapping,
@@ -769,9 +737,7 @@ export class GameDO extends DurableObject {
     // ==========================================
 
     async persistAll() {
-        await this.doState.storage.put("roomId", this.roomId);
         await this.doState.storage.put("ownerId", this.ownerId);
-        await this.doState.storage.put("gameId", this.gameId);
         await this.doState.storage.put("phase", this.phase);
         await this.doState.storage.put("lobbyPlayers", this.lobbyPlayers);
         await this.doState.storage.put("roleMapping", this.roleMapping);

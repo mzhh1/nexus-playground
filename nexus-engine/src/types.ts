@@ -18,7 +18,6 @@ export interface Player {
     displayName: string;
     connected: boolean;
     isOwner: boolean;           // derived at runtime from ownerId comparison
-    isBot?: boolean;
     ws?: WebSocket;
 }
 
@@ -26,7 +25,7 @@ export interface Player {
 export interface LobbyState {
     ownerId: string;
     phase: RoomPhase;
-    players: Record<string, { displayName: string; isBot?: boolean }>; // userId -> info
+    players: Record<string, { displayName: string }>; // userId -> info
     roleMapping: Record<string, string>;  // roleId -> userId
     gameConfig: GameConfig | null;
 }
