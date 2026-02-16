@@ -403,6 +403,7 @@ const Room: React.FC = () => {
   // Players from Engine LobbyState
   // We mock backend PlayerList format if using Engine state to keep UI components happy
   const players = lobbyState?.players || {};
+  const hasPlayers = Object.keys(players).length > 0;
   // const playerList = room ? Object.entries(room.player_list) : [];
 
   const hasGameSelected = !!currentGameId;
