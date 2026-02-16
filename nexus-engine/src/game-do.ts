@@ -50,8 +50,9 @@ export class GameDO extends DurableObject {
         // ==========================================
 
         /**
-         * POST /init — Initialize or re-initialize room.
+         * POST /init — Initialize room (idempotent).
          * Called by the Engine Worker on behalf of the Backend.
+         * If the DO is already initialized with the same owner, this is a no-op.
          */
         this.app.post("/init", async (c) => {
             const body = await c.req.json<{
@@ -60,6 +61,12 @@ export class GameDO extends DurableObject {
                 config?: any;
                 context?: any;
             }>();
+
+            // Idempotent: if already initialized for this owner, just return success
+            if (this.ownerId === body.ownerId) {
+                console.log(`[GameDO] Already initialized for owner ${this.ownerId}, phase=${this.phase}`);
+                return c.json({ success: true, alreadyInitialized: true, phase: this.phase });
+            }
 
             this.ownerId = body.ownerId;
             this.phase = 'lobby';
