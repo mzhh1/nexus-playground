@@ -425,8 +425,9 @@ export class GameDO extends DurableObject {
             await this.doState.storage.put("history", this.history);
             await this.doState.storage.put("phase", this.phase);
 
-            // Broadcast game started + initial perspectives
+            // Broadcast game started + lobby update with new phase + initial perspectives
             this.broadcastToAll({ type: "GAME_STARTED", payload: { roleMapping: this.roleMapping } });
+            this.broadcastLobbyUpdate();
             await this.broadcastGameState();
 
         } catch (e: any) {

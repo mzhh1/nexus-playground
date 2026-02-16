@@ -386,12 +386,15 @@ const Room: React.FC = () => {
   const currentUserId = user?.id || null;
   const isInRoom = playerId !== null;
   const isOwner = room ? room.owner_uid === currentUserId : false;
-  const isOpen = room ? room.room_status === 'open' : false;
-  const isPlaying = room ? room.room_status === 'playing' : false;
+  // Use Engine lobbyState.phase as primary source of truth, fallback to backend room_status
+  const enginePhase = lobbyState?.phase;
+  const isOpen = enginePhase ? enginePhase === 'lobby' : (room ? room.room_status === 'open' : false);
+  const isPlaying = enginePhase ? enginePhase === 'playing' : (room ? room.room_status === 'playing' : false);
+  const isFinished = enginePhase === 'finished';
   const canJoin = isOpen && !isInRoom && !isOwner;
   // 在开放阶段也显示控制栏（当有游戏选择时）
   const shouldShowControlBar = room
-    ? isPlaying || room.room_status === 'paused' || (room.game_id && (isOwner || isInRoom))
+    ? isPlaying || isFinished || room.room_status === 'paused' || (room.game_id && (isOwner || isInRoom))
     : false;
 
   const baseContentPadding = isOpen ? 'var(--spacing-lg)' : 'var(--spacing-sm)';
