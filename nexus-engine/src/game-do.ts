@@ -18,7 +18,7 @@ export class GameDO extends DurableObject {
     // --- Persistent state (loaded from storage) ---
     ownerId: string | null = null;
     phase: RoomPhase = 'lobby';
-    lobbyPlayers: Record<string, { displayName: string; role: string | null }> = {};
+    lobbyPlayers: Record<string, { displayName: string }> = {};
     roleMapping: Record<string, string> = {};  // roleId -> userId
     gameConfig: GameConfig | null = null;
 
@@ -147,16 +147,22 @@ export class GameDO extends DurableObject {
     // WebSocket Session Management
     // ==========================================
 
+    // Derive a user's role from roleMapping (single source of truth)
+    getRoleForUser(userId: string): string | null {
+        for (const [roleId, uid] of Object.entries(this.roleMapping)) {
+            if (uid === userId) return roleId;
+        }
+        return null;
+    }
+
     async handleSession(ws: WebSocket, userId: string, displayName: string) {
         ws.accept();
 
         const isOwner = userId === this.ownerId;
-        const existingRole = this.lobbyPlayers[userId]?.role || null;
 
         const player: Player = {
             userId,
             displayName,
-            role: existingRole,
             connected: true,
             isOwner,
             ws,
@@ -168,7 +174,7 @@ export class GameDO extends DurableObject {
 
         // Auto-join lobby if not already present
         if (!this.lobbyPlayers[userId]) {
-            this.lobbyPlayers[userId] = { displayName, role: null };
+            this.lobbyPlayers[userId] = { displayName };
             await this.doState.storage.put("lobbyPlayers", this.lobbyPlayers);
         }
 
@@ -297,14 +303,7 @@ export class GameDO extends DurableObject {
             this.roleMapping[roleId] = player.userId;
         }
 
-        // Update lobby player's role
-        if (this.lobbyPlayers[player.userId]) {
-            this.lobbyPlayers[player.userId].role = roleId;
-        }
-        player.role = roleId;
-
         await this.doState.storage.put("roleMapping", this.roleMapping);
-        await this.doState.storage.put("lobbyPlayers", this.lobbyPlayers);
 
         this.broadcastLobbyUpdate();
     }
@@ -397,22 +396,6 @@ export class GameDO extends DurableObject {
         if (payload?.roleMapping) {
             this.roleMapping = payload.roleMapping;
             await this.doState.storage.put("roleMapping", this.roleMapping);
-
-            // Sync roles to connected Player objects
-            // roleMapping is { roleId: userId }, reverse to find each player's role
-            const userIdToRole = new Map<string, string>();
-            for (const [roleId, userId] of Object.entries(this.roleMapping)) {
-                userIdToRole.set(userId, roleId);
-            }
-            for (const p of this.connections.values()) {
-                const role = userIdToRole.get(p.userId) || null;
-                p.role = role;
-                // Also update lobbyPlayers
-                if (this.lobbyPlayers[p.userId]) {
-                    this.lobbyPlayers[p.userId].role = role;
-                }
-            }
-            await this.doState.storage.put("lobbyPlayers", this.lobbyPlayers);
         }
 
         if (!this.gameConfig?.gameWorkerUrl) {
@@ -537,7 +520,7 @@ export class GameDO extends DurableObject {
                 body: JSON.stringify({
                     state: this.gameState,
                     action: actionPayload,
-                    roleId: player.role,
+                    roleId: this.getRoleForUser(player.userId),
                 }),
             });
 
@@ -554,16 +537,17 @@ export class GameDO extends DurableObject {
             }
 
             // Update state
+            const actorRole = this.getRoleForUser(player.userId);
             const previousState = this.gameState;
             this.gameState = result.nextState;
 
             // Record history
             this.history.push({
                 turn: (previousState as any).turn || 0,
-                role_id: player.role,
+                role_id: actorRole,
                 action: actionPayload,
                 timestamp: new Date().toISOString(),
-                description: `${player.displayName} (${player.role}) performed ${actionPayload.action_id}`
+                description: `${player.displayName} (${actorRole}) performed ${actionPayload.action_id}`
             });
 
             await this.doState.storage.put("gameState", this.gameState);
@@ -631,6 +615,7 @@ export class GameDO extends DurableObject {
                 ...info,
                 connected: connectedUsers.has(userId),
                 isOwner: userId === this.ownerId,
+                role: this.getRoleForUser(userId),
             };
         }
 
@@ -643,7 +628,7 @@ export class GameDO extends DurableObject {
             you: {
                 userId: forPlayer.userId,
                 isOwner: forPlayer.isOwner,
-                role: forPlayer.role,
+                role: this.getRoleForUser(forPlayer.userId),
             },
         };
     }
@@ -674,7 +659,7 @@ export class GameDO extends DurableObject {
         const roleGroups = new Map<string, WebSocket[]>();
         for (const player of this.connections.values()) {
             if (!player.ws) continue;
-            const role = player.role || 'spectator';
+            const role = this.getRoleForUser(player.userId) || 'spectator';
             if (!roleGroups.has(role)) {
                 roleGroups.set(role, []);
             }
@@ -729,7 +714,7 @@ export class GameDO extends DurableObject {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     state: this.gameState,
-                    roleId: player.role || 'spectator',
+                    roleId: this.getRoleForUser(player.userId) || 'spectator',
                     wholeHistory: this.history,
                     diffHistory: [],
                 }),

@@ -12,11 +12,10 @@ export interface GameState {
 /** Room phase: lobby (waiting) or playing (game active) */
 export type RoomPhase = 'lobby' | 'playing' | 'finished';
 
-/** A connected player in the DO */
+/** A connected player in the DO (role is derived from roleMapping) */
 export interface Player {
     userId: string;
     displayName: string;
-    role: string | null;        // assigned role (null = spectator/unassigned)
     connected: boolean;
     isOwner: boolean;           // derived at runtime from ownerId comparison
     ws?: WebSocket;
@@ -26,7 +25,7 @@ export interface Player {
 export interface LobbyState {
     ownerId: string;
     phase: RoomPhase;
-    players: Record<string, { displayName: string; role: string | null }>; // userId -> info
+    players: Record<string, { displayName: string }>; // userId -> info
     roleMapping: Record<string, string>;  // roleId -> userId
     gameConfig: GameConfig | null;
 }
