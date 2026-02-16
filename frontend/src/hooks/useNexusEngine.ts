@@ -15,6 +15,7 @@ export interface LobbyPlayer {
     role: string | null;
     connected: boolean;
     isOwner: boolean;
+    isBot?: boolean;
 }
 
 export interface LobbyState {

@@ -616,23 +616,13 @@ const Room: React.FC = () => {
                           </div>
                         )}
 
-                        {/* Player List (using simplified rendering for now, can be improved later to use PlayerList component but adapted) */}
-                        <div className="player-list-simple" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {Object.entries(players).map(([uid, p]) => (
-                            <div key={uid} style={{
-                              padding: '8px',
-                              background: '#f8f9fa',
-                              borderRadius: '4px',
-                              display: 'flex',
-                              justifyContent: 'space-between'
-                            }}>
-                              <span>
-                                {p.isOwner ? '👑 ' : ''}{p.displayName}
-                                {p.connected ? ' (在线)' : ' (离线)'}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+                        {/* Player List */}
+                        <PlayerList
+                          players={players as any} // Cast to satisfy type union if needed
+                          canRemove={isOwner}
+                          onRemove={handleRemovePlayer}
+                          emptyMessage="等待玩家加入..."
+                        />
                       </div>
 
                       {/* Role Template Selector (for multi-player-count games) */}
