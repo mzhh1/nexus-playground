@@ -14,6 +14,7 @@ interface NexusControlBarProps {
   gameName?: string;
   statusText?: string;
   roleMapping?: RoleMapping;
+  enginePhase?: 'lobby' | 'playing' | 'finished';
   onPlayPause?: () => void;
   onStop?: () => void;
   onRestart?: () => void;
@@ -26,6 +27,7 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
   gameName,
   statusText,
   roleMapping,
+  enginePhase,
   onPlayPause,
   onStop,
   onRestart,
@@ -35,8 +37,9 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
   const [showRoleMapping, setShowRoleMapping] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
 
-  const isPlaying = room.room_status === 'playing';
-  const isPaused = room.room_status === 'paused';
+  // Use Engine phase as primary source of truth, fallback to room.room_status
+  const isPlaying = enginePhase ? enginePhase === 'playing' : room.room_status === 'playing';
+  const isPaused = enginePhase ? false : room.room_status === 'paused';
 
   // resume_locked 时也显示暂停/播放按钮
   const canTogglePlayPause = isOwner && (isPlaying || isPaused);
@@ -45,10 +48,10 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
   const playerCount = Object.keys(room.player_list).length;
   const roleIds = roleMapping ? Object.keys(roleMapping) : [];
 
-  const displayStatus = statusText || 
+  const displayStatus = statusText ||
     (room.room_status === 'playing' ? '游戏进行中' :
-     room.room_status === 'paused' ? (room.resume_locked ? '已停止' : '已暂停') :
-     room.room_status === 'open' ? '准备中' : '');
+      room.room_status === 'paused' ? (room.resume_locked ? '已停止' : '已暂停') :
+        room.room_status === 'open' ? '准备中' : '');
 
   return (
     <div className="nexus-control-bar">

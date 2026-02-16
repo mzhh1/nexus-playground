@@ -360,24 +360,14 @@ const Room: React.FC = () => {
 
   const handleStop = async () => {
     if (!isOwner) return;
-    if (!confirm('确定要停止游戏吗？停止后将无法继续。')) return;
-
-    try {
-      await stopGame();
-    } catch (err) {
-      console.error('Failed to stop game:', err);
-    }
+    if (!confirm('确定要停止游戏吗？停止后将返回大厅。')) return;
+    engineStopGame();
   };
 
   const handleRestart = async () => {
     if (!isOwner) return;
     if (!confirm('确定要重新开始游戏吗？当前游戏进度将会丢失。')) return;
-
-    try {
-      await restartGame();
-    } catch (err) {
-      console.error('Failed to restart game:', err);
-    }
+    engineRestartGame();
   };
 
   // ========== Computed Values (ALL HOOKS MUST BE BEFORE ANY RETURN) ==========
@@ -502,6 +492,7 @@ const Room: React.FC = () => {
           gameName={gameName}
           statusText={controlBarStatusText}
           roleMapping={roleMapping}
+          enginePhase={lobbyState?.phase}
           onPlayPause={handlePlayPause}
           onStop={handleStop}
           onRestart={handleRestart}
