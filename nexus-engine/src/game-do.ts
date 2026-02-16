@@ -397,6 +397,22 @@ export class GameDO extends DurableObject {
         if (payload?.roleMapping) {
             this.roleMapping = payload.roleMapping;
             await this.doState.storage.put("roleMapping", this.roleMapping);
+
+            // Sync roles to connected Player objects
+            // roleMapping is { roleId: userId }, reverse to find each player's role
+            const userIdToRole = new Map<string, string>();
+            for (const [roleId, userId] of Object.entries(this.roleMapping)) {
+                userIdToRole.set(userId, roleId);
+            }
+            for (const p of this.connections.values()) {
+                const role = userIdToRole.get(p.userId) || null;
+                p.role = role;
+                // Also update lobbyPlayers
+                if (this.lobbyPlayers[p.userId]) {
+                    this.lobbyPlayers[p.userId].role = role;
+                }
+            }
+            await this.doState.storage.put("lobbyPlayers", this.lobbyPlayers);
         }
 
         if (!this.gameConfig?.gameWorkerUrl) {
