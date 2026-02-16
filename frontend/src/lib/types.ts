@@ -144,6 +144,14 @@ export interface GameMetadata {
    * @default false
    */
   enable_llm_memory?: boolean;
+  /**
+   * Game Worker URL (Cloudflare Worker endpoint for this game)
+   */
+  workerUrl?: string;
+  /**
+   * Game UI configuration
+   */
+  ui?: any;
 }
 
 // ============ Multi-Player Count Utilities ============

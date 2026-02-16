@@ -6,6 +6,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { createRoomDAO } from '../db/rooms.js';
 import { createStateManager } from '../runtime/state-manager.js';
+import { nexusEngine } from '../runtime/nexus-engine-client.js';
 import logger from '../utils/logger.js';
 
 const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
@@ -25,6 +26,17 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       // Get or create room in PostgreSQL
       const room = await roomDAO.getOrCreate(userId);
+
+      // Ensure Engine DO exists for this room (idempotent)
+      try {
+        await nexusEngine.createRoom({
+          roomId: room.room_id,
+          ownerId: userId,
+        });
+      } catch (e) {
+        // Non-fatal — DO may already exist or Engine may be temporarily unavailable
+        logger.warn({ error: e, roomId: room.room_id }, 'Engine DO creation skipped');
+      }
 
       // Get or initialize room state in Redis
       let roomState = await stateManager.getRoomState(room.room_id);

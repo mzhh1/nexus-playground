@@ -211,7 +211,7 @@ export class GameDO extends DurableObject {
                 await this.handleSetGame(player, data.payload);
                 break;
             case 'GAME_START':
-                await this.handleGameStart(player);
+                await this.handleGameStart(player, data.payload);
                 break;
             case 'GAME_STOP':
                 await this.handleGameStop(player);
@@ -362,7 +362,10 @@ export class GameDO extends DurableObject {
     // Game Lifecycle Handlers
     // ==========================================
 
-    async handleGameStart(player: Player) {
+    async handleGameStart(player: Player, payload?: {
+        gameWorkerUrl?: string;
+        roleMapping?: Record<string, string>;
+    }) {
         if (!player.isOwner) {
             player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Only owner can start game" }));
             return;
@@ -373,8 +376,24 @@ export class GameDO extends DurableObject {
             return;
         }
 
+        // Accept gameWorkerUrl from payload (frontend sends it)
+        if (payload?.gameWorkerUrl) {
+            this.gameConfig = {
+                maxPlayers: 2,
+                ...(this.gameConfig || {}),
+                gameWorkerUrl: payload.gameWorkerUrl,
+            };
+            await this.doState.storage.put("gameConfig", this.gameConfig);
+        }
+
+        // Accept roleMapping from payload (frontend sends it)
+        if (payload?.roleMapping) {
+            this.roleMapping = payload.roleMapping;
+            await this.doState.storage.put("roleMapping", this.roleMapping);
+        }
+
         if (!this.gameConfig?.gameWorkerUrl) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "No game configured" }));
+            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "No game configured. Send gameWorkerUrl." }));
             return;
         }
 

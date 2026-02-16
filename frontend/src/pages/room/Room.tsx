@@ -35,7 +35,7 @@ const Room: React.FC = () => {
   const [isCopied, setIsCopied] = useState(false);
 
   // Hooks
-  const { room, loading, error, fetchRoom, joinRoom, addPlayer, removePlayer, startGame, pauseGame, resumeGame, stopGame, restartGame, selectGame, updateRoleMapping } = useRoom(roomId);
+  const { room, loading, error, fetchRoom, joinRoom, addPlayer, removePlayer, pauseGame, resumeGame, stopGame, restartGame, selectGame, updateRoleMapping } = useRoom(roomId);
   const { games: AVAILABLE_GAMES, loading: metadataLoading } = useGamesMetadata();
 
   // Nexus Engine WebSocket connection (handles both lobby and game state)
@@ -45,6 +45,9 @@ const Room: React.FC = () => {
     sendAction: sendEngineAction,
     lobbyState,
     error: engineError,
+    startGame: engineStartGame,
+    stopGame: engineStopGame,
+    restartGame: engineRestartGame,
   } = useNexusEngine({ roomId });
 
   const submitting = false; // Actions are async via WebSocket now
@@ -234,13 +237,14 @@ const Room: React.FC = () => {
   };
 
   const handleStartGame = async () => {
-    try {
-      // 对于多人数配置游戏，传递选择的人数
-      const playerCount = isMultiPlayerCountGame ? effectivePlayerCount : undefined;
-      await startGame(roleMapping, playerCount ?? undefined);
-    } catch (err) {
-      console.error('Failed to start game:', err);
+    // Find the gameWorkerUrl from metadata
+    const gameWorkerUrl = currentGameMetadata?.workerUrl;
+    if (!gameWorkerUrl) {
+      console.error('No game worker URL found for game:', room?.game_id);
+      return;
     }
+    // Send GAME_START with full config to Engine DO via WebSocket
+    engineStartGame(gameWorkerUrl, roleMapping);
   };
 
   const handleSaveRoleMapping = (newMapping: RoleMapping, playerCount?: number) => {

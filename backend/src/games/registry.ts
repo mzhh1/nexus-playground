@@ -115,8 +115,12 @@ export function gameExists(gameId: string): boolean {
  */
 export async function getAllGamesMetadata() {
   const metadataList = [];
-  for (const logic of Object.values(gameRegistry)) {
-    metadataList.push(await logic.getMetadata());
+  for (const [gameId, logic] of Object.entries(gameRegistry)) {
+    const metadata = await logic.getMetadata();
+    metadataList.push({
+      ...metadata,
+      workerUrl: getGameWorkerUrl(gameId) || undefined,
+    });
   }
   return metadataList;
 }

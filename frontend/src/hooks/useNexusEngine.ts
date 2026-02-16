@@ -174,8 +174,11 @@ export function useNexusEngine({ roomId }: UseNexusEngineProps) {
         }));
     }, []);
 
-    const startGame = useCallback(() => {
-        wsRef.current?.send(JSON.stringify({ type: 'GAME_START' }));
+    const startGame = useCallback((gameWorkerUrl: string, roleMapping: Record<string, string>) => {
+        wsRef.current?.send(JSON.stringify({
+            type: 'GAME_START',
+            payload: { gameWorkerUrl, roleMapping },
+        }));
     }, []);
 
     const stopGame = useCallback(() => {
