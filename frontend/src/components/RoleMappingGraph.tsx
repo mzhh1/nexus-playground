@@ -6,20 +6,12 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import type { RoleMapping } from '../lib/types';
+import type { PlayerList, RoleMapping } from '../lib/types';
 import { NodeCard } from './NodeCard';
 import styles from './RoleMappingGraph.module.css';
 
-/** Engine lobby player format (keyed by OAuth userId) */
-export interface EnginePlayer {
-  displayName: string;
-  connected?: boolean;
-  isOwner?: boolean;
-  role?: string | null;
-}
-
 interface RoleMappingGraphProps {
-  players: Record<string, EnginePlayer>;  // userId -> player info (from Engine lobbyState)
+  playerList: PlayerList;
   roleIds: string[];
   mapping: RoleMapping;
   onChange: (mapping: RoleMapping) => void;
@@ -46,7 +38,7 @@ const formatRoleLabel = (roleId: string): string => {
 };
 
 export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
-  players,
+  playerList,
   roleIds,
   mapping,
   onChange,
@@ -70,7 +62,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
     players: new Map(),
   });
 
-  const playerIds = Object.keys(players);
+  const playerIds = Object.keys(playerList);
 
   // Update card positions when layout changes
   useEffect(() => {
@@ -397,7 +389,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
                       id={roleId}
                       label={formatRoleLabel(roleId)}
                       icon="🎭"
-                      subtitle={hasMapping ? `→ ${players[mapping[roleId]]?.displayName}` : '未分配'}
+                      subtitle={hasMapping ? `→ ${playerList[mapping[roleId]]?.display_name}` : '未分配'}
                       variant="role"
                       isActive={isSource}
                       isMapped={hasMapping}
@@ -415,7 +407,8 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
             <div className={styles['column-header']}>玩家 (Players)</div>
             <div className={styles['nodes-container']}>
               {playerIds.map((playerId) => {
-                const player = players[playerId];
+                const player = playerList[playerId];
+                const isHuman = player.type === 'human';
                 const isMapped = Object.values(mapping).includes(playerId);
 
                 return (
@@ -437,9 +430,9 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
                         }
                       }}
                       id={playerId}
-                      label={player.displayName}
-                      icon={player.isOwner ? '👑' : '👤'}
-                      subtitle={player.connected ? '在线' : '离线'}
+                      label={player.display_name}
+                      icon={isHuman ? '👤' : '🤖'}
+                      subtitle={isHuman ? 'Human' : `LLM (${player.model_name})`}
                       variant="player"
                       isMapped={isMapped}
                       isClickable={!readonly}

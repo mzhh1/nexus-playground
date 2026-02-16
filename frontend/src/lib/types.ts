@@ -80,15 +80,7 @@ export interface LLMPlayer {
   memory?: string;
 }
 
-export interface EnginePlayer {
-  displayName: string;
-  isBot?: boolean;
-  connected: boolean;
-  isOwner: boolean;
-  role: string | null;
-}
-
-export type Player = HumanPlayer | LLMPlayer | EnginePlayer;
+export type Player = HumanPlayer | LLMPlayer;
 
 export type PlayerList = Record<string, Player>;
 export type RoleMapping = Record<string, string>;

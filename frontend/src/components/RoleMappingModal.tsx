@@ -4,14 +4,13 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { RoleMapping } from '../lib/types';
-import type { EnginePlayer } from './RoleMappingGraph';
+import type { PlayerList, RoleMapping } from '../lib/types';
 import { PlayerCountSelector } from './PlayerCountSelector';
 import { RoleMappingGraph } from './RoleMappingGraph';
 import '../styles/modal.css';
 
 interface RoleMappingModalProps {
-  players: Record<string, EnginePlayer>;  // Engine lobbyState.players (OAuth userId -> info)
+  playerList: PlayerList;
   roleIds: string[];
   initialMapping: RoleMapping;
   onSave: (mapping: RoleMapping, selectedPlayerCount?: number) => void;
@@ -29,8 +28,8 @@ interface RoleMappingModalProps {
  * 生成自动映射：将前n个玩家自动分配到前n个角色
  * n = min(玩家数量, 角色数量)
  */
-const generateAutoMapping = (players: Record<string, EnginePlayer>, roleIds: string[]): RoleMapping => {
-  const playerIds = Object.keys(players);
+const generateAutoMapping = (playerList: PlayerList, roleIds: string[]): RoleMapping => {
+  const playerIds = Object.keys(playerList);
   const n = Math.min(playerIds.length, roleIds.length);
 
   const autoMapping: RoleMapping = {};
@@ -45,8 +44,8 @@ const generateAutoMapping = (players: Record<string, EnginePlayer>, roleIds: str
  * 生成随机映射：将前n个玩家随机分配到前n个角色
  * n = min(玩家数量, 角色数量)
  */
-const generateRandomMapping = (players: Record<string, EnginePlayer>, roleIds: string[]): RoleMapping => {
-  const playerIds = Object.keys(players);
+const generateRandomMapping = (playerList: PlayerList, roleIds: string[]): RoleMapping => {
+  const playerIds = Object.keys(playerList);
   const n = Math.min(playerIds.length, roleIds.length);
 
   // 取前n个玩家和角色
@@ -66,7 +65,7 @@ const generateRandomMapping = (players: Record<string, EnginePlayer>, roleIds: s
 };
 
 export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
-  players,
+  playerList,
   roleIds,
   initialMapping,
   onSave,
@@ -84,12 +83,12 @@ export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
   useEffect(() => {
     if (Object.keys(initialMapping).length === 0 && roleIds.length > 0) {
       // 如果初始映射为空，自动生成映射
-      const autoMapping = generateAutoMapping(players, roleIds);
+      const autoMapping = generateAutoMapping(playerList, roleIds);
       setMapping(autoMapping);
     } else {
       setMapping(initialMapping);
     }
-  }, [initialMapping, players, roleIds]);
+  }, [initialMapping, playerList, roleIds]);
 
   useEffect(() => {
     setSelectedPlayerCount(initialPlayerCount);
@@ -107,13 +106,13 @@ export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
   // 当角色列表变化时，如果映射为空，自动生成映射
   useEffect(() => {
     if (Object.keys(mapping).length === 0 && roleIds.length > 0) {
-      const autoMapping = generateAutoMapping(players, roleIds);
+      const autoMapping = generateAutoMapping(playerList, roleIds);
       setMapping(autoMapping);
     }
-  }, [roleIds, players]);
+  }, [roleIds, playerList]);
 
   const handleRandomAssign = () => {
-    const randomMapping = generateRandomMapping(players, roleIds);
+    const randomMapping = generateRandomMapping(playerList, roleIds);
     setMapping(randomMapping);
   };
 
@@ -169,7 +168,7 @@ export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
               </div>
 
               <RoleMappingGraph
-                players={players}
+                playerList={playerList}
                 roleIds={roleIds}
                 mapping={mapping}
                 onChange={setMapping}

@@ -20,39 +20,32 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   canRemove = false,
   onRemove,
 }) => {
-  const isBot = 'isBot' in player ? player.isBot : player.type !== 'human';
-  const displayName = 'displayName' in player ? (player as any).displayName : player.display_name;
-  const isBanned = 'status' in player && player.status === 'banned';
+  const isHuman = player.type === 'human';
 
-  // Determine status indicator
+  // Determine status indicator for human players
   const getStatusIndicator = () => {
-    if (isBot) {
-      // Bot/LLM players
+    if (!isHuman) {
+      // LLM players: show active/inactive/error status
+      const statusColors = {
+        active: '#4ade80',    // green
+        inactive: '#94a3b8',  // gray
+        error: '#f87171',     // red
+      };
       return {
-        color: '#4ade80',    // green (bots always active for now)
-        label: 'Active',
+        color: statusColors[player.status] || '#94a3b8',
+        label: player.status.charAt(0).toUpperCase() + player.status.slice(1),
       };
     } else {
-      // Human players
-      let isOnline = false;
-      if ('connected' in player) {
-        isOnline = (player as any).connected;
-      } else if ('status' in player) {
-        isOnline = player.status === 'online';
-      }
-
+      // Human players: show online/offline/banned status
       const statusColors = {
         online: '#4ade80',    // green
         offline: '#94a3b8',   // gray
         banned: '#f87171',    // red
       };
-
-      const status = isBanned ? 'banned' : (isOnline ? 'online' : 'offline');
-
       return {
-        color: statusColors[status],
-        label: status === 'online' ? 'Online' :
-          status === 'offline' ? 'Offline' : 'Banned',
+        color: statusColors[player.status] || '#94a3b8',
+        label: player.status === 'online' ? 'Online' :
+          player.status === 'offline' ? 'Offline' : 'Banned',
       };
     }
   };
@@ -62,12 +55,12 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   return (
     <div className={styles.playerCard}>
       <div className={styles.playerIcon}>
-        {!isBot ? '👤' : '🤖'}
+        {isHuman ? '👤' : '🤖'}
       </div>
 
       <div className={styles.playerInfo}>
         <div className={styles.playerName}>
-          {displayName}
+          {player.display_name}
           <span
             className={styles.statusDot}
             style={{ backgroundColor: statusIndicator.color }}
@@ -75,7 +68,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
           />
         </div>
         <div className={styles.playerType}>
-          {!isBot ? 'Human' : `Bot`}
+          {isHuman ? 'Human' : `LLM (${player.model_name})`}
         </div>
         <div className={styles.playerStatus}>
           {statusIndicator.label}

@@ -48,9 +48,6 @@ const Room: React.FC = () => {
     startGame: engineStartGame,
     stopGame: engineStopGame,
     restartGame: engineRestartGame,
-    setGame: engineSetGame,
-    addBot,
-    kickPlayer: engineKickPlayer,
   } = useNexusEngine({ roomId });
 
   const submitting = false; // Actions are async via WebSocket now
@@ -143,31 +140,34 @@ const Room: React.FC = () => {
   }, [room?.selected_player_count]);
 
   useEffect(() => {
-    // Engine is the source of truth for game selection
-    if (lobbyState?.gameId) {
-      setSelectedGameId(lobbyState.gameId);
-    } else if (room?.game_id) {
-      // Fallback to backend data if Engine not yet connected
+    if (room?.room_status !== 'open') {
+      return;
+    }
+
+    if (room?.game_id) {
       setSelectedGameId(room.game_id);
     } else {
       setSelectedGameId('');
     }
-  }, [lobbyState?.gameId, room?.game_id]);
+  }, [room?.game_id, room?.room_status]);
 
 
   // ========== Event Handlers ==========
 
   const handleSelectGame = async () => {
     if (!selectedGameId) return;
+    if (room?.game_id === selectedGameId) return;
 
-    // Find metadata to get worker URL
-    const gameMeta = AVAILABLE_GAMES.find(g => g.id === selectedGameId);
-    if (!gameMeta || !gameMeta.workerUrl) {
-      console.error('No worker URL for game:', selectedGameId);
-      return;
+    try {
+      await selectGame(selectedGameId);
+    } catch (err) {
+      console.error('Failed to select game:', err);
+      if (room?.game_id) {
+        setSelectedGameId(room.game_id);
+      } else {
+        setSelectedGameId('');
+      }
     }
-
-    engineSetGame(selectedGameId, gameMeta.workerUrl);
   };
 
   const handleAddSelf = async () => {
@@ -176,18 +176,31 @@ const Room: React.FC = () => {
       return;
     }
 
-    // Engine automatically adds connected users to lobby
-    // We only need to call backend addPlayer if we want to persist them in Redis/Postgres
-    // For now, we keep the backend call for compatibility
     const displayName = accountDisplayName;
+    if (!displayName) {
+      alert('无法获取账号昵称，请稍后重试。');
+      return;
+    }
+
+    const alreadyInRoom = Object.values(room?.player_list ?? {}).some(
+      (player) => player.type === 'human' && player.uid === user.id
+    );
+    if (alreadyInRoom) {
+      alert('你已经在房间中。');
+      return;
+    }
+
     try {
-      await addPlayer({
+      const result = await addPlayer({
         player_type: 'human',
         display_name: displayName,
         uid: user.id,
       });
+      if (result?.player_id) {
+        setPlayerId(result.player_id);
+      }
     } catch (err) {
-      console.error('Failed to add self:', err);
+      console.error('Failed to add self as human player:', err);
     }
   };
 
@@ -197,19 +210,16 @@ const Room: React.FC = () => {
 
   const handleSelectLLMTemplate = async (template: LLMPlayerTemplate) => {
     try {
-      // Use Engine addBot instead of backend
+      // 生成 5 位随机字符后缀，避免名称重复
       const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
-      const uniqueName = template.name // Let user see clean name, duplicates handled by unique botId if needed? No, displayName needs uniqueness for UI clarity?
-        ? `${template.name} ${randomSuffix}`
-        : `Bot ${randomSuffix}`;
-      const botId = `bot_${Date.now()}_${randomSuffix}`;
+      const uniqueName = `${template.name}_${randomSuffix}`;
 
-      // Call Engine
-      addBot(botId, uniqueName, {
-        modelName: template.model_name,
-        systemPrompt: template.system_prompt,
+      await addPlayer({
+        player_type: 'llm',
+        display_name: uniqueName,
+        model_name: template.model_name,
+        system_prompt: template.system_prompt,
       });
-
       setIsLLMTemplateModalOpen(false);
     } catch (err) {
       console.error('Failed to add LLM player:', err);
@@ -219,28 +229,22 @@ const Room: React.FC = () => {
   const handleRemovePlayer = async (playerId: string) => {
     if (!confirm('Remove this player?')) return;
 
-    // Use Engine kickPlayer
-    engineKickPlayer(playerId);
-
-    // Also try backend remove for cleanup (optional/fallback)
-    // try { await removePlayer(playerId); } catch (e) {}
+    try {
+      await removePlayer(playerId);
+    } catch (err) {
+      console.error('Failed to remove player:', err);
+    }
   };
 
   const handleStartGame = async () => {
-    // Game config from Engine state
-    if (!lobbyState?.gameConfig) {
-      // If Engine doesn't have config yet, use selected game metadata
-      const gameMeta = AVAILABLE_GAMES.find(g => g.id === selectedGameId);
-      if (gameMeta?.workerUrl) {
-        engineStartGame(gameMeta.workerUrl, roleMapping);
-        return;
-      }
+    // Find the gameWorkerUrl from metadata
+    const gameWorkerUrl = currentGameMetadata?.workerUrl;
+    if (!gameWorkerUrl) {
+      console.error('No game worker URL found for game:', room?.game_id);
+      return;
     }
-
-    // Fallback or normal case
-    if (lobbyState?.gameConfig?.gameWorkerUrl) {
-      engineStartGame(lobbyState.gameConfig.gameWorkerUrl, roleMapping);
-    }
+    // Send GAME_START with full config to Engine DO via WebSocket
+    engineStartGame(gameWorkerUrl, roleMapping);
   };
 
   const handleSaveRoleMapping = (newMapping: RoleMapping, playerCount?: number) => {
@@ -370,27 +374,21 @@ const Room: React.FC = () => {
 
   // Compute all values that depend on room data
   const currentUserId = user?.id || null;
-  // Use Engine state for ownership and presence
-  const isOwner = lobbyState ? lobbyState.you.isOwner : (room ? room.owner_uid === currentUserId : false);
-  const isInRoom = lobbyState ? !!lobbyState.players[currentUserId!] : (playerId !== null);
-
+  const isInRoom = playerId !== null;
+  const isOwner = room ? room.owner_uid === currentUserId : false;
   // Use Engine lobbyState.phase as primary source of truth, fallback to backend room_status
   const enginePhase = lobbyState?.phase;
   const isOpen = enginePhase ? enginePhase === 'lobby' : (room ? room.room_status === 'open' : false);
   const isPlaying = enginePhase ? enginePhase === 'playing' : (room ? room.room_status === 'playing' : false);
   const isFinished = enginePhase === 'finished';
   const canJoin = isOpen && !isInRoom && !isOwner;
-
-  // Game ID from Engine
-  const currentGameId = lobbyState?.gameId || room?.game_id;
-
   // 在开放阶段也显示控制栏（当有游戏选择时）
-  const shouldShowControlBar = (lobbyState || room)
-    ? isPlaying || isFinished || (currentGameId && (isOwner || isInRoom))
+  const shouldShowControlBar = room
+    ? isPlaying || isFinished || room.room_status === 'paused' || (room.game_id && (isOwner || isInRoom))
     : false;
 
   const baseContentPadding = isOpen ? 'var(--spacing-lg)' : 'var(--spacing-sm)';
-  const contentPaddingBottom = !isOpen && currentGameId && perspective
+  const contentPaddingBottom = !isOpen && room?.game_id && perspective
     ? '60px'
     : baseContentPadding;
 
@@ -398,22 +396,20 @@ const Room: React.FC = () => {
   const controlBarStatusText = undefined;
 
   // 根据 game_id 查找游戏名称
-  const gameName = currentGameId ? getGameName(currentGameId, AVAILABLE_GAMES) : undefined;
+  const gameName = room && room.game_id ? getGameName(room.game_id, AVAILABLE_GAMES) : undefined;
 
-  // Players from Engine LobbyState
-  // We mock backend PlayerList format if using Engine state to keep UI components happy
-  const players = lobbyState?.players || {};
-  const hasPlayers = Object.keys(players).length > 0;
-  // const playerList = room ? Object.entries(room.player_list) : [];
-
-  const hasGameSelected = !!currentGameId;
-  const accountAlreadyInRoom = isInRoom;
+  const playerList = room ? Object.entries(room.player_list) : [];
+  const hasGameSelected = room ? !!room.game_id : false;
+  const hasPlayers = playerList.length > 0;
+  const accountAlreadyInRoom = user && room
+    ? playerList.some(([, player]) => player.type === 'human' && player.uid === user.id)
+    : false;
 
   // 获取当前游戏的元数据
   const currentGameMetadata = useMemo(() => {
-    if (!hasGameSelected || !currentGameId) return null;
-    return AVAILABLE_GAMES.find(game => game.id === currentGameId) || null;
-  }, [hasGameSelected, currentGameId, AVAILABLE_GAMES]);
+    if (!hasGameSelected || !room || !room.game_id) return null;
+    return AVAILABLE_GAMES.find(game => game.id === room.game_id) || null;
+  }, [hasGameSelected, room, AVAILABLE_GAMES]);
 
   // 检测是否为多人数配置游戏
   const isMultiPlayerCountGame = useMemo(() => {
@@ -429,7 +425,7 @@ const Room: React.FC = () => {
 
   // 从房间状态或本地状态获取选择的人数
   const effectivePlayerCount = useMemo(() => {
-    // 优先使用房间状态中保存的人数 (TODO: Add to Engine state)
+    // 优先使用房间状态中保存的人数
     if (room?.selected_player_count) return room.selected_player_count;
     // 其次使用本地选择的人数
     if (selectedPlayerCount) return selectedPlayerCount;
@@ -459,8 +455,7 @@ const Room: React.FC = () => {
     );
   }
 
-  // Only block on loading if we have NO data (neither Engine nor Backend)
-  if (!lobbyState && loading && !room) {
+  if ((loading && !room) || metadataLoading) {
     return (
       <div className="loading">
         <div className="spinner"></div>
@@ -534,9 +529,9 @@ const Room: React.FC = () => {
               {canJoin && (
                 <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
                   <h2>加入这个房间？</h2>
-                  <p><strong>房主:</strong> {(room?.owner_uid || lobbyState?.ownerId)}</p>
-                  <p><strong>游戏:</strong> {currentGameId || '未选择'}</p>
-                  <p><strong>玩家数:</strong> {Object.keys(players).length}</p>
+                  <p><strong>房主:</strong> {room.owner_uid}</p>
+                  <p><strong>游戏:</strong> {room.game_id || '未选择'}</p>
+                  <p><strong>玩家数:</strong> {playerList.length}</p>
                   <button onClick={handleJoin} style={{ width: '100%', marginTop: 'var(--spacing-sm)' }}>
                     Join Room
                   </button>
@@ -587,14 +582,14 @@ const Room: React.FC = () => {
                         </select>
                         <button
                           onClick={handleSelectGame}
-                          disabled={!selectedGameId || selectedGameId === (currentGameId ?? '')}
+                          disabled={!selectedGameId || selectedGameId === (room?.game_id ?? '')}
                         >
                           {hasGameSelected ? '更新游戏' : '确认选择'}
                         </button>
                       </div>
                     ) : (
                       <p style={{ padding: 'var(--spacing-sm)', background: '#f3f4f6', borderRadius: '6px' }}>
-                        {currentGameId ? gameName || currentGameId : '未选择'}
+                        {room.game_id ? gameName || room.game_id : '未选择'}
                       </p>
                     )}
                   </div>
@@ -618,10 +613,10 @@ const Room: React.FC = () => {
 
                         {/* Player List */}
                         <PlayerList
-                          players={players as any} // Cast to satisfy type union if needed
+                          players={room.player_list}
                           canRemove={isOwner}
                           onRemove={handleRemovePlayer}
-                          emptyMessage="等待玩家加入..."
+                          emptyMessage="请添加玩家以开始游戏"
                         />
                       </div>
 
@@ -652,7 +647,7 @@ const Room: React.FC = () => {
                             )}
                           </div>
                           <RoleMappingGraph
-                            players={players}
+                            playerList={room.player_list}
                             roleIds={roleIds}
                             mapping={roleMapping}
                             onChange={handleRoleMappingChange}
@@ -690,7 +685,7 @@ const Room: React.FC = () => {
           )}
 
           {/* ========== PLAYING/PAUSED/FINISHED PHASE ========== */}
-          {!isOpen && currentGameId && perspective && currentRoleId && (
+          {!isOpen && room.game_id && perspective && currentRoleId && (
             <div className="card" style={{
               height: '100%',
               display: 'flex',
@@ -700,7 +695,7 @@ const Room: React.FC = () => {
               padding: 0 /* 游戏UI自己管理padding */
             }}>
               <GameUIContainer
-                gameId={currentGameId}
+                gameId={room.game_id}
                 perspective={perspective}
                 onAction={submitAction}
                 isMyTurn={perspective.your_role.is_current}
@@ -716,20 +711,20 @@ const Room: React.FC = () => {
           )}
 
           {/* Fallback: Status Display */}
-          {!isOpen && (!currentGameId || !perspective || !currentRoleId) && (
+          {!isOpen && (!room.game_id || !perspective || !currentRoleId) && (
             <div className="card">
-              <h2>房间状态: {room?.room_status || enginePhase}</h2>
-              <p>游戏ID: {currentGameId || '无'}</p>
-              <p>玩家数: {Object.keys(players).length}</p>
+              <h2>房间状态: {room.room_status}</h2>
+              <p>游戏ID: {room.game_id || '无'}</p>
+              <p>玩家数: {playerList.length}</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Role Mapping Modal */}
-      {isRoleMappingModalOpen && (
+      {isRoleMappingModalOpen && room && (
         <RoleMappingModal
-          players={players}
+          playerList={room.player_list}
           roleIds={roleIds}
           initialMapping={roleMapping}
           onSave={handleSaveRoleMapping}
@@ -758,7 +753,7 @@ const Room: React.FC = () => {
           isMappingComplete={isMappingComplete}
         />
       )}
-      {!isOpen && currentGameId && perspective && currentRoleId && (
+      {!isOpen && room.game_id && perspective && currentRoleId && (
         <GameMessageBar perspective={perspective} />
       )}
     </div>
