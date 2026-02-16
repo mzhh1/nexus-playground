@@ -6,12 +6,20 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import type { PlayerList, RoleMapping } from '../lib/types';
+import type { RoleMapping } from '../lib/types';
 import { NodeCard } from './NodeCard';
 import styles from './RoleMappingGraph.module.css';
 
+/** Engine lobby player format (keyed by OAuth userId) */
+export interface EnginePlayer {
+  displayName: string;
+  connected?: boolean;
+  isOwner?: boolean;
+  role?: string | null;
+}
+
 interface RoleMappingGraphProps {
-  playerList: PlayerList;
+  players: Record<string, EnginePlayer>;  // userId -> player info (from Engine lobbyState)
   roleIds: string[];
   mapping: RoleMapping;
   onChange: (mapping: RoleMapping) => void;
@@ -38,7 +46,7 @@ const formatRoleLabel = (roleId: string): string => {
 };
 
 export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
-  playerList,
+  players,
   roleIds,
   mapping,
   onChange,
@@ -47,7 +55,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
   const svgRef = useRef<SVGSVGElement>(null);
   const roleCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const playerCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  
+
   const [dragState, setDragState] = useState<DragState>({
     isDragging: false,
     fromRoleId: null,
@@ -62,7 +70,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
     players: new Map(),
   });
 
-  const playerIds = Object.keys(playerList);
+  const playerIds = Object.keys(players);
 
   // Update card positions when layout changes
   useEffect(() => {
@@ -101,21 +109,21 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
 
       setCardPositions(prev => {
         // Only update if positions actually changed
-        const rolesChanged = prev.roles.size !== roles.size || 
+        const rolesChanged = prev.roles.size !== roles.size ||
           Array.from(roles.entries()).some(([id, rect]) => {
             const prevRect = prev.roles.get(id);
-            return !prevRect || 
-              prevRect.left !== rect.left || 
+            return !prevRect ||
+              prevRect.left !== rect.left ||
               prevRect.top !== rect.top ||
               prevRect.width !== rect.width ||
               prevRect.height !== rect.height;
           });
-        
+
         const playersChanged = prev.players.size !== players.size ||
           Array.from(players.entries()).some(([id, rect]) => {
             const prevRect = prev.players.get(id);
-            return !prevRect || 
-              prevRect.left !== rect.left || 
+            return !prevRect ||
+              prevRect.left !== rect.left ||
               prevRect.top !== rect.top ||
               prevRect.width !== rect.width ||
               prevRect.height !== rect.height;
@@ -130,7 +138,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
 
     // Use requestAnimationFrame to ensure DOM is ready
     const rafId = requestAnimationFrame(updatePositions);
-    
+
     window.addEventListener('resize', updatePositions);
     return () => {
       cancelAnimationFrame(rafId);
@@ -165,7 +173,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
   // Get SVG coordinates from mouse event
   const getSVGPoint = useCallback((e: React.MouseEvent<SVGSVGElement>): Point => {
     if (!svgRef.current) return { x: 0, y: 0 };
-    
+
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
     return {
@@ -178,7 +186,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
   const handleRoleMouseDown = (roleId: string, e: React.MouseEvent) => {
     if (readonly) return;
     e.preventDefault();
-    
+
     setDragState({
       isDragging: true,
       fromRoleId: roleId,
@@ -189,7 +197,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
   // Handle mouse move during drag
   const handleSVGMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!dragState.isDragging || !dragState.fromRoleId) return;
-    
+
     setDragState({
       ...dragState,
       currentPoint: getSVGPoint(e),
@@ -210,11 +218,11 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
   // Handle dropping on a player node
   const handlePlayerMouseUp = (playerId: string) => {
     if (!dragState.isDragging || !dragState.fromRoleId || readonly) return;
-    
+
     const newMapping = { ...mapping };
     newMapping[dragState.fromRoleId] = playerId;
     onChange(newMapping);
-    
+
     setDragState({
       isDragging: false,
       fromRoleId: null,
@@ -226,7 +234,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
   const handleLineClick = (roleId: string, e: React.MouseEvent) => {
     if (readonly) return;
     e.stopPropagation();
-    
+
     const newMapping = { ...mapping };
     delete newMapping[roleId];
     onChange(newMapping);
@@ -239,11 +247,11 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
 
     const { start, end } = points;
     const isHovered = hoveredLine === roleId;
-    
+
     // Create a curved path
     const midX = (start.x + end.x) / 2;
     const path = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
-    
+
     return (
       <g key={`line-${roleId}`}>
         {/* Invisible wider line for easier clicking */}
@@ -263,7 +271,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
           fill="none"
           stroke={isHovered ? 'var(--color-danger)' : 'var(--color-primary)'}
           strokeWidth={isHovered ? '3' : '2'}
-          style={{ 
+          style={{
             pointerEvents: 'none',
             transition: 'stroke 0.2s, stroke-width 0.2s'
           }}
@@ -302,7 +310,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
     if (!dragState.isDragging || !dragState.fromRoleId || !dragState.currentPoint) {
       return null;
     }
-    
+
     const roleRect = cardPositions.roles.get(dragState.fromRoleId);
     if (!roleRect) {
       return null;
@@ -313,12 +321,12 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
       x: roleRect.left + roleRect.width,
       y: roleRect.top + roleRect.height / 2,
     };
-    
+
     const end = dragState.currentPoint;
-    
+
     const midX = (start.x + end.x) / 2;
     const path = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
-    
+
     return (
       <path
         d={path}
@@ -341,7 +349,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
         onMouseMove={handleSVGMouseMove}
         onMouseUp={handleSVGMouseUp}
         onMouseLeave={handleSVGMouseUp}
-        style={{ 
+        style={{
           position: 'absolute',
           top: 0,
           left: 0,
@@ -353,11 +361,11 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
         {Object.entries(mapping).map(([roleId, playerId]) => {
           return renderLine(roleId, playerId);
         })}
-        
+
         {/* Render dragging line */}
         {renderDraggingLine()}
       </svg>
-      
+
       {/* HTML layer for node cards */}
       <div className={styles['graph-content']} style={{ position: 'relative', zIndex: 2 }}>
         <div className={styles['graph-columns']}>
@@ -368,11 +376,11 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
               {roleIds.map((roleId) => {
                 const isSource = dragState.fromRoleId === roleId;
                 const hasMapping = !!mapping[roleId];
-                
+
                 return (
-                  <div 
+                  <div
                     key={`role-${roleId}`}
-                    style={{ 
+                    style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
@@ -389,7 +397,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
                       id={roleId}
                       label={formatRoleLabel(roleId)}
                       icon="🎭"
-                      subtitle={hasMapping ? `→ ${playerList[mapping[roleId]]?.display_name}` : '未分配'}
+                      subtitle={hasMapping ? `→ ${players[mapping[roleId]]?.displayName}` : '未分配'}
                       variant="role"
                       isActive={isSource}
                       isMapped={hasMapping}
@@ -401,20 +409,19 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
               })}
             </div>
           </div>
-          
+
           {/* Player nodes column (right) */}
           <div className={styles['graph-column']}>
             <div className={styles['column-header']}>玩家 (Players)</div>
             <div className={styles['nodes-container']}>
               {playerIds.map((playerId) => {
-                const player = playerList[playerId];
-                const isHuman = player.type === 'human';
+                const player = players[playerId];
                 const isMapped = Object.values(mapping).includes(playerId);
-                
+
                 return (
-                  <div 
+                  <div
                     key={`player-${playerId}`}
-                    style={{ 
+                    style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
@@ -430,9 +437,9 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
                         }
                       }}
                       id={playerId}
-                      label={player.display_name}
-                      icon={isHuman ? '👤' : '🤖'}
-                      subtitle={isHuman ? 'Human' : `LLM (${player.model_name})`}
+                      label={player.displayName}
+                      icon={player.isOwner ? '👑' : '👤'}
+                      subtitle={player.connected ? '在线' : '离线'}
                       variant="player"
                       isMapped={isMapped}
                       isClickable={!readonly}
@@ -444,7 +451,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
           </div>
         </div>
       </div>
-      
+
       {!readonly && (
         <div className={styles['graph-instructions']}>
           <p>💡 点击左侧角色节后再点击想分配的玩家创建连线</p>

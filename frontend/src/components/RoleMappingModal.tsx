@@ -4,18 +4,19 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { PlayerList, RoleMapping } from '../lib/types';
+import type { RoleMapping } from '../lib/types';
+import type { EnginePlayer } from './RoleMappingGraph';
 import { PlayerCountSelector } from './PlayerCountSelector';
 import { RoleMappingGraph } from './RoleMappingGraph';
 import '../styles/modal.css';
 
 interface RoleMappingModalProps {
-  playerList: PlayerList;
+  players: Record<string, EnginePlayer>;  // Engine lobbyState.players (OAuth userId -> info)
   roleIds: string[];
   initialMapping: RoleMapping;
   onSave: (mapping: RoleMapping, selectedPlayerCount?: number) => void;
   onCancel: () => void;
-  
+
   // 多人数配置相关（可选）
   isMultiPlayerCountGame?: boolean;
   availablePlayerCounts?: number[];
@@ -28,15 +29,15 @@ interface RoleMappingModalProps {
  * 生成自动映射：将前n个玩家自动分配到前n个角色
  * n = min(玩家数量, 角色数量)
  */
-const generateAutoMapping = (playerList: PlayerList, roleIds: string[]): RoleMapping => {
-  const playerIds = Object.keys(playerList);
+const generateAutoMapping = (players: Record<string, EnginePlayer>, roleIds: string[]): RoleMapping => {
+  const playerIds = Object.keys(players);
   const n = Math.min(playerIds.length, roleIds.length);
-  
+
   const autoMapping: RoleMapping = {};
   for (let i = 0; i < n; i++) {
     autoMapping[roleIds[i]] = playerIds[i];
   }
-  
+
   return autoMapping;
 };
 
@@ -44,28 +45,28 @@ const generateAutoMapping = (playerList: PlayerList, roleIds: string[]): RoleMap
  * 生成随机映射：将前n个玩家随机分配到前n个角色
  * n = min(玩家数量, 角色数量)
  */
-const generateRandomMapping = (playerList: PlayerList, roleIds: string[]): RoleMapping => {
-  const playerIds = Object.keys(playerList);
+const generateRandomMapping = (players: Record<string, EnginePlayer>, roleIds: string[]): RoleMapping => {
+  const playerIds = Object.keys(players);
   const n = Math.min(playerIds.length, roleIds.length);
-  
+
   // 取前n个玩家和角色
   const selectedPlayerIds = playerIds.slice(0, n);
   const selectedRoleIds = roleIds.slice(0, n);
-  
+
   // 随机打乱玩家和角色
   const shuffledPlayers = [...selectedPlayerIds].sort(() => Math.random() - 0.5);
   const shuffledRoles = [...selectedRoleIds].sort(() => Math.random() - 0.5);
-  
+
   const randomMapping: RoleMapping = {};
   for (let i = 0; i < n; i++) {
     randomMapping[shuffledRoles[i]] = shuffledPlayers[i];
   }
-  
+
   return randomMapping;
 };
 
 export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
-  playerList,
+  players,
   roleIds,
   initialMapping,
   onSave,
@@ -83,13 +84,13 @@ export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
   useEffect(() => {
     if (Object.keys(initialMapping).length === 0 && roleIds.length > 0) {
       // 如果初始映射为空，自动生成映射
-      const autoMapping = generateAutoMapping(playerList, roleIds);
+      const autoMapping = generateAutoMapping(players, roleIds);
       setMapping(autoMapping);
     } else {
       setMapping(initialMapping);
     }
-  }, [initialMapping, playerList, roleIds]);
-  
+  }, [initialMapping, players, roleIds]);
+
   useEffect(() => {
     setSelectedPlayerCount(initialPlayerCount);
   }, [initialPlayerCount]);
@@ -106,13 +107,13 @@ export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
   // 当角色列表变化时，如果映射为空，自动生成映射
   useEffect(() => {
     if (Object.keys(mapping).length === 0 && roleIds.length > 0) {
-      const autoMapping = generateAutoMapping(playerList, roleIds);
+      const autoMapping = generateAutoMapping(players, roleIds);
       setMapping(autoMapping);
     }
-  }, [roleIds, playerList]);
+  }, [roleIds, players]);
 
   const handleRandomAssign = () => {
-    const randomMapping = generateRandomMapping(playerList, roleIds);
+    const randomMapping = generateRandomMapping(players, roleIds);
     setMapping(randomMapping);
   };
 
@@ -122,10 +123,10 @@ export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
 
   // Check if mapping is complete
   const isMappingComplete = roleIds.length > 0 && roleIds.every(roleId => mapping[roleId]);
-  
+
   // 对于多人数配置游戏，必须先选择人数
   const canShowRoleMapping = !isMultiPlayerCountGame || selectedPlayerCount !== null;
-  
+
   // 保存按钮是否可用
   const canSave = canShowRoleMapping && isMappingComplete;
 
@@ -149,7 +150,7 @@ export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
               onSelect={handlePlayerCountSelect}
             />
           )}
-          
+
           {/* 角色映射配置（选择人数后或传统游戏直接显示） */}
           {canShowRoleMapping && (
             <>
@@ -158,7 +159,7 @@ export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
               </p>
 
               <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                <button 
+                <button
                   onClick={handleRandomAssign}
                   className="secondary"
                   style={{ width: '100%' }}
@@ -168,7 +169,7 @@ export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
               </div>
 
               <RoleMappingGraph
-                playerList={playerList}
+                players={players}
                 roleIds={roleIds}
                 mapping={mapping}
                 onChange={setMapping}
@@ -176,13 +177,13 @@ export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
               />
             </>
           )}
-          
+
           {/* 提示：需要先选择人数 */}
           {isMultiPlayerCountGame && !canShowRoleMapping && (
-            <div className="help-text" style={{ 
-              textAlign: 'center', 
+            <div className="help-text" style={{
+              textAlign: 'center',
               padding: 'var(--spacing-lg)',
-              color: 'var(--color-text-secondary)' 
+              color: 'var(--color-text-secondary)'
             }}>
               👆 请先选择游戏人数，然后配置角色映射
             </div>
@@ -193,14 +194,14 @@ export const RoleMappingModal: React.FC<RoleMappingModalProps> = ({
           <button className="secondary" onClick={onCancel}>
             取消
           </button>
-          <button 
+          <button
             onClick={handleSave}
             disabled={!canSave}
             title={
-              !canShowRoleMapping 
-                ? '请先选择游戏人数' 
-                : !isMappingComplete 
-                  ? '请分配所有角色' 
+              !canShowRoleMapping
+                ? '请先选择游戏人数'
+                : !isMappingComplete
+                  ? '请分配所有角色'
                   : ''
             }
           >

@@ -18,7 +18,9 @@ export interface LobbyPlayer {
 }
 
 export interface LobbyState {
+    roomId: string;
     ownerId: string;
+    gameId: string | null;
     phase: 'lobby' | 'playing' | 'finished';
     players: Record<string, LobbyPlayer>;
     roleMapping: Record<string, string>;
@@ -167,10 +169,17 @@ export function useNexusEngine({ roomId }: UseNexusEngineProps) {
         }));
     }, []);
 
-    const setGame = useCallback((gameWorkerUrl: string, config?: any) => {
+    const setGame = useCallback((gameId: string, gameWorkerUrl: string, config?: any) => {
         wsRef.current?.send(JSON.stringify({
             type: 'LOBBY_SET_GAME',
-            payload: { gameWorkerUrl, config },
+            payload: { gameId, gameWorkerUrl, config },
+        }));
+    }, []);
+
+    const addBot = useCallback((botId: string, displayName: string, config?: any) => {
+        wsRef.current?.send(JSON.stringify({
+            type: 'LOBBY_ADD_BOT',
+            payload: { botId, displayName, config },
         }));
     }, []);
 
@@ -213,6 +222,7 @@ export function useNexusEngine({ roomId }: UseNexusEngineProps) {
         leaveRoom,
         kickPlayer,
         setGame,
+        addBot,
 
         // Game lifecycle
         startGame,

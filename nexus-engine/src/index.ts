@@ -49,10 +49,8 @@ app.post('/api/engine/create', async (c) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+            roomId: body.roomId,
             ownerId: body.ownerId,
-            gameWorkerUrl: body.gameWorkerUrl,
-            config: body.config,
-            context: body.context,
         })
     });
 
