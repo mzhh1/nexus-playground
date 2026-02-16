@@ -1,11 +1,13 @@
 import axios from 'axios';
+import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
 
 interface CreateRoomParams {
     roomId: string;
-    gameWorkerUrl: string;
-    config: any;
-    context: any;
+    ownerId: string;
+    gameWorkerUrl?: string;
+    config?: any;
+    context?: any;
 }
 
 interface CreateRoomResponse {
@@ -16,14 +18,17 @@ interface CreateRoomResponse {
 export class NexusEngineClient {
     private engineUrl: string;
     private adminSecret: string;
+    private jwtSecret: string;
 
     constructor() {
         this.engineUrl = process.env.NEXUS_ENGINE_URL || 'http://localhost:8787';
         this.adminSecret = process.env.NEXUS_ENGINE_ADMIN_SECRET || 'dev-secret-123';
+        this.jwtSecret = process.env.NEXUS_ENGINE_JWT_SECRET || 'dev-jwt-secret-change-me';
     }
 
     /**
-     * Create a new game container (DO) in Nexus Engine
+     * Create a new room container (DO) in Nexus Engine.
+     * Called when a room is created (not just when a game starts).
      */
     async createRoom(params: CreateRoomParams): Promise<CreateRoomResponse> {
         try {
@@ -49,20 +54,28 @@ export class NexusEngineClient {
     }
 
     /**
-     * Generate a JWT token for frontend to connect to Engine
-     * (In production this should use jsonwebtoken with private key)
+     * Generate a signed JWT for frontend WebSocket connection to Engine.
+     * The JWT contains: sub (userId), roomId, name (displayName).
+     * Ownership is determined by comparing sub with ownerId stored in the DO.
      */
-    generateToken(_roomId: string, userId: string, role: string): string {
-        // For M0/MVP, we use a simple format that our detailed engine implementation can parse
-        // Format: userId:role
-        // or actually construct a fake JWT structure if the engine expects it
+    generateToken(roomId: string, userId: string, displayName: string): string {
+        const payload = {
+            sub: userId,
+            roomId,
+            name: displayName,
+        };
 
-        // In our Engine implementation `index.ts`:
-        // if (token.includes(':')) { [userId, role] = token.split(':'); }
+        return jwt.sign(payload, this.jwtSecret, {
+            algorithm: 'HS256',
+            expiresIn: '5m', // Short-lived, only used for initial WS handshake
+        });
+    }
 
-        // So we can just return this simple format for now.
-        // In PROD: return jwt.sign({ roomId, userId, role }, privateKey);
-        return `${userId}:${role}`;
+    /**
+     * Get the WebSocket connection URL for a room
+     */
+    getConnectUrl(roomId: string): string {
+        return this.engineUrl.replace('http', 'ws') + `/connect/${roomId}`;
     }
 }
 

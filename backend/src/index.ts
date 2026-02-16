@@ -22,11 +22,9 @@ import roomsRoutes from './routes/rooms.js';
 import roomsPublicRoutes from './routes/rooms-public.js';
 import actionsRoutes from './routes/actions.js';
 import perspectivesProtectedRoutes from './routes/perspectives-protected.js';
-import perspectivesPublicRoutes from './routes/perspectives-public.js';
 import llmLogsPublicRoutes from './routes/llm-logs-public.js';
 
 // Runtime
-import { getEventBus } from './runtime/event-bus.js';
 import { listAvailableGames } from './games/registry.js';
 
 /**
@@ -99,7 +97,6 @@ async function buildServer() {
       instance.register(healthRoute);
       instance.register(gamesRoute); // Games metadata
       instance.register(roomsPublicRoutes); // Browse public rooms (no auth)
-      instance.register(perspectivesPublicRoutes); // SSE stream with ticket auth
       instance.register(llmLogsPublicRoutes); // LLM interaction logs (public)
 
       // Protected routes (require auth)
@@ -165,21 +162,10 @@ async function start() {
       'Available games'
     );
 
-    // Initialize event bus with Fastify instance
-    const eventBus = getEventBus();
-    eventBus.initialize(fastify);
-    const keepaliveTimer = eventBus.startKeepaliveTimer(30000); // 30 seconds
-
     // Graceful shutdown
     const shutdown = async (signal: string) => {
       logger.info({ signal }, 'Received shutdown signal');
-
-      // Stop keepalive timer
-      clearInterval(keepaliveTimer);
-
-      // Close server
       await fastify.close();
-
       logger.info('Server shutdown complete');
       process.exit(0);
     };

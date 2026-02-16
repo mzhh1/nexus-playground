@@ -6,22 +6,36 @@ export interface GameConfig {
 }
 
 export interface GameState {
-    // Generic state holder
     [key: string]: any;
 }
 
+/** Room phase: lobby (waiting) or playing (game active) */
+export type RoomPhase = 'lobby' | 'playing' | 'finished';
+
+/** A connected player in the DO */
 export interface Player {
     userId: string;
-    role: string | null;
+    displayName: string;
+    role: string | null;        // assigned role (null = spectator/unassigned)
     connected: boolean;
+    isOwner: boolean;           // derived at runtime from ownerId comparison
     ws?: WebSocket;
 }
 
-// Token Payload Structure
+/** Lobby state persisted in DO storage */
+export interface LobbyState {
+    ownerId: string;
+    phase: RoomPhase;
+    players: Record<string, { displayName: string; role: string | null }>; // userId -> info
+    roleMapping: Record<string, string>;  // roleId -> userId
+    gameConfig: GameConfig | null;
+}
+
+/** JWT payload structure (HS256) */
 export interface TokenPayload {
+    sub: string;      // userId
     roomId: string;
-    userId: string;
-    role: string;
-    exp: number;
+    name: string;     // displayName
     iat: number;
+    exp: number;
 }

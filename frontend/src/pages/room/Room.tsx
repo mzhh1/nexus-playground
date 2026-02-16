@@ -8,14 +8,11 @@ import { useOAuth } from '@autolabz/oauth-sdk';
 import '@autolabz/oauth-sdk/dist/style.css';
 import { useRoom } from '../../hooks/useRoom';
 import { useNexusEngine } from '../../hooks/useNexusEngine';
-import { useRoom } from '../../hooks/useRoom';
-import { usePerspective } from '../../hooks/usePerspective';
-import { useAction } from '../../hooks/useAction';
 import { useGamesMetadata, getGameName } from '../../hooks/useGamesMetadata';
 import type { RoleMapping, LLMPlayerTemplate } from '../../lib/types';
 import { NexusControlBar } from '../../components/NexusControlBar';
 import { PlayerList } from '../../components/PlayerList';
-import { RoleTemplateSelector } from '../../components/PlayerCountSelector'; // Start by assuming export, will verify
+import { RoleTemplateSelector } from '../../components/PlayerCountSelector';
 import { RoleMappingGraph } from '../../components/RoleMappingGraph';
 import { RoleMappingModal } from '../../components/RoleMappingModal';
 import { LLMPlayerTemplateModal } from '../../components/LLMPlayerTemplateModal';
@@ -41,54 +38,24 @@ const Room: React.FC = () => {
   const { room, loading, error, fetchRoom, joinRoom, addPlayer, removePlayer, startGame, pauseGame, resumeGame, stopGame, restartGame, selectGame, updateRoleMapping } = useRoom(roomId);
   const { games: AVAILABLE_GAMES, loading: metadataLoading } = useGamesMetadata();
 
-  // SSE Callbacks
-  const sseCallbacks = useMemo(() => ({
-    onRoomUpdated: () => {
-      fetchRoom();
-    },
-    onGameStarted: () => {
-      fetchRoom();
-    },
-    onGameEnded: () => {
-      fetchRoom();
-    }
-  }), [fetchRoom]);
+  // Nexus Engine WebSocket connection (handles both lobby and game state)
+  const {
+    gameState: perspective,
+    isConnected: isEngineConnected,
+    sendAction: sendEngineAction,
+    lobbyState,
+    error: engineError,
+  } = useNexusEngine({ roomId });
 
-  // Determine if we should use Engine (e.g. for Gomoku)
-  // We can hardcode this check for M0 or check metadata
-  const useEngine = selectedGameId === 'gomoku' || (room?.game_id === 'gomoku');
-
-  // Legacy SSE Perspective
-  const { perspective: ssePerspective } = usePerspective(
-    !useEngine ? roomId : null, // Only connect SSE if not using Engine
-    currentRoleId,
-    playerId || undefined,
-    sseCallbacks
-  );
-
-  // Nexus Engine (V2) Perspective
-  const { gameState: enginePerspective, isConnected: isEngineConnected, sendAction: sendEngineAction } = useNexusEngine({
-    roomId: useEngine ? roomId : null,
-    engineConfig: null
-  });
-
-  // Unified Perspective
-  const perspective = useEngine ? enginePerspective : ssePerspective;
-
-  // Unified Action Handler
-  const { submitAction: submitLegacyAction, submitting } = useAction(roomId);
+  const submitting = false; // Actions are async via WebSocket now
 
   const submitAction = async (action: any) => {
-    if (useEngine) {
-      if (isEngineConnected) {
-        sendEngineAction(action);
-        return { success: true };
-      } else {
-        console.error("Engine not connected");
-        return { success: false };
-      }
+    if (isEngineConnected) {
+      sendEngineAction(action);
+      return { success: true };
     } else {
-      return submitLegacyAction(action);
+      console.error("Engine not connected");
+      return { success: false };
     }
   };
   const { user } = useOAuth();

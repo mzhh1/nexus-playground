@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { GameDO } from './game-do';
+import { verifyJwt } from './jwt';
 
 type Bindings = {
     GAME_DO: DurableObjectNamespace;
     ADMIN_SECRET: string;
-    JWT_PUBLIC_KEY: string;
+    JWT_SECRET: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -16,42 +17,48 @@ app.use('/*', cors());
 // 1. Admin API (Called by Business Backend)
 // ==========================================
 
-// Create a new game container
+/**
+ * POST /api/engine/create
+ * Create or re-initialize a room DO.
+ * Body: { roomId, ownerId, gameWorkerUrl?, config?, context? }
+ */
 app.post('/api/engine/create', async (c) => {
-    // Simple Admin Auth
     const authHeader = c.req.header('Authorization');
     if (authHeader !== `Bearer ${c.env.ADMIN_SECRET}`) {
         return c.json({ error: 'Unauthorized' }, 401);
     }
 
     const body = await c.req.json<{
-        roomId?: string; // Optional custom ID
-        gameWorkerUrl: string;
-        config: any;
-        context: any;
+        roomId: string;
+        ownerId: string;
+        gameWorkerUrl?: string;
+        config?: any;
+        context?: any;
     }>();
 
-    // Generate ID if not provided
-    const roomId = body.roomId || c.env.GAME_DO.newUniqueId().toString();
-    // Ensure we consistently use the name-based ID if roomId provided, or unique if not
-    // Actually, keeping mapping simple: Use idFromName for deterministic IDs provided by backend
+    const roomId = body.roomId;
+    if (!roomId) {
+        return c.json({ error: 'roomId is required' }, 400);
+    }
+
     const id = c.env.GAME_DO.idFromName(roomId);
     const stub = c.env.GAME_DO.get(id);
 
-    // Initialize the DO
+    // Initialize the DO with owner and optional game config
     const res = await stub.fetch('http://do/init', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            config: {
-                gameWorkerUrl: body.gameWorkerUrl,
-                ...body.config
-            },
-            context: body.context
+            ownerId: body.ownerId,
+            gameWorkerUrl: body.gameWorkerUrl,
+            config: body.config,
+            context: body.context,
         })
     });
 
     if (!res.ok) {
-        return c.json({ error: 'Failed to initialize container' }, 500);
+        const err = await res.json() as any;
+        return c.json({ error: err.error || 'Failed to initialize room' }, 500);
     }
 
     return c.json({
@@ -64,7 +71,11 @@ app.post('/api/engine/create', async (c) => {
 // 2. Client API (Called by Frontend)
 // ==========================================
 
-// Connect to Game WebSocket
+/**
+ * GET /connect/:roomId?token=<JWT>
+ * WebSocket upgrade endpoint. Verifies JWT, extracts userId/displayName,
+ * then forwards to DO's /websocket handler.
+ */
 app.get('/connect/:roomId', async (c) => {
     const roomId = c.req.param('roomId');
     const token = c.req.query('token');
@@ -73,45 +84,40 @@ app.get('/connect/:roomId', async (c) => {
         return c.text('Missing token', 401);
     }
 
-    // TODO: Verify JWT using c.env.JWT_PUBLIC_KEY
-    // For prototype, we skip strict JWT verification or mock it
-    // In production, we MUST verify signature
-
-    // Decoding token payload (Mock for now)
-    // Assuming token is "userId:role" for simple testing if not using real JWT library yet
-    // OR actually try to verify if we have the library
-
-    // Let's implement a dummy verify or simple decode for M0 speed
-    // Ideally: const payload = await verify(token, c.env.JWT_PUBLIC_KEY);
-
-    // Mock fallback: userId:role
-    let userId = 'unknown';
-    let role = 'observer';
-
-    if (token.includes(':')) {
-        [userId, role] = token.split(':');
-    } else {
-        // Decode JWT without verification (NOT SAFE FOR PROD)
-        try {
-            const parts = token.split('.');
-            const payload = JSON.parse(atob(parts[1]));
-            userId = payload.userId;
-            role = payload.role;
-        } catch (e) {
-            console.error("Token parse error", e);
-        }
+    // Verify JWT
+    let payload;
+    try {
+        payload = await verifyJwt(token, c.env.JWT_SECRET);
+    } catch (e: any) {
+        console.error('JWT verification failed:', e.message);
+        return c.text(`Authentication failed: ${e.message}`, 401);
     }
 
-    const id = c.env.GAME_DO.idFromName(roomId); // Get DO by room ID
+    // Verify roomId matches token
+    if (payload.roomId !== roomId) {
+        return c.text('Token roomId mismatch', 403);
+    }
+
+    const id = c.env.GAME_DO.idFromName(roomId);
     const stub = c.env.GAME_DO.get(id);
 
-    // Pass userId/role to DO
+    // Forward to DO with verified user info
     const url = new URL(c.req.url);
     url.pathname = '/websocket';
-    url.searchParams.set('userId', userId);
-    url.searchParams.set('role', role);
+    url.searchParams.set('userId', payload.sub);
+    url.searchParams.set('displayName', payload.name);
 
     return stub.fetch(new Request(url, c.req.raw));
+});
+
+// ==========================================
+// 3. Debug API
+// ==========================================
+app.get('/debug/:roomId', async (c) => {
+    const roomId = c.req.param('roomId');
+    const id = c.env.GAME_DO.idFromName(roomId);
+    const stub = c.env.GAME_DO.get(id);
+    return stub.fetch('http://do/debug');
 });
 
 export default app;
