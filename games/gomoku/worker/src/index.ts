@@ -81,8 +81,8 @@ app.post('/legal-actions', async (c) => {
     }
 });
 
-// 4. Act Endpoint
-app.post('/act', async (c) => {
+// 4. Action Endpoint
+app.post('/action', async (c) => {
     const body = await c.req.json<{ state: GameState; action: Action }>();
     try {
         const result = logic.applyAction(body.state, body.action);
@@ -92,8 +92,8 @@ app.post('/act', async (c) => {
     }
 });
 
-// 5. Check Terminal Endpoint
-app.post('/check-terminal', async (c) => {
+// 5. Is Terminal Endpoint
+app.post('/is-terminal', async (c) => {
     const body = await c.req.json<{ state: GameState }>();
     try {
         const isTerminal = logic.isTerminal(body.state);
@@ -120,6 +120,17 @@ app.post('/perspective', async (c) => {
             body.diffHistory || []
         );
         return c.json(perspective);
+    } catch (error: any) {
+        return c.json({ error: error.message }, 400);
+    }
+});
+
+// 7. Current Role Endpoint
+app.post('/current-role', async (c) => {
+    const body = await c.req.json<{ state: GameState }>();
+    try {
+        const roleId = logic.getCurrentRole(body.state);
+        return c.json({ roleId });
     } catch (error: any) {
         return c.json({ error: error.message }, 400);
     }

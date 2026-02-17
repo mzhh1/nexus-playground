@@ -61,7 +61,7 @@ const Room: React.FC = () => {
 
   const submitAction = async (action: any) => {
     if (isEngineConnected) {
-      sendEngineAction(action);
+      sendEngineAction(action.action_id, action.params);
       return { success: true };
     } else {
       console.error("Engine not connected");

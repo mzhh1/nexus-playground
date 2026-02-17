@@ -609,7 +609,7 @@ export class GameDO extends DurableObject {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    players: Object.keys(this.roleMapping),
+                    players: this.gameConfig.roleIds,
                 }),
             });
 
@@ -854,7 +854,7 @@ export class GameDO extends DurableObject {
             };
         } catch (e) {
             console.error("[GameDO] submitAction failed:", e);
-            return { success: false, error: "Game Worker unreachable" };
+            return { success: false, error: `Game Worker unreachable: ${e}` };
         }
     }
 
