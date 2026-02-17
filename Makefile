@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs ps clean rebuild rebuild-backend rebuild-frontend rebuild-nginx health test
+.PHONY: help build up down restart logs ps clean rebuild rebuild-backend rebuild-frontend rebuild-nginx health test deploy-engine
 
 # 默认目标
 .DEFAULT_GOAL := help
@@ -206,3 +206,10 @@ prod: ## 生产环境启动（无缓存构建）
 	@$(MAKE) health
 	@echo ""
 	@echo "$(GREEN)✅ 生产环境已启动！$(NC)"
+
+##@ 部署
+
+deploy-engine: ## 部署 nexus-engine 到 Cloudflare
+	@echo "$(BLUE)🚀 部署 nexus-engine 到 Cloudflare...$(NC)"
+	cd nexus-engine && pnpm run deploy
+

@@ -2,14 +2,9 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { GameDO } from './game-do';
 import { verifyJwt } from './jwt';
+import type { Env } from './types';
 
-type Bindings = {
-    GAME_DO: DurableObjectNamespace;
-    ADMIN_SECRET: string;
-    JWT_SECRET: string;
-};
-
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<{ Bindings: Env }>();
 
 app.use('/*', cors());
 
@@ -49,6 +44,7 @@ app.post('/api/engine/create', async (c) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+            roomId: body.roomId,
             ownerId: body.ownerId,
             gameWorkerUrl: body.gameWorkerUrl,
             config: body.config,

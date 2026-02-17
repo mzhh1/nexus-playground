@@ -1,24 +1,27 @@
 /**
- * My Nexus Routes
- * Manage user's own nexus (room)
+ * My Nexus Routes — v4.0 Simplified
+ *
+ * Get or create user's room. Returns Postgres room info + Engine JWT.
+ * Room state (players, game config) is now managed entirely by the Engine DO.
  */
 
 import { FastifyPluginAsync } from 'fastify';
 import { createRoomDAO } from '../db/rooms.js';
-import { createStateManager } from '../runtime/state-manager.js';
 import { nexusEngine } from '../runtime/nexus-engine-client.js';
+import { getGameWorkerUrl } from '../games/registry.js';
 import logger from '../utils/logger.js';
 
 const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
   const roomDAO = createRoomDAO(fastify);
-  const stateManager = createStateManager(fastify);
 
   /**
    * GET /api/v1/my-nexus
-   * Get or create user's nexus
+   * Get or create user's nexus (room).
+   * Also ensures the Engine DO is initialized.
    */
   fastify.get('/my-nexus', async (request, reply) => {
     const userId = (request as any).auth?.userId;
+    const displayName = (request as any).auth?.displayName || userId;
     if (!userId) {
       return reply.code(401).send({ error: 'Unauthorized' });
     }
@@ -28,47 +31,52 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
       const room = await roomDAO.getOrCreate(userId);
 
       // Ensure Engine DO exists for this room (idempotent)
+      // Pass game worker URL if a game is already selected
+      let gameWorkerUrl: string | undefined;
+      if (room.game_id) {
+        try {
+          gameWorkerUrl = getGameWorkerUrl(room.game_id);
+        } catch (_) { /* game not found, no-op */ }
+      }
+
       try {
         await nexusEngine.createRoom({
           roomId: room.room_id,
           ownerId: userId,
+          ...(gameWorkerUrl && room.game_id
+            ? {
+              gameWorkerUrl,
+              context: { gameId: room.game_id },
+            }
+            : {}),
         });
       } catch (e) {
-        // Non-fatal — DO may already exist or Engine may be temporarily unavailable
         logger.warn({ error: e, roomId: room.room_id }, 'Engine DO creation skipped');
       }
 
-      // Get or initialize room state in Redis
-      let roomState = await stateManager.getRoomState(room.room_id);
-
-      if (!roomState) {
-        roomState = await stateManager.initializeRoomState(
-          room.room_id,
-          userId,
-          room.game_id
-        );
-      }
+      // Generate engine connection token
+      const wsUrl = nexusEngine.getConnectUrl(room.room_id);
+      const token = nexusEngine.generateToken(room.room_id, userId, displayName);
 
       return reply.send({
         room_id: room.room_id,
         owner_uid: room.owner_uid,
-        game_id: roomState.game_id,
-        room_status: roomState.room_status,
-        is_public: roomState.is_public,
-        resume_locked: roomState.resume_locked,
-        player_list: roomState.player_list,
-        role_mapping: roomState.role_mapping,
-        has_game_state: roomState.game_state !== null,
+        game_id: room.game_id,
+        room_status: room.room_status,
+        is_public: room.is_public,
         created_at: room.created_at,
         updated_at: room.updated_at,
+        // Engine connection info
+        engine: {
+          url: wsUrl,
+          token,
+        },
       });
     } catch (error) {
       logger.error({ error, userId }, 'Failed to get or create nexus');
       return reply.code(500).send({ error: 'Failed to get or create nexus' });
     }
   });
-
 };
 
 export default myNexusRoutes;
-

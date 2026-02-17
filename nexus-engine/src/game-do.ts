@@ -1,84 +1,165 @@
 import { DurableObject } from "cloudflare:workers";
 import { Hono } from "hono";
-import { GameConfig, GameState, Player, LobbyState, RoomPhase } from "./types";
+import type {
+    Env,
+    EngineRoomState,
+    PlayerInfo,
+    ClientEngineState,
+    ClientPlayerInfo,
+    ClientMessage,
+    ServerMessage,
+    GameConfig,
+    HistoryEvent,
+    LlmWebhookRequest,
+    LlmWebhookResponse,
+    GameWorkerMetadata,
+    GameWorkerActionRequest,
+    GameWorkerActionResponse,
+    GameWorkerPerspectiveRequest,
+    RoomPhase,
+    LlmConfig,
+} from "./types";
+
+// ─── Helper: Is this userId an LLM player? ──────────────────
+function isLlmUserId(userId: string): boolean {
+    return userId.startsWith("llm:");
+}
+
+function generateLlmUserId(modelName: string): string {
+    const uuid = crypto.randomUUID().slice(0, 8);
+    return `llm:${modelName}:${uuid}`;
+}
+
+// ─── Helper: Get roleId assigned to a userId ────────────────
+function getRoleForUser(
+    roleMapping: Record<string, string>,
+    userId: string,
+): string | null {
+    for (const [roleId, uid] of Object.entries(roleMapping)) {
+        if (uid === userId) return roleId;
+    }
+    return null;
+}
 
 /**
- * GameDO — The Room Container (Durable Object).
+ * GameDO — The Room Container (Durable Object) v4.0
  *
- * Manages the full lifecycle of a room:
- *   LOBBY (waiting for players / role assignment) -> PLAYING (game active) -> FINISHED
+ * Manages the FULL lifecycle of a room:
+ *   LOBBY (players join, select roles, owner configures)
+ *   → PLAYING (game active, actions processed)
+ *   → FINISHED (game ended, can restart)
  *
- * Ownership is determined by comparing the connecting user's `sub` (from JWT)
- * with the `ownerId` stored in this DO's persistent storage.
+ * Single source of truth — no Redis, no external state.
  */
 export class GameDO extends DurableObject {
-    doState: DurableObjectState;
-    app: Hono = new Hono();
+    private app: Hono = new Hono();
+    private env: Env;
 
-    // --- Persistent state (loaded from storage) ---
-    ownerId: string | null = null;
-    phase: RoomPhase = 'lobby';
-    lobbyPlayers: Record<string, { displayName: string }> = {};
-    roleMapping: Record<string, string> = {};  // roleId -> userId
-    gameConfig: GameConfig | null = null;
+    // ─── Persisted state ────────────────────────────────────
+    private roomId: string = "";
+    private ownerId: string = "";
+    private phase: RoomPhase = "lobby";
+    private players: Record<string, PlayerInfo> = {};
+    private gameConfig: GameConfig | null = null;
+    private roleMapping: Record<string, string> = {};
+    private gameState: any | null = null;
+    private history: HistoryEvent[] = [];
+    private llmWebhookUrl: string | null = null;
 
-    // --- Game state (only active during 'playing' phase) ---
-    gameState: GameState | null = null;
-    history: any[] = [];
+    // ─── In-memory connection tracking ──────────────────────
+    private connections: Map<WebSocket, string> = new Map(); // ws → userId
+    private sessions: Map<string, WebSocket> = new Map(); // userId → ws
 
-    // --- In-memory connection tracking ---
-    connections: Map<WebSocket, Player> = new Map();
-    sessions: Map<string, WebSocket> = new Map(); // userId -> ws
-
-    constructor(state: DurableObjectState, env: any) {
+    constructor(state: DurableObjectState, env: Env) {
         super(state, env);
-        this.doState = state;
+        this.env = env;
 
-        // Load persisted state
-        this.doState.blockConcurrencyWhile(async () => {
-            this.ownerId = (await this.doState.storage.get("ownerId")) || null;
-            this.phase = (await this.doState.storage.get("phase")) || 'lobby';
-            this.lobbyPlayers = (await this.doState.storage.get("lobbyPlayers")) || {};
-            this.roleMapping = (await this.doState.storage.get("roleMapping")) || {};
-            this.gameConfig = (await this.doState.storage.get("gameConfig")) || null;
-            this.gameState = (await this.doState.storage.get("gameState")) || null;
-            this.history = (await this.doState.storage.get("history")) || [];
+        // Load persisted state on wake
+        this.ctx.blockConcurrencyWhile(async () => {
+            await this.loadState();
         });
 
-        // ==========================================
-        // Internal HTTP routes (called via stub.fetch)
-        // ==========================================
+        this.setupRoutes();
+    }
 
-        /**
-         * POST /init — Initialize room (idempotent).
-         * Called by the Engine Worker on behalf of the Backend.
-         * If the DO is already initialized with the same owner, this is a no-op.
-         */
+    // ═════════════════════════════════════════════════════════
+    // State Persistence
+    // ═════════════════════════════════════════════════════════
+
+    private async loadState(): Promise<void> {
+        const s = this.ctx.storage;
+        this.roomId = (await s.get("roomId")) || "";
+        this.ownerId = (await s.get("ownerId")) || "";
+        this.phase = (await s.get("phase")) || "lobby";
+        this.players = (await s.get("players")) || {};
+        this.gameConfig = (await s.get("gameConfig")) || null;
+        this.roleMapping = (await s.get("roleMapping")) || {};
+        this.gameState = (await s.get("gameState")) || null;
+        this.history = (await s.get("history")) || [];
+        this.llmWebhookUrl = (await s.get("llmWebhookUrl")) || null;
+    }
+
+    private async persistAll(): Promise<void> {
+        await this.ctx.storage.put({
+            roomId: this.roomId,
+            ownerId: this.ownerId,
+            phase: this.phase,
+            players: this.players,
+            gameConfig: this.gameConfig,
+            roleMapping: this.roleMapping,
+            gameState: this.gameState,
+            history: this.history,
+            llmWebhookUrl: this.llmWebhookUrl,
+        });
+    }
+
+    private async persist(...keys: (keyof EngineRoomState)[]): Promise<void> {
+        const data: Record<string, any> = {};
+        for (const key of keys) {
+            data[key] = (this as any)[key];
+        }
+        await this.ctx.storage.put(data);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // HTTP Routes (called via stub.fetch from Engine Worker)
+    // ═════════════════════════════════════════════════════════
+
+    private setupRoutes(): void {
+        // POST /init — Initialize room (idempotent)
         this.app.post("/init", async (c) => {
             const body = await c.req.json<{
+                roomId?: string;
                 ownerId: string;
                 gameWorkerUrl?: string;
                 config?: any;
                 context?: any;
             }>();
 
-            // Idempotent: if already initialized for this owner, just return success
-            if (this.ownerId === body.ownerId) {
-                console.log(`[GameDO] Already initialized for owner ${this.ownerId}, phase=${this.phase}`);
-                return c.json({ success: true, alreadyInitialized: true, phase: this.phase });
+            // Idempotent: if already initialized for this owner, just return
+            if (this.ownerId === body.ownerId && this.roomId) {
+                return c.json({
+                    success: true,
+                    alreadyInitialized: true,
+                    phase: this.phase,
+                });
             }
 
+            this.roomId = body.roomId || "";
             this.ownerId = body.ownerId;
-            this.phase = 'lobby';
-            this.lobbyPlayers = {};
+            this.phase = "lobby";
+            this.players = {};
             this.roleMapping = {};
             this.gameState = null;
             this.history = [];
+            this.llmWebhookUrl = this.env.LLM_WEBHOOK_URL || null;
 
             if (body.gameWorkerUrl) {
                 this.gameConfig = {
                     gameWorkerUrl: body.gameWorkerUrl,
+                    gameId: body.context?.gameId || "",
                     maxPlayers: body.config?.maxPlayers || 2,
+                    roleIds: body.config?.players || [],
                     ...body.config,
                 };
             } else {
@@ -86,55 +167,42 @@ export class GameDO extends DurableObject {
             }
 
             await this.persistAll();
-
-            console.log(`[GameDO] Initialized. Owner: ${this.ownerId}`);
+            console.log(`[GameDO] Initialized. Room: ${this.roomId}, Owner: ${this.ownerId}`);
             return c.json({ success: true });
         });
 
-        /**
-         * GET /websocket — WebSocket upgrade handler.
-         * userId and displayName are passed via query params (already verified by Engine Worker).
-         */
+        // GET /websocket — WebSocket upgrade
         this.app.get("/websocket", async (c) => {
             const upgradeHeader = c.req.header("Upgrade");
             if (!upgradeHeader || upgradeHeader !== "websocket") {
                 return c.text("Expected Upgrade: websocket", 426);
             }
 
-            const userId = c.req.query("userId")!;
+            const userId = c.req.query("userId") || "";
             const displayName = c.req.query("displayName") || userId;
 
-            const webSocketPair = new WebSocketPair();
-            const [client, server] = Object.values(webSocketPair);
+            const pair = new WebSocketPair();
+            const [client, server] = Object.values(pair);
 
-            this.handleSession(server, userId, displayName);
+            await this.handleSession(server, userId, displayName);
 
-            return new Response(null, {
-                status: 101,
-                webSocket: client,
-            });
+            return new Response(null, { status: 101, webSocket: client });
         });
 
-        /**
-         * GET /debug — Debug state dump
-         */
-        this.app.get("/debug", (c) => {
+        // GET /debug — Debug info
+        this.app.get("/debug", async (c) => {
             return c.json({
+                roomId: this.roomId,
                 ownerId: this.ownerId,
                 phase: this.phase,
-                lobbyPlayers: this.lobbyPlayers,
+                playerCount: Object.keys(this.players).length,
+                connectedCount: this.connections.size,
+                gameConfig: this.gameConfig
+                    ? { gameId: this.gameConfig.gameId, maxPlayers: this.gameConfig.maxPlayers }
+                    : null,
                 roleMapping: this.roleMapping,
-                hasGameConfig: !!this.gameConfig,
-                hasGameState: !!this.gameState,
-                gameState: this.gameState,
+                hasGameState: this.gameState != null,
                 historyLength: this.history.length,
-                connectedUsers: Array.from(this.connections.values()).map(p => ({
-                    userId: p.userId,
-                    displayName: p.displayName,
-                    role: p.role,
-                    isOwner: p.isOwner,
-                    connected: p.connected
-                }))
             });
         });
     }
@@ -143,606 +211,912 @@ export class GameDO extends DurableObject {
         return this.app.fetch(request);
     }
 
-    // ==========================================
+    // ═════════════════════════════════════════════════════════
     // WebSocket Session Management
-    // ==========================================
+    // ═════════════════════════════════════════════════════════
 
-    // Derive a user's role from roleMapping (single source of truth)
-    getRoleForUser(userId: string): string | null {
-        for (const [roleId, uid] of Object.entries(this.roleMapping)) {
-            if (uid === userId) return roleId;
-        }
-        return null;
-    }
-
-    async handleSession(ws: WebSocket, userId: string, displayName: string) {
+    private async handleSession(
+        ws: WebSocket,
+        userId: string,
+        displayName: string,
+    ): Promise<void> {
         ws.accept();
 
         const isOwner = userId === this.ownerId;
 
-        const player: Player = {
-            userId,
-            displayName,
-            connected: true,
-            isOwner,
-            ws,
-        };
-
-        // Track connection
-        this.connections.set(ws, player);
-        this.sessions.set(userId, ws);
-
-        // Auto-join lobby if not already present
-        if (!this.lobbyPlayers[userId]) {
-            this.lobbyPlayers[userId] = { displayName };
-            await this.doState.storage.put("lobbyPlayers", this.lobbyPlayers);
+        // Register or re-register this player
+        if (!this.players[userId]) {
+            this.players[userId] = {
+                displayName,
+                connected: true,
+                isOwner,
+                type: "human",
+            };
+        } else {
+            this.players[userId].connected = true;
+            this.players[userId].displayName = displayName;
         }
 
-        // Send current state to the newly connected client
-        this.sendFullState(ws, player);
+        // Track connection
+        // Close old WS if the same user reconnects
+        const oldWs = this.sessions.get(userId);
+        if (oldWs) {
+            try {
+                oldWs.close(1000, "Replaced by new connection");
+            } catch (_) { /* ignore */ }
+            this.connections.delete(oldWs);
+        }
 
-        // Broadcast updated lobby to everyone
-        this.broadcastLobbyUpdate();
+        this.connections.set(ws, userId);
+        this.sessions.set(userId, ws);
+
+        await this.persist("players");
+
+        // Send current state to this client
+        this.sendSyncState(ws, userId);
+
+        // Broadcast updated lobby to everyone else
+        this.broadcastSyncState();
 
         // Message handler
-        ws.addEventListener("message", async (msg) => {
+        ws.addEventListener("message", async (event) => {
             try {
-                const data = JSON.parse(msg.data as string);
-                await this.handleMessage(player, data);
+                const data =
+                    typeof event.data === "string"
+                        ? JSON.parse(event.data)
+                        : null;
+                if (!data || !data.type) return;
+                await this.handleMessage(userId, data as ClientMessage);
             } catch (e) {
-                console.error("[GameDO] Error handling message:", e);
-                ws.send(JSON.stringify({ type: "ERROR", payload: "Invalid message" }));
+                console.error(`[GameDO] Error handling message from ${userId}:`, e);
+                this.sendError(ws, "Failed to process message");
             }
         });
 
-        // Disconnect handler
-        ws.addEventListener("close", () => {
+        // Close handler
+        ws.addEventListener("close", async () => {
             this.connections.delete(ws);
             this.sessions.delete(userId);
-            // Don't remove from lobbyPlayers on disconnect (they can reconnect)
-            this.broadcastLobbyUpdate();
+
+            if (this.players[userId]) {
+                this.players[userId].connected = false;
+                await this.persist("players");
+            }
+
+            this.broadcastSyncState();
+        });
+
+        ws.addEventListener("error", () => {
+            this.connections.delete(ws);
+            this.sessions.delete(userId);
+            if (this.players[userId]) {
+                this.players[userId].connected = false;
+            }
         });
     }
 
-    // ==========================================
+    // ═════════════════════════════════════════════════════════
     // Message Router
-    // ==========================================
+    // ═════════════════════════════════════════════════════════
 
-    async handleMessage(player: Player, data: { type: string; payload?: any }) {
-        switch (data.type) {
-            // --- Lobby messages ---
-            case 'LOBBY_LEAVE':
-                await this.handleLobbyLeave(player);
+    private async handleMessage(userId: string, msg: ClientMessage): Promise<void> {
+        switch (msg.type) {
+            // ─── Lobby ─────────────────────────────────────
+            case "LOBBY_SELECT_ROLE":
+                await this.handleSelectRole(userId, msg.payload.roleId);
                 break;
-            case 'LOBBY_SELECT_ROLE':
-                await this.handleSelectRole(player, data.payload);
-                break;
-            case 'LOBBY_KICK_PLAYER':
-                await this.handleKickPlayer(player, data.payload);
-                break;
-            case 'LOBBY_SET_GAME':
-                await this.handleSetGame(player, data.payload);
-                break;
-            case 'GAME_START':
-                await this.handleGameStart(player, data.payload);
-                break;
-            case 'GAME_STOP':
-                await this.handleGameStop(player);
-                break;
-            case 'GAME_RESTART':
-                await this.handleGameRestart(player);
+            case "LOBBY_LEAVE":
+                await this.handleLeave(userId);
                 break;
 
-            // --- Game messages ---
-            case 'ACT':
-                await this.handleAction(player, data.payload);
+            // ─── Admin ─────────────────────────────────────
+            case "ADMIN_SET_GAME":
+                await this.handleAdminSetGame(userId, msg.payload);
+                break;
+            case "ADMIN_ADD_BOT":
+                await this.handleAdminAddBot(userId, msg.payload);
+                break;
+            case "ADMIN_REMOVE_PLAYER":
+                await this.handleAdminRemovePlayer(userId, msg.payload.userId);
+                break;
+            case "ADMIN_ASSIGN_ROLE":
+                await this.handleAdminAssignRole(userId, msg.payload);
+                break;
+            case "ADMIN_START_GAME":
+                await this.handleAdminStartGame(userId);
+                break;
+            case "ADMIN_STOP_GAME":
+                await this.handleAdminStopGame(userId);
+                break;
+            case "ADMIN_RESTART_GAME":
+                await this.handleAdminRestartGame(userId);
+                break;
+            case "ADMIN_PAUSE_GAME":
+                await this.handleAdminPauseGame(userId);
+                break;
+            case "ADMIN_RESUME_GAME":
+                await this.handleAdminResumeGame(userId);
+                break;
+
+            // ─── Game Action ───────────────────────────────
+            case "ACT":
+                await this.handleAction(userId, msg.payload);
                 break;
 
             default:
-                player.ws?.send(JSON.stringify({
-                    type: "ERROR",
-                    payload: `Unknown message type: ${data.type}`
-                }));
+                this.sendErrorToUser(userId, `Unknown message type: ${(msg as any).type}`);
         }
     }
 
-    // ==========================================
+    // ═════════════════════════════════════════════════════════
     // Lobby Handlers
-    // ==========================================
+    // ═════════════════════════════════════════════════════════
 
-    async handleLobbyLeave(player: Player) {
-        // Remove from lobby
-        delete this.lobbyPlayers[player.userId];
+    private async handleSelectRole(userId: string, roleId: string | null): Promise<void> {
+        if (this.phase !== "lobby") {
+            return this.sendErrorToUser(userId, "Can only select roles in lobby phase");
+        }
 
+        // Remove user from any existing role
+        for (const [rId, uId] of Object.entries(this.roleMapping)) {
+            if (uId === userId) {
+                delete this.roleMapping[rId];
+            }
+        }
+
+        // Assign new role (if not null)
+        if (roleId) {
+            // Validate role exists in game config
+            if (this.gameConfig && !this.gameConfig.roleIds.includes(roleId)) {
+                return this.sendErrorToUser(userId, `Invalid role: ${roleId}`);
+            }
+            // Check role is not already taken
+            if (this.roleMapping[roleId] && this.roleMapping[roleId] !== userId) {
+                return this.sendErrorToUser(userId, `Role ${roleId} is already taken`);
+            }
+            this.roleMapping[roleId] = userId;
+        }
+
+        await this.persist("roleMapping");
+        this.broadcastSyncState();
+    }
+
+    private async handleLeave(userId: string): Promise<void> {
         // Remove from role mapping
-        for (const [roleId, userId] of Object.entries(this.roleMapping)) {
-            if (userId === player.userId) {
-                delete this.roleMapping[roleId];
+        for (const [rId, uId] of Object.entries(this.roleMapping)) {
+            if (uId === userId) {
+                delete this.roleMapping[rId];
             }
         }
 
-        await this.doState.storage.put("lobbyPlayers", this.lobbyPlayers);
-        await this.doState.storage.put("roleMapping", this.roleMapping);
+        // Remove from players
+        delete this.players[userId];
 
-        this.broadcastLobbyUpdate();
+        // Close WS
+        const ws = this.sessions.get(userId);
+        if (ws) {
+            try {
+                ws.close(1000, "Left room");
+            } catch (_) { /* ignore */ }
+            this.connections.delete(ws);
+            this.sessions.delete(userId);
+        }
 
-        // Close their connection
-        player.ws?.close(1000, "Left room");
+        await this.persist("players", "roleMapping");
+        this.broadcastSyncState();
     }
 
-    async handleSelectRole(player: Player, payload: { roleId: string | null }) {
-        if (this.phase !== 'lobby') {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Cannot change roles during game" }));
-            return;
+    // ═════════════════════════════════════════════════════════
+    // Admin Handlers (owner only)
+    // ═════════════════════════════════════════════════════════
+
+    private requireOwner(userId: string): boolean {
+        if (userId !== this.ownerId) {
+            this.sendErrorToUser(userId, "Only the room owner can perform this action");
+            return false;
         }
-
-        const { roleId } = payload;
-
-        // If roleId is null, unassign current role
-        if (roleId === null) {
-            for (const [rid, uid] of Object.entries(this.roleMapping)) {
-                if (uid === player.userId) {
-                    delete this.roleMapping[rid];
-                }
-            }
-        } else {
-            // Check if role is already taken by someone else
-            if (this.roleMapping[roleId] && this.roleMapping[roleId] !== player.userId) {
-                player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Role already taken" }));
-                return;
-            }
-
-            // Remove player from any previous role
-            for (const [rid, uid] of Object.entries(this.roleMapping)) {
-                if (uid === player.userId) {
-                    delete this.roleMapping[rid];
-                }
-            }
-
-            // Assign new role
-            this.roleMapping[roleId] = player.userId;
-        }
-
-        await this.doState.storage.put("roleMapping", this.roleMapping);
-
-        this.broadcastLobbyUpdate();
+        return true;
     }
 
-    async handleKickPlayer(player: Player, payload: { userId: string }) {
-        if (!player.isOwner) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Only owner can kick players" }));
-            return;
+    private async handleAdminSetGame(
+        userId: string,
+        payload: { gameId: string; gameWorkerUrl: string },
+    ): Promise<void> {
+        if (!this.requireOwner(userId)) return;
+        if (this.phase !== "lobby") {
+            return this.sendErrorToUser(userId, "Can only set game in lobby phase");
         }
 
-        const targetUserId = payload.userId;
-        if (targetUserId === this.ownerId) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Cannot kick owner" }));
-            return;
-        }
-
-        // Remove from lobby
-        delete this.lobbyPlayers[targetUserId];
-
-        // Remove from role mapping
-        for (const [roleId, userId] of Object.entries(this.roleMapping)) {
-            if (userId === targetUserId) {
-                delete this.roleMapping[roleId];
+        try {
+            // Fetch metadata from Game Worker
+            const metaRes = await fetch(
+                `${payload.gameWorkerUrl.replace(/\/$/, "")}/metadata`,
+            );
+            if (!metaRes.ok) {
+                return this.sendErrorToUser(userId, "Failed to fetch game metadata");
             }
+            const metadata = (await metaRes.json()) as GameWorkerMetadata;
+
+            // Resolve roleIds
+            let roleIds: string[];
+            if (Array.isArray(metadata.roleIds)) {
+                roleIds = metadata.roleIds;
+            } else {
+                // Multi-player-count config — use first available
+                const counts = Object.keys(metadata.roleIds).map(Number).sort((a, b) => a - b);
+                roleIds = metadata.roleIds[counts[0]] || [];
+            }
+
+            this.gameConfig = {
+                gameWorkerUrl: payload.gameWorkerUrl,
+                gameId: payload.gameId || metadata.id,
+                maxPlayers: metadata.maxPlayers || roleIds.length,
+                roleIds,
+            };
+
+            // Clear role mapping since game changed
+            this.roleMapping = {};
+
+            await this.persist("gameConfig", "roleMapping");
+            this.broadcastSyncState();
+        } catch (e) {
+            console.error("[GameDO] Failed to set game:", e);
+            this.sendErrorToUser(userId, "Failed to set game");
         }
-
-        await this.doState.storage.put("lobbyPlayers", this.lobbyPlayers);
-        await this.doState.storage.put("roleMapping", this.roleMapping);
-
-        // Close target's WebSocket
-        const targetWs = this.sessions.get(targetUserId);
-        if (targetWs) {
-            targetWs.send(JSON.stringify({ type: "KICKED", payload: "You were removed by the owner" }));
-            targetWs.close(1000, "Kicked by owner");
-        }
-
-        this.broadcastLobbyUpdate();
     }
 
-    async handleSetGame(player: Player, payload: { gameWorkerUrl: string; config?: any }) {
-        if (!player.isOwner) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Only owner can set game" }));
-            return;
+    private async handleAdminAddBot(
+        userId: string,
+        payload: {
+            displayName: string;
+            modelName: string;
+            systemPrompt?: string;
+            temperature?: number;
+        },
+    ): Promise<void> {
+        if (!this.requireOwner(userId)) return;
+        if (this.phase !== "lobby") {
+            return this.sendErrorToUser(userId, "Can only add bots in lobby phase");
         }
 
-        if (this.phase !== 'lobby') {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Cannot change game during play" }));
-            return;
-        }
-
-        this.gameConfig = {
-            gameWorkerUrl: payload.gameWorkerUrl,
-            maxPlayers: payload.config?.maxPlayers || 2,
-            ...payload.config,
+        const llmUserId = generateLlmUserId(payload.modelName);
+        this.players[llmUserId] = {
+            displayName: payload.displayName,
+            connected: false, // Bots don't have WS connections
+            isOwner: false,
+            type: "llm",
+            llmConfig: {
+                modelName: payload.modelName,
+                systemPrompt: payload.systemPrompt || "你是一个聪明的游戏玩家",
+                temperature: payload.temperature ?? 0.7,
+                memory: "",
+            },
         };
 
-        await this.doState.storage.put("gameConfig", this.gameConfig);
-        this.broadcastLobbyUpdate();
+        await this.persist("players");
+        this.broadcastSyncState();
     }
 
-    // ==========================================
-    // Game Lifecycle Handlers
-    // ==========================================
+    private async handleAdminRemovePlayer(
+        userId: string,
+        targetUserId: string,
+    ): Promise<void> {
+        if (!this.requireOwner(userId)) return;
 
-    async handleGameStart(player: Player, payload?: {
-        gameWorkerUrl?: string;
-        roleMapping?: Record<string, string>;
-    }) {
-        if (!player.isOwner) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Only owner can start game" }));
-            return;
+        if (targetUserId === this.ownerId) {
+            return this.sendErrorToUser(userId, "Cannot remove the room owner");
         }
 
-        if (this.phase !== 'lobby') {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Game already started" }));
-            return;
+        if (!this.players[targetUserId]) {
+            return this.sendErrorToUser(userId, "Player not found");
         }
 
-        // Accept gameWorkerUrl from payload (frontend sends it)
-        if (payload?.gameWorkerUrl) {
-            this.gameConfig = {
-                maxPlayers: 2,
-                ...(this.gameConfig || {}),
-                gameWorkerUrl: payload.gameWorkerUrl,
-            };
-            await this.doState.storage.put("gameConfig", this.gameConfig);
+        // Remove from role mapping
+        for (const [rId, uId] of Object.entries(this.roleMapping)) {
+            if (uId === targetUserId) {
+                delete this.roleMapping[rId];
+            }
         }
 
-        // Accept roleMapping from payload (frontend sends it)
-        if (payload?.roleMapping) {
-            this.roleMapping = payload.roleMapping;
-            await this.doState.storage.put("roleMapping", this.roleMapping);
+        // Remove from players
+        delete this.players[targetUserId];
+
+        // Kick if connected
+        const targetWs = this.sessions.get(targetUserId);
+        if (targetWs) {
+            this.sendMessage(targetWs, { type: "KICKED", payload: "Removed by room owner" });
+            try {
+                targetWs.close(1000, "Kicked");
+            } catch (_) { /* ignore */ }
+            this.connections.delete(targetWs);
+            this.sessions.delete(targetUserId);
         }
 
-        if (!this.gameConfig?.gameWorkerUrl) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "No game configured. Send gameWorkerUrl." }));
-            return;
+        await this.persist("players", "roleMapping");
+        this.broadcastSyncState();
+    }
+
+    private async handleAdminAssignRole(
+        userId: string,
+        payload: { roleId: string; userId: string },
+    ): Promise<void> {
+        if (!this.requireOwner(userId)) return;
+        if (this.phase !== "lobby") {
+            return this.sendErrorToUser(userId, "Can only assign roles in lobby phase");
         }
 
-        // Call Game Worker /init
+        if (!this.players[payload.userId]) {
+            return this.sendErrorToUser(userId, `Player ${payload.userId} not found`);
+        }
+
+        if (this.gameConfig && !this.gameConfig.roleIds.includes(payload.roleId)) {
+            return this.sendErrorToUser(userId, `Invalid role: ${payload.roleId}`);
+        }
+
+        // Remove the target user from any existing role
+        for (const [rId, uId] of Object.entries(this.roleMapping)) {
+            if (uId === payload.userId) {
+                delete this.roleMapping[rId];
+            }
+        }
+
+        // Remove anyone else from this role
+        delete this.roleMapping[payload.roleId];
+
+        // Assign
+        this.roleMapping[payload.roleId] = payload.userId;
+
+        await this.persist("roleMapping");
+        this.broadcastSyncState();
+    }
+
+    private async handleAdminStartGame(userId: string): Promise<void> {
+        if (!this.requireOwner(userId)) return;
+        if (this.phase !== "lobby" && this.phase !== "finished") {
+            return this.sendErrorToUser(userId, "Game cannot be started in current phase");
+        }
+        if (!this.gameConfig) {
+            return this.sendErrorToUser(userId, "No game selected");
+        }
+
+        // Validate all roles assigned
+        const missingRoles = this.gameConfig.roleIds.filter(
+            (rId) => !this.roleMapping[rId],
+        );
+        if (missingRoles.length > 0) {
+            return this.sendErrorToUser(
+                userId,
+                `Missing role assignments: ${missingRoles.join(", ")}`,
+            );
+        }
+
         try {
-            const baseUrl = this.gameConfig.gameWorkerUrl.replace(/\/$/, "");
-            const players = Object.keys(this.roleMapping);
-
-            if (players.length === 0) {
-                player.ws?.send(JSON.stringify({ type: "ERROR", payload: "No roles assigned" }));
-                return;
+            // Clear LLM memory
+            for (const player of Object.values(this.players)) {
+                if (player.type === "llm" && player.llmConfig) {
+                    player.llmConfig.memory = "";
+                }
             }
 
-            const initRes = await fetch(`${baseUrl}/init`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ players, ...this.gameConfig }),
-            });
-
-            if (!initRes.ok) {
-                throw new Error(`Game Worker init failed: ${initRes.status}`);
-            }
-
-            this.gameState = await initRes.json();
-            this.history = [];
-            this.phase = 'playing';
-
-            await this.doState.storage.put("gameState", this.gameState);
-            await this.doState.storage.put("history", this.history);
-            await this.doState.storage.put("phase", this.phase);
-
-            // Broadcast game started + lobby update with new phase + initial perspectives
-            this.broadcastToAll({ type: "GAME_STARTED", payload: { roleMapping: this.roleMapping } });
-            this.broadcastLobbyUpdate();
-            await this.broadcastGameState();
-
-        } catch (e: any) {
-            console.error("[GameDO] Game start failed:", e);
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: `Failed to start game: ${e.message}` }));
-        }
-    }
-
-    async handleGameStop(player: Player) {
-        if (!player.isOwner) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Only owner can stop game" }));
-            return;
-        }
-
-        this.phase = 'lobby';
-        this.gameState = null;
-        this.history = [];
-
-        await this.doState.storage.put("phase", this.phase);
-        await this.doState.storage.delete("gameState");
-        await this.doState.storage.put("history", []);
-
-        this.broadcastToAll({ type: "GAME_STOPPED", payload: {} });
-        this.broadcastLobbyUpdate();
-    }
-
-    async handleGameRestart(player: Player) {
-        if (!player.isOwner) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Only owner can restart game" }));
-            return;
-        }
-
-        if (!this.gameConfig?.gameWorkerUrl) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "No game configured" }));
-            return;
-        }
-
-        // Re-init game
-        try {
+            // Initialize game state via Game Worker
             const baseUrl = this.gameConfig.gameWorkerUrl.replace(/\/$/, "");
-            const players = Object.keys(this.roleMapping);
-
             const initRes = await fetch(`${baseUrl}/init`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ players, ...this.gameConfig }),
-            });
-
-            if (!initRes.ok) throw new Error("Game Worker init failed");
-            this.gameState = await initRes.json();
-            this.history = [];
-            this.phase = 'playing';
-
-            await this.doState.storage.put("gameState", this.gameState);
-            await this.doState.storage.put("history", this.history);
-            await this.doState.storage.put("phase", this.phase);
-
-            this.broadcastToAll({ type: "GAME_RESTARTED", payload: { roleMapping: this.roleMapping } });
-            await this.broadcastGameState();
-
-        } catch (e: any) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: `Failed to restart: ${e.message}` }));
-        }
-    }
-
-    // ==========================================
-    // Game Action Handler
-    // ==========================================
-
-    async handleAction(player: Player, actionPayload: any) {
-        if (this.phase !== 'playing') {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Game not in progress" }));
-            return;
-        }
-
-        if (!this.gameConfig || !this.gameState) return;
-
-        try {
-            const baseUrl = this.gameConfig.gameWorkerUrl.replace(/\/$/, "");
-
-            const res = await fetch(`${baseUrl}/act`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    state: this.gameState,
-                    action: actionPayload,
-                    roleId: this.getRoleForUser(player.userId),
+                    players: Object.keys(this.roleMapping),
                 }),
             });
 
-            if (!res.ok) {
-                const err = await res.json() as any;
-                player.ws?.send(JSON.stringify({ type: "ERROR", payload: err.error || err.message || "Action failed" }));
-                return;
+            if (!initRes.ok) {
+                const errText = await initRes.text();
+                return this.sendErrorToUser(
+                    userId,
+                    `Game Worker init failed: ${errText}`,
+                );
             }
 
-            const result = await res.json() as any;
-            if (!result.success) {
-                player.ws?.send(JSON.stringify({ type: "ERROR", payload: result.error }));
-                return;
+            this.gameState = await initRes.json();
+            this.history = [];
+            this.phase = "playing";
+
+            await this.persistAll();
+            this.broadcastSyncState();
+
+            // Check if first turn is LLM
+            this.ctx.waitUntil(this.checkAndTriggerNextTurn());
+        } catch (e) {
+            console.error("[GameDO] Failed to start game:", e);
+            this.sendErrorToUser(userId, "Failed to start game");
+        }
+    }
+
+    private async handleAdminStopGame(userId: string): Promise<void> {
+        if (!this.requireOwner(userId)) return;
+        if (this.phase === "lobby") {
+            return this.sendErrorToUser(userId, "Game has not started");
+        }
+
+        this.phase = "lobby";
+        this.gameState = null;
+        this.history = [];
+        // Keep gameConfig, players, roleMapping
+
+        await this.persist("phase", "gameState", "history");
+        this.broadcastSyncState();
+    }
+
+    private async handleAdminRestartGame(userId: string): Promise<void> {
+        if (!this.requireOwner(userId)) return;
+        if (this.phase !== "playing" && this.phase !== "finished") {
+            return this.sendErrorToUser(userId, "Nothing to restart");
+        }
+        if (!this.gameConfig) {
+            return this.sendErrorToUser(userId, "No game selected");
+        }
+
+        try {
+            // Clear LLM memory
+            for (const player of Object.values(this.players)) {
+                if (player.type === "llm" && player.llmConfig) {
+                    player.llmConfig.memory = "";
+                }
             }
 
-            // Update state
-            const actorRole = this.getRoleForUser(player.userId);
-            const previousState = this.gameState;
-            this.gameState = result.nextState;
-
-            // Record history
-            this.history.push({
-                turn: (previousState as any).turn || 0,
-                role_id: actorRole,
-                action: actionPayload,
-                timestamp: new Date().toISOString(),
-                description: `${player.displayName} (${actorRole}) performed ${actionPayload.action_id}`
+            // Re-initialize game state
+            const baseUrl = this.gameConfig.gameWorkerUrl.replace(/\/$/, "");
+            const initRes = await fetch(`${baseUrl}/init`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    players: Object.keys(this.roleMapping),
+                }),
             });
 
-            await this.doState.storage.put("gameState", this.gameState);
-            await this.doState.storage.put("history", this.history);
+            if (!initRes.ok) {
+                return this.sendErrorToUser(userId, "Game Worker init failed on restart");
+            }
 
-            // Broadcast updated perspectives
-            await this.broadcastGameState();
+            this.gameState = await initRes.json();
+            this.history = [];
+            this.phase = "playing";
 
-        } catch (e: any) {
-            player.ws?.send(JSON.stringify({ type: "ERROR", payload: "Game Worker Error: " + e.message }));
+            await this.persistAll();
+            this.broadcastSyncState();
+
+            this.ctx.waitUntil(this.checkAndTriggerNextTurn());
+        } catch (e) {
+            console.error("[GameDO] Failed to restart game:", e);
+            this.sendErrorToUser(userId, "Failed to restart game");
         }
     }
 
-    // ==========================================
-    // Broadcasting
-    // ==========================================
+    private async handleAdminPauseGame(userId: string): Promise<void> {
+        if (!this.requireOwner(userId)) return;
+        if (this.phase !== "playing") {
+            return this.sendErrorToUser(userId, "Game is not playing");
+        }
+        // We model pause as "finished" for simplicity (no actions allowed)
+        // The owner can resume by restarting or we can add a "paused" phase
+        this.phase = "finished";
+        await this.persist("phase");
+        this.broadcastSyncState();
+    }
 
-    /**
-     * Send a message to all connected WebSockets
-     */
-    broadcastToAll(message: any) {
-        const msg = JSON.stringify(message);
-        for (const player of this.connections.values()) {
+    private async handleAdminResumeGame(userId: string): Promise<void> {
+        if (!this.requireOwner(userId)) return;
+        if (this.phase !== "finished") {
+            return this.sendErrorToUser(userId, "Game is not paused/finished");
+        }
+        if (!this.gameState) {
+            return this.sendErrorToUser(userId, "No game state to resume");
+        }
+        this.phase = "playing";
+        await this.persist("phase");
+        this.broadcastSyncState();
+
+        this.ctx.waitUntil(this.checkAndTriggerNextTurn());
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // Game Action Handler
+    // ═════════════════════════════════════════════════════════
+
+    private async handleAction(
+        userId: string,
+        payload: { actionId: string; params?: Record<string, any> },
+    ): Promise<void> {
+        if (this.phase !== "playing") {
+            return this.sendErrorToUser(userId, "Game is not in playing phase");
+        }
+        if (!this.gameConfig || !this.gameState) {
+            return this.sendErrorToUser(userId, "Game not initialized");
+        }
+
+        // Find role for this user
+        const roleId = getRoleForUser(this.roleMapping, userId);
+        if (!roleId) {
+            return this.sendErrorToUser(userId, "You don't have a role assigned");
+        }
+
+        // Verify it's this player's turn
+        const currentRoleId = await this.getCurrentRole();
+        if (currentRoleId !== roleId) {
+            return this.sendErrorToUser(userId, "Not your turn");
+        }
+
+        // Submit to Game Worker
+        const result = await this.submitActionToGameWorker(roleId, {
+            actionId: payload.actionId,
+            params: payload.params || {},
+        });
+
+        if (!result.success) {
+            return this.sendErrorToUser(userId, result.error || "Action rejected");
+        }
+
+        // Update state
+        this.gameState = result.nextState;
+        this.history.push({
+            turn: this.history.length + 1,
+            roleId,
+            action: { actionId: payload.actionId, params: payload.params || {} },
+            timestamp: Date.now(),
+        });
+
+        // Check terminal
+        const terminal = await this.isTerminal();
+        if (terminal) {
+            this.phase = "finished";
+        }
+
+        await this.persist("gameState", "history", "phase");
+        this.broadcastSyncState();
+
+        // Check next turn for LLM
+        if (!terminal) {
+            this.ctx.waitUntil(this.checkAndTriggerNextTurn());
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // Game Worker RPC
+    // ═════════════════════════════════════════════════════════
+
+    private getGameWorkerBaseUrl(): string {
+        return this.gameConfig!.gameWorkerUrl.replace(/\/$/, "");
+    }
+
+    private async getCurrentRole(): Promise<string | null> {
+        if (!this.gameState || !this.gameConfig) return null;
+        try {
+            const res = await fetch(`${this.getGameWorkerBaseUrl()}/current-role`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ state: this.gameState }),
+            });
+            if (!res.ok) return null;
+            const data = await res.json() as any;
+            return data.roleId || data.role_id || data;
+        } catch (e) {
+            console.error("[GameDO] getCurrentRole failed:", e);
+            return null;
+        }
+    }
+
+    private async isTerminal(): Promise<boolean> {
+        if (!this.gameState || !this.gameConfig) return false;
+        try {
+            const res = await fetch(`${this.getGameWorkerBaseUrl()}/is-terminal`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ state: this.gameState }),
+            });
+            if (!res.ok) return false;
+            const data = await res.json() as any;
+            return data === true || data.terminal === true || data.isTerminal === true;
+        } catch (e) {
+            console.error("[GameDO] isTerminal failed:", e);
+            return false;
+        }
+    }
+
+    private async submitActionToGameWorker(
+        roleId: string,
+        action: { actionId: string; params: Record<string, any> },
+    ): Promise<{ success: boolean; nextState?: any; error?: string }> {
+        try {
+            const body: GameWorkerActionRequest = {
+                state: this.gameState,
+                action: {
+                    action_id: action.actionId,
+                    params: action.params,
+                    role_id: roleId,
+                },
+            };
+
+            const res = await fetch(`${this.getGameWorkerBaseUrl()}/action`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+
+            const data = (await res.json()) as GameWorkerActionResponse;
+            return {
+                success: data.success,
+                nextState: data.nextState,
+                error: data.error,
+            };
+        } catch (e) {
+            console.error("[GameDO] submitAction failed:", e);
+            return { success: false, error: "Game Worker unreachable" };
+        }
+    }
+
+    private async fetchPerspective(roleId: string): Promise<any | null> {
+        if (!this.gameState || !this.gameConfig) return null;
+        try {
+            const diffHistory = this.calculateDiffHistory(roleId);
+            const body: GameWorkerPerspectiveRequest = {
+                state: this.gameState,
+                roleId,
+                wholeHistory: this.history,
+                diffHistory,
+            };
+
+            const res = await fetch(`${this.getGameWorkerBaseUrl()}/perspective`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+
+            if (!res.ok) return null;
+            return await res.json();
+        } catch (e) {
+            console.error("[GameDO] fetchPerspective failed:", e);
+            return null;
+        }
+    }
+
+    private calculateDiffHistory(roleId: string): HistoryEvent[] {
+        const lastIndex = this.history.findLastIndex((e) => e.roleId === roleId);
+        if (lastIndex === -1) return [...this.history];
+        return this.history.slice(lastIndex);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // LLM Webhook Integration
+    // ═════════════════════════════════════════════════════════
+
+    private async checkAndTriggerNextTurn(): Promise<void> {
+        if (this.phase !== "playing" || !this.gameState) return;
+
+        const currentRoleId = await this.getCurrentRole();
+        if (!currentRoleId) return;
+
+        const userId = this.roleMapping[currentRoleId];
+        if (!userId) return;
+
+        if (isLlmUserId(userId)) {
+            await this.callLlmWebhook(currentRoleId);
+        }
+    }
+
+    private async callLlmWebhook(roleId: string): Promise<void> {
+        const userId = this.roleMapping[roleId];
+        const player = this.players[userId];
+        if (!player?.llmConfig || !this.llmWebhookUrl || !this.gameConfig) return;
+
+        const maxAttempts = 3;
+        let previousError: string | undefined;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                player.ws?.send(msg);
+                // 1. Get perspective
+                const perspective = await this.fetchPerspective(roleId);
+                if (!perspective) {
+                    previousError = "Failed to generate perspective";
+                    await this.sleep(Math.pow(2, attempt - 1) * 500);
+                    continue;
+                }
+
+                // 2. Call Backend LLM webhook
+                const webhookBody: LlmWebhookRequest = {
+                    roomId: this.roomId,
+                    roleId,
+                    gameId: this.gameConfig.gameId,
+                    perspective,
+                    llmConfig: player.llmConfig,
+                    attempt,
+                    maxAttempts,
+                    previousError,
+                };
+
+                const headers: Record<string, string> = {
+                    "Content-Type": "application/json",
+                };
+                if (this.env.LLM_WEBHOOK_SECRET) {
+                    headers["X-Engine-Secret"] = this.env.LLM_WEBHOOK_SECRET;
+                }
+
+                const resp = await fetch(this.llmWebhookUrl, {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify(webhookBody),
+                });
+
+                if (!resp.ok) {
+                    previousError = `Webhook HTTP ${resp.status}: ${await resp.text()}`;
+                    console.error(`[GameDO] LLM webhook failed (attempt ${attempt}):`, previousError);
+                    await this.sleep(Math.pow(2, attempt - 1) * 500);
+                    continue;
+                }
+
+                const result = (await resp.json()) as LlmWebhookResponse;
+
+                // 3. Submit action to Game Worker
+                const actResult = await this.submitActionToGameWorker(roleId, {
+                    actionId: result.action.actionId,
+                    params: result.action.params,
+                });
+
+                if (!actResult.success) {
+                    previousError = actResult.error || "Action rejected by game";
+                    console.warn(
+                        `[GameDO] LLM action rejected (attempt ${attempt}):`,
+                        previousError,
+                    );
+                    await this.sleep(Math.pow(2, attempt - 1) * 500);
+                    continue;
+                }
+
+                // 4. Update state
+                this.gameState = actResult.nextState;
+                this.history.push({
+                    turn: this.history.length + 1,
+                    roleId,
+                    action: {
+                        actionId: result.action.actionId,
+                        params: result.action.params,
+                    },
+                    timestamp: Date.now(),
+                });
+
+                // 5. Update LLM memory
+                if (result.memoryUpdate && player.llmConfig) {
+                    player.llmConfig.memory = this.applyMemoryUpdate(
+                        player.llmConfig.memory,
+                        result.memoryUpdate,
+                    );
+                }
+
+                // 6. Check terminal
+                const terminal = await this.isTerminal();
+                if (terminal) {
+                    this.phase = "finished";
+                }
+
+                await this.persistAll();
+                this.broadcastSyncState();
+
+                console.log(
+                    `[GameDO] LLM turn complete. Role: ${roleId}, Action: ${result.action.actionId}`,
+                );
+
+                // 7. Check next turn (delay to avoid tight loop)
+                if (!terminal) {
+                    await this.sleep(200);
+                    await this.checkAndTriggerNextTurn();
+                }
+                return;
             } catch (e) {
-                // Ignore send errors on stale connections
+                console.error(`[GameDO] LLM webhook error (attempt ${attempt}):`, e);
+                previousError = `Exception: ${e}`;
+                await this.sleep(Math.pow(2, attempt - 1) * 500);
             }
         }
+
+        console.error(
+            `[GameDO] LLM webhook exhausted all ${maxAttempts} attempts for role ${roleId}`,
+        );
     }
 
-    /**
-     * Send full current state to a single client
-     */
-    sendFullState(ws: WebSocket, player: Player) {
-        if (this.phase === 'lobby') {
-            ws.send(JSON.stringify({
-                type: "LOBBY_STATE",
-                payload: this.buildLobbyPayload(player),
-            }));
-        } else if (this.phase === 'playing' || this.phase === 'finished') {
-            // Send lobby info + game state
-            ws.send(JSON.stringify({
-                type: "LOBBY_STATE",
-                payload: this.buildLobbyPayload(player),
-            }));
-            // Game perspective will be sent after
-            this.sendGamePerspective(ws, player);
+    private applyMemoryUpdate(
+        currentMemory: string,
+        update: { mode: "append" | "replace"; content: string },
+    ): string {
+        if (update.mode === "replace") return update.content;
+        return currentMemory
+            ? `${currentMemory}\n${update.content}`
+            : update.content;
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // Broadcasting — SYNC_STATE
+    // ═════════════════════════════════════════════════════════
+
+    private broadcastSyncState(): void {
+        for (const [ws, userId] of this.connections.entries()) {
+            this.sendSyncState(ws, userId);
         }
     }
 
-    /**
-     * Build lobby state payload
-     */
-    buildLobbyPayload(forPlayer: Player) {
-        // Build connected status map
-        const connectedUsers = new Set<string>();
-        for (const p of this.connections.values()) {
-            connectedUsers.add(p.userId);
+    private async sendSyncState(ws: WebSocket, userId: string): Promise<void> {
+        const engineState = this.buildClientEngineState(userId);
+
+        // Get game perspective for this user's role
+        let gamePerspective: any | null = null;
+        if (this.phase === "playing" || this.phase === "finished") {
+            const roleId = getRoleForUser(this.roleMapping, userId) || "spectator";
+            gamePerspective = await this.fetchPerspective(roleId);
         }
 
-        const players: Record<string, any> = {};
-        for (const [userId, info] of Object.entries(this.lobbyPlayers)) {
-            players[userId] = {
-                ...info,
-                connected: connectedUsers.has(userId),
-                isOwner: userId === this.ownerId,
-                role: this.getRoleForUser(userId),
+        const msg: ServerMessage = {
+            type: "SYNC_STATE",
+            payload: {
+                engine: engineState,
+                game: gamePerspective,
+            },
+        };
+
+        this.sendMessage(ws, msg);
+    }
+
+    private buildClientEngineState(forUserId: string): ClientEngineState {
+        const clientPlayers: Record<string, ClientPlayerInfo> = {};
+        for (const [uid, player] of Object.entries(this.players)) {
+            clientPlayers[uid] = {
+                displayName: player.displayName,
+                connected: player.connected,
+                isOwner: player.isOwner,
+                type: player.type,
+                role: getRoleForUser(this.roleMapping, uid),
             };
         }
 
         return {
-            ownerId: this.ownerId,
+            roomId: this.roomId,
             phase: this.phase,
-            players,
-            roleMapping: this.roleMapping,
-            hasGameConfig: !!this.gameConfig,
+            players: clientPlayers,
+            gameConfig: this.gameConfig
+                ? {
+                    gameId: this.gameConfig.gameId,
+                    maxPlayers: this.gameConfig.maxPlayers,
+                    roleIds: this.gameConfig.roleIds,
+                }
+                : null,
             you: {
-                userId: forPlayer.userId,
-                isOwner: forPlayer.isOwner,
-                role: this.getRoleForUser(forPlayer.userId),
+                userId: forUserId,
+                isOwner: forUserId === this.ownerId,
+                role: getRoleForUser(this.roleMapping, forUserId),
             },
         };
     }
 
-    /**
-     * Broadcast lobby update to all connected clients
-     */
-    broadcastLobbyUpdate() {
-        for (const [ws, player] of this.connections) {
-            try {
-                ws.send(JSON.stringify({
-                    type: "LOBBY_UPDATE",
-                    payload: this.buildLobbyPayload(player),
-                }));
-            } catch (e) {
-                // Ignore
-            }
-        }
-    }
+    // ═════════════════════════════════════════════════════════
+    // WebSocket Utilities
+    // ═════════════════════════════════════════════════════════
 
-    /**
-     * Broadcast game perspectives to all connected players
-     */
-    async broadcastGameState() {
-        if (!this.gameConfig || !this.gameState) return;
-
-        // Group by role to minimize Game Worker calls
-        const roleGroups = new Map<string, WebSocket[]>();
-        for (const player of this.connections.values()) {
-            if (!player.ws) continue;
-            const role = this.getRoleForUser(player.userId) || 'spectator';
-            if (!roleGroups.has(role)) {
-                roleGroups.set(role, []);
-            }
-            roleGroups.get(role)!.push(player.ws);
-        }
-
-        const baseUrl = this.gameConfig.gameWorkerUrl.replace(/\/$/, "");
-
-        for (const [roleId, sockets] of roleGroups.entries()) {
-            try {
-                const res = await fetch(`${baseUrl}/perspective`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        state: this.gameState,
-                        roleId,
-                        wholeHistory: this.history,
-                        diffHistory: [],
-                    }),
-                });
-
-                if (!res.ok) {
-                    console.error(`[GameDO] Perspective fetch failed for ${roleId}`);
-                    continue;
-                }
-
-                const perspective = await res.json();
-                const msg = JSON.stringify({
-                    type: "STATE_UPDATE",
-                    payload: perspective,
-                });
-
-                for (const ws of sockets) {
-                    ws.send(msg);
-                }
-            } catch (e) {
-                console.error(`[GameDO] Error broadcasting to ${roleId}:`, e);
-            }
-        }
-    }
-
-    /**
-     * Send game perspective to a single client
-     */
-    async sendGamePerspective(ws: WebSocket, player: Player) {
-        if (!this.gameState || !this.gameConfig) return;
-
+    private sendMessage(ws: WebSocket, msg: ServerMessage): void {
         try {
-            const baseUrl = this.gameConfig.gameWorkerUrl.replace(/\/$/, "");
-            const res = await fetch(`${baseUrl}/perspective`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    state: this.gameState,
-                    roleId: this.getRoleForUser(player.userId) || 'spectator',
-                    wholeHistory: this.history,
-                    diffHistory: [],
-                }),
-            });
-
-            if (res.ok) {
-                const perspective = await res.json();
-                ws.send(JSON.stringify({
-                    type: "STATE_UPDATE",
-                    payload: perspective,
-                }));
-            }
+            ws.send(JSON.stringify(msg));
         } catch (e) {
-            console.error("[GameDO] Failed to send perspective:", e);
+            console.error("[GameDO] Failed to send message:", e);
         }
     }
 
-    // ==========================================
-    // Persistence
-    // ==========================================
+    private sendError(ws: WebSocket, message: string): void {
+        this.sendMessage(ws, { type: "ERROR", payload: message });
+    }
 
-    async persistAll() {
-        await this.doState.storage.put("ownerId", this.ownerId);
-        await this.doState.storage.put("phase", this.phase);
-        await this.doState.storage.put("lobbyPlayers", this.lobbyPlayers);
-        await this.doState.storage.put("roleMapping", this.roleMapping);
-        await this.doState.storage.put("gameConfig", this.gameConfig);
-        await this.doState.storage.put("gameState", this.gameState);
-        await this.doState.storage.put("history", this.history);
+    private sendErrorToUser(userId: string, message: string): void {
+        const ws = this.sessions.get(userId);
+        if (ws) {
+            this.sendError(ws, message);
+        }
+    }
+
+    private sleep(ms: number): Promise<void> {
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 }
