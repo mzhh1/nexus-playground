@@ -445,7 +445,7 @@ const Room: React.FC = () => {
           width: '100%'
         }}>
           {/* Header - 只在开放状态显示，游戏中的头像已在控制栏 */}
-          {error && <div className="error-message">{error}</div>}
+          {engineError && <div className="error-message">{engineError}</div>}
 
           {/* ========== OPEN PHASE ========== */}
           {isOpen && (
