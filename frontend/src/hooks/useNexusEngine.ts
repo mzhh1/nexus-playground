@@ -10,15 +10,14 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useGameAPI } from '../lib/api-client';
+import { Player } from '../lib/types';
 
 // ─── Types matching Engine's ClientEngineState ───────────────
 
-export interface ClientPlayerInfo {
-    displayName: string;
-    connected: boolean;
+export interface ClientPlayerInfo extends Player {
     isOwner: boolean;
-    type: 'human' | 'llm';
     role: string | null;
+    connected: boolean;
 }
 
 export interface ClientEngineState {
@@ -169,12 +168,20 @@ export function useNexusEngine({ roomId }: UseNexusEngineProps) {
     }, [send]);
 
     const addBot = useCallback((config: {
-        displayName: string;
-        modelName: string;
-        systemPrompt?: string;
+        display_name: string;
+        model_name: string;
+        system_prompt?: string;
         temperature?: number;
     }) => {
-        send('ADMIN_ADD_BOT', config);
+        // Map to Engine's expected camelCase if necessary, 
+        // but the Engine DO currently expects exactly what it gets.
+        // Let's keep it consistent with the protocol defined in game-do.ts
+        send('ADMIN_ADD_BOT', {
+            displayName: config.display_name,
+            modelName: config.model_name,
+            systemPrompt: config.system_prompt,
+            temperature: config.temperature
+        });
     }, [send]);
 
     const removePlayer = useCallback((userId: string) => {

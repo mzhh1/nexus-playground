@@ -35,19 +35,28 @@ const Room: React.FC = () => {
   const [isCopied, setIsCopied] = useState(false);
 
   // Hooks
-  const { room, loading, error, fetchRoom, joinRoom, addPlayer, removePlayer, pauseGame, resumeGame, stopGame, restartGame, selectGame, updateRoleMapping } = useRoom(roomId);
+  const { room, loading, error, fetchRoom } = useRoom();
   const { games: AVAILABLE_GAMES, loading: metadataLoading } = useGamesMetadata();
 
   // Nexus Engine WebSocket connection (handles both lobby and game state)
   const {
+    engineState,
     gameState: perspective,
     isConnected: isEngineConnected,
     sendAction: sendEngineAction,
-    lobbyState,
     error: engineError,
+    setGame,
+    addBot,
+    removePlayer: engineRemovePlayer,
+    assignRole,
     startGame: engineStartGame,
     stopGame: engineStopGame,
     restartGame: engineRestartGame,
+    pauseGame: enginePauseGame,
+    resumeGame: engineResumeGame,
+    isOwner: isOwnerEngine,
+    myRole: myRoleEngine,
+    myUserId: myUserIdEngine,
   } = useNexusEngine({ roomId });
 
   const submitting = false; // Actions are async via WebSocket now
@@ -88,49 +97,33 @@ const Room: React.FC = () => {
   // Fetch room info when roomId is set
   useEffect(() => {
     if (roomId) {
-      fetchRoom();
+      fetchRoom(roomId);
     }
-  }, [roomId]);
+  }, [roomId, fetchRoom]);
 
-  // Determine current role and player ID
+  // Determine current role and player ID from Engine State or Backend Fallback
   useEffect(() => {
+    if (myRoleEngine) {
+      setCurrentRoleId(myRoleEngine);
+      setPlayerId(myUserIdEngine);
+      return;
+    }
+
     if (!room) return;
 
-    // Check if we're already in the room
+    // Fallback to backend data before Engine connects
     const myPlayerId = user?.id ? Object.entries(room.player_list).find(
       ([_, player]) => player.type === 'human' && player.uid === user.id
     )?.[0] : undefined;
 
     if (myPlayerId) {
       setPlayerId(myPlayerId);
-
-      // Find role assigned to this player
-      const roleId = Object.entries(room.role_mapping).find(
-        ([_, pid]) => pid === myPlayerId
-      )?.[0];
-
-      if (roleId) {
-        setCurrentRoleId(roleId);
-      } else {
-        // Player is in the room but not assigned a role - use spectator mode
-        // Use the spectator role ID from environment variable
-        const spectatorRoleId = import.meta.env.VITE_SPECTATOR_ROLE_ID || 'spectator';
-        setCurrentRoleId(spectatorRoleId);
-      }
+      const roleId = Object.entries(room.role_mapping).find(([_, pid]) => pid === myPlayerId)?.[0];
+      setCurrentRoleId(roleId || import.meta.env.VITE_SPECTATOR_ROLE_ID || 'spectator');
     } else {
-      // User is not in the player list -> Spectator
-      setPlayerId(null);
-      const spectatorRoleId = import.meta.env.VITE_SPECTATOR_ROLE_ID || 'spectator';
-      setCurrentRoleId(spectatorRoleId);
+      setCurrentRoleId(import.meta.env.VITE_SPECTATOR_ROLE_ID || 'spectator');
     }
-  }, [room, user?.id]);
-
-  // Sync role mapping with room
-  useEffect(() => {
-    if (room?.role_mapping) {
-      setRoleMapping(room.role_mapping);
-    }
-  }, [room?.role_mapping]);
+  }, [room, user?.id, myRoleEngine, myUserIdEngine]);
 
   // Sync selected player count with room
   useEffect(() => {
@@ -139,8 +132,25 @@ const Room: React.FC = () => {
     }
   }, [room?.selected_player_count]);
 
+  const currentPlayers = useMemo(() => {
+    if (engineState?.players) return engineState.players;
+    return room?.player_list || {};
+  }, [engineState?.players, room?.player_list]);
+
+  const effectiveRoleMapping = useMemo(() => {
+    if (engineState?.players) {
+      const mapping: RoleMapping = {};
+      Object.entries(engineState.players).forEach(([userId, info]) => {
+        if (info.role) mapping[info.role] = userId;
+      });
+      return mapping;
+    }
+    return room?.role_mapping || {};
+  }, [engineState?.players, room?.role_mapping]);
+
   useEffect(() => {
-    if (room?.room_status !== 'open') {
+    const currentPhase = engineState?.phase || room?.room_status;
+    if (currentPhase !== 'open' && currentPhase !== 'lobby') {
       return;
     }
 
@@ -149,58 +159,33 @@ const Room: React.FC = () => {
     } else {
       setSelectedGameId('');
     }
-  }, [room?.game_id, room?.room_status]);
+  }, [room?.game_id, room?.room_status, engineState?.phase]);
 
 
   // ========== Event Handlers ==========
 
   const handleSelectGame = async () => {
     if (!selectedGameId) return;
-    if (room?.game_id === selectedGameId) return;
+
+    // Find the game metadata to get the worker URL
+    const meta = AVAILABLE_GAMES.find(g => g.id === selectedGameId);
+    if (!meta || !meta.workerUrl) {
+      console.error('No worker URL for game:', selectedGameId);
+      return;
+    }
 
     try {
-      await selectGame(selectedGameId);
+      setGame(selectedGameId, meta.workerUrl);
     } catch (err) {
       console.error('Failed to select game:', err);
-      if (room?.game_id) {
-        setSelectedGameId(room.game_id);
-      } else {
-        setSelectedGameId('');
-      }
     }
   };
 
   const handleAddSelf = async () => {
-    if (!user) {
-      alert('请先登录后再加入房间。');
-      return;
-    }
-
-    const displayName = accountDisplayName;
-    if (!displayName) {
-      alert('无法获取账号昵称，请稍后重试。');
-      return;
-    }
-
-    const alreadyInRoom = Object.values(room?.player_list ?? {}).some(
-      (player) => player.type === 'human' && player.uid === user.id
-    );
-    if (alreadyInRoom) {
-      alert('你已经在房间中。');
-      return;
-    }
-
-    try {
-      const result = await addPlayer({
-        player_type: 'human',
-        display_name: displayName,
-        uid: user.id,
-      });
-      if (result?.player_id) {
-        setPlayerId(result.player_id);
-      }
-    } catch (err) {
-      console.error('Failed to add self as human player:', err);
+    // In v4.0, human players are added automatically upon connecting to the Engine.
+    // This button is mostly for force-reconnecting or UI consistency.
+    if (!isEngineConnected) {
+      window.location.reload();
     }
   };
 
@@ -214,11 +199,11 @@ const Room: React.FC = () => {
       const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
       const uniqueName = `${template.name}_${randomSuffix}`;
 
-      await addPlayer({
-        player_type: 'llm',
+      addBot({
         display_name: uniqueName,
         model_name: template.model_name,
         system_prompt: template.system_prompt,
+        temperature: 0.7, // Default temperature
       });
       setIsLLMTemplateModalOpen(false);
     } catch (err) {
@@ -226,11 +211,11 @@ const Room: React.FC = () => {
     }
   };
 
-  const handleRemovePlayer = async (playerId: string) => {
+  const handleRemovePlayer = async (userId: string) => {
     if (!confirm('Remove this player?')) return;
 
     try {
-      await removePlayer(playerId);
+      engineRemovePlayer(userId);
     } catch (err) {
       console.error('Failed to remove player:', err);
     }
@@ -260,29 +245,24 @@ const Room: React.FC = () => {
   };
 
   const handlePlayerCountChange = async (count: number) => {
+    // In new engine, player count is often part of the game config or handled by the DO logic
+    // We'll update mapping to empty and rely on DO sync
     setSelectedPlayerCount(count);
-    // 清空角色映射（因为角色列表变了）
     setRoleMapping({});
-    // 房主选择时立即保存到服务器
-    if (isOwner) {
-      try {
-        await updateRoleMapping({}, count);
-      } catch (err) {
-        console.error('Failed to update player count:', err);
-      }
-    }
   };
 
   const handleRoleMappingChange = async (newMapping: RoleMapping) => {
+    // Sync each role change to the Engine
     setRoleMapping(newMapping);
-    // 房主编辑时立即保存到服务器
-    if (isOwner) {
-      try {
-        await updateRoleMapping(newMapping, effectivePlayerCount ?? undefined);
-      } catch (err) {
-        console.error('Failed to update role mapping:', err);
+    if (!isOwnerEngine) return;
+
+    Object.entries(newMapping).forEach(([roleId, userId]) => {
+      // Small check: only send update if it actually changed compared to engine state
+      const currentInEngine = engineState?.players[userId]?.role;
+      if (currentInEngine !== roleId) {
+        assignRole(roleId, userId);
       }
-    }
+    });
   };
 
   const handleRandomAssign = () => {
@@ -307,24 +287,8 @@ const Room: React.FC = () => {
   };
 
   const handleJoin = async () => {
-    if (!user) {
-      alert('请先登录后加入房间。');
-      return;
-    }
-
-    const displayName = accountDisplayName;
-    if (!displayName) {
-      alert('无法获取账号昵称，请稍后重试。');
-      return;
-    }
-
-    try {
-      const result = await joinRoom(displayName);
-      setPlayerId(result.player_id);
-      alert('加入成功！');
-    } catch (err) {
-      alert('加入房间失败');
-    }
+    // Human joining is handled by DO connection
+    alert('已通过 WebSocket 自动加入。');
   };
 
   const handleCopyRoomLink = async () => {
@@ -341,17 +305,13 @@ const Room: React.FC = () => {
   };
 
   const handlePlayPause = async () => {
-    if (!room) return;
+    if (!engineState) return;
 
     try {
-      if (room.room_status === 'playing') {
-        await pauseGame();
-      } else if (room.room_status === 'paused') {
-        if (room.resume_locked) {
-          alert('游戏已停止，无法继续进行');
-          return;
-        }
-        await resumeGame();
+      if (engineState.phase === 'playing') {
+        enginePauseGame();
+      } else {
+        engineResumeGame();
       }
     } catch (err) {
       console.error('Failed to toggle play/pause:', err);
@@ -374,17 +334,18 @@ const Room: React.FC = () => {
 
   // Compute all values that depend on room data
   const currentUserId = user?.id || null;
-  const isInRoom = playerId !== null;
-  const isOwner = room ? room.owner_uid === currentUserId : false;
-  // Use Engine lobbyState.phase as primary source of truth, fallback to backend room_status
-  const enginePhase = lobbyState?.phase;
-  const isOpen = enginePhase ? enginePhase === 'lobby' : (room ? room.room_status === 'open' : false);
-  const isPlaying = enginePhase ? enginePhase === 'playing' : (room ? room.room_status === 'playing' : false);
-  const isFinished = enginePhase === 'finished';
+  const isOwner = engineState?.you.isOwner ?? (room ? room.owner_uid === currentUserId : false);
+  const isInRoom = engineState ? true : (playerId !== null); // If connected to engine, we are in the room
+
+  // Use Engine engineState.phase as primary source of truth, fallback to backend room_status
+  const isOpen = engineState ? engineState.phase === 'lobby' : (room ? room.room_status === 'open' : false);
+  const isPlaying = engineState ? engineState.phase === 'playing' : (room ? room.room_status === 'playing' : false);
+  const isFinished = engineState ? engineState.phase === 'finished' : false;
   const canJoin = isOpen && !isInRoom && !isOwner;
+
   // 在开放阶段也显示控制栏（当有游戏选择时）
-  const shouldShowControlBar = room
-    ? isPlaying || isFinished || room.room_status === 'paused' || (room.game_id && (isOwner || isInRoom))
+  const shouldShowControlBar = engineState
+    ? isPlaying || isFinished || (engineState.gameConfig && (isOwner || isInRoom))
     : false;
 
   const baseContentPadding = isOpen ? 'var(--spacing-lg)' : 'var(--spacing-sm)';
@@ -398,7 +359,7 @@ const Room: React.FC = () => {
   // 根据 game_id 查找游戏名称
   const gameName = room && room.game_id ? getGameName(room.game_id, AVAILABLE_GAMES) : undefined;
 
-  const playerList = room ? Object.entries(room.player_list) : [];
+  const playerList = Object.entries(currentPlayers);
   const hasGameSelected = room ? !!room.game_id : false;
   const hasPlayers = playerList.length > 0;
   const accountAlreadyInRoom = user && room
@@ -491,8 +452,8 @@ const Room: React.FC = () => {
           isOwner={isOwner}
           gameName={gameName}
           statusText={controlBarStatusText}
-          roleMapping={roleMapping}
-          enginePhase={lobbyState?.phase}
+          roleMapping={effectiveRoleMapping}
+          enginePhase={engineState?.phase}
           onPlayPause={handlePlayPause}
           onStop={handleStop}
           onRestart={handleRestart}
@@ -613,7 +574,7 @@ const Room: React.FC = () => {
 
                         {/* Player List */}
                         <PlayerList
-                          players={room.player_list}
+                          players={currentPlayers as any}
                           canRemove={isOwner}
                           onRemove={handleRemovePlayer}
                           emptyMessage="请添加玩家以开始游戏"
@@ -647,9 +608,9 @@ const Room: React.FC = () => {
                             )}
                           </div>
                           <RoleMappingGraph
-                            playerList={room.player_list}
+                            playerList={currentPlayers as any}
                             roleIds={roleIds}
-                            mapping={roleMapping}
+                            mapping={effectiveRoleMapping}
                             onChange={handleRoleMappingChange}
                             readonly={!isOwner}
                           />
@@ -699,7 +660,7 @@ const Room: React.FC = () => {
                 perspective={perspective}
                 onAction={submitAction}
                 isMyTurn={perspective.your_role.is_current}
-                readonly={room.room_status !== 'playing' || submitting}
+                readonly={engineState?.phase !== 'playing' || submitting}
                 metadata={{
                   roomId: room.room_id,
                   roleId: currentRoleId,
@@ -713,7 +674,7 @@ const Room: React.FC = () => {
           {/* Fallback: Status Display */}
           {!isOpen && (!room.game_id || !perspective || !currentRoleId) && (
             <div className="card">
-              <h2>房间状态: {room.room_status}</h2>
+              <h2>房间状态: {engineState?.phase || room.room_status}</h2>
               <p>游戏ID: {room.game_id || '无'}</p>
               <p>玩家数: {playerList.length}</p>
             </div>
