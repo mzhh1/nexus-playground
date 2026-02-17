@@ -22,6 +22,8 @@ export interface ClientPlayerInfo extends Player {
 
 export interface ClientEngineState {
     roomId: string;
+    ownerId: string;
+    ownerDisplayName: string;
     phase: 'lobby' | 'playing' | 'finished';
     players: Record<string, ClientPlayerInfo>;
     gameConfig: {
@@ -231,6 +233,8 @@ export function useNexusEngine({ roomId }: UseNexusEngineProps) {
 
         // Convenience derived state
         phase: engineState?.phase ?? null,
+        ownerId: engineState?.ownerId ?? null,
+        ownerDisplayName: engineState?.ownerDisplayName ?? null,
         isOwner: engineState?.you.isOwner ?? false,
         myRole: engineState?.you.role ?? null,
         myUserId: engineState?.you.userId ?? null,

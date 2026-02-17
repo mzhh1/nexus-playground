@@ -53,6 +53,7 @@ export interface HistoryEvent {
 export interface EngineRoomState {
     roomId: string;
     ownerId: string;
+    ownerDisplayName: string;
     phase: RoomPhase;
     players: Record<string, PlayerInfo>; // key = userId
     gameConfig: GameConfig | null;
@@ -76,6 +77,8 @@ export interface ClientPlayerInfo {
 /** Engine state visible to the client */
 export interface ClientEngineState {
     roomId: string;
+    ownerId: string;
+    ownerDisplayName: string;
     phase: RoomPhase;
     players: Record<string, ClientPlayerInfo>;
     gameConfig: {

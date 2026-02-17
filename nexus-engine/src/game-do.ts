@@ -58,6 +58,7 @@ export class GameDO extends DurableObject {
     // ─── Persisted state ────────────────────────────────────
     private roomId: string = "";
     private ownerId: string = "";
+    private ownerDisplayName: string = "";
     private phase: RoomPhase = "lobby";
     private players: Record<string, PlayerInfo> = {};
     private gameConfig: GameConfig | null = null;
@@ -90,6 +91,7 @@ export class GameDO extends DurableObject {
         const s = this.ctx.storage;
         this.roomId = (await s.get("roomId")) || "";
         this.ownerId = (await s.get("ownerId")) || "";
+        this.ownerDisplayName = (await s.get("ownerDisplayName")) || "";
         this.phase = (await s.get("phase")) || "lobby";
         this.players = (await s.get("players")) || {};
         this.gameConfig = (await s.get("gameConfig")) || null;
@@ -103,6 +105,7 @@ export class GameDO extends DurableObject {
         await this.ctx.storage.put({
             roomId: this.roomId,
             ownerId: this.ownerId,
+            ownerDisplayName: this.ownerDisplayName,
             phase: this.phase,
             players: this.players,
             gameConfig: this.gameConfig,
@@ -131,6 +134,7 @@ export class GameDO extends DurableObject {
             const body = await c.req.json<{
                 roomId?: string;
                 ownerId: string;
+                ownerDisplayName?: string;
                 gameWorkerUrl?: string;
                 config?: any;
                 context?: any;
@@ -147,6 +151,7 @@ export class GameDO extends DurableObject {
 
             this.roomId = body.roomId || "";
             this.ownerId = body.ownerId;
+            this.ownerDisplayName = body.ownerDisplayName || body.ownerId;
             this.phase = "lobby";
             this.players = {};
             this.roleMapping = {};
@@ -1042,7 +1047,7 @@ export class GameDO extends DurableObject {
     }
 
     private async sendSyncState(ws: WebSocket, userId: string): Promise<void> {
-        const engineState = this.buildClientEngineState(userId);
+        const engineState = this.generateClientState(userId);
 
         // Get game perspective for this user's role
         let gamePerspective: any | null = null;
@@ -1062,20 +1067,22 @@ export class GameDO extends DurableObject {
         this.sendMessage(ws, msg);
     }
 
-    private buildClientEngineState(forUserId: string): ClientEngineState {
+    private generateClientState(userId: string): ClientEngineState {
         const clientPlayers: Record<string, ClientPlayerInfo> = {};
-        for (const [uid, player] of Object.entries(this.players)) {
+        for (const [uid, p] of Object.entries(this.players)) {
             clientPlayers[uid] = {
-                displayName: player.displayName,
-                connected: player.connected,
-                isOwner: player.isOwner,
-                type: player.type,
+                displayName: p.displayName,
+                connected: p.connected,
+                isOwner: p.isOwner,
+                type: p.type,
                 role: getRoleForUser(this.roleMapping, uid),
             };
         }
 
         return {
             roomId: this.roomId,
+            ownerId: this.ownerId,
+            ownerDisplayName: this.ownerDisplayName,
             phase: this.phase,
             players: clientPlayers,
             gameConfig: this.gameConfig
@@ -1086,9 +1093,9 @@ export class GameDO extends DurableObject {
                 }
                 : null,
             you: {
-                userId: forUserId,
-                isOwner: forUserId === this.ownerId,
-                role: getRoleForUser(this.roleMapping, forUserId),
+                userId,
+                isOwner: userId === this.ownerId,
+                role: getRoleForUser(this.roleMapping, userId),
             },
         };
     }

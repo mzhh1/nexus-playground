@@ -5,6 +5,7 @@ import logger from '../utils/logger.js';
 interface CreateRoomParams {
     roomId: string;
     ownerId: string;
+    ownerDisplayName?: string;
     gameWorkerUrl?: string;
     config?: any;
     context?: any;

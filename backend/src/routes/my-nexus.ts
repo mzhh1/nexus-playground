@@ -43,6 +43,7 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
         await nexusEngine.createRoom({
           roomId: room.room_id,
           ownerId: userId,
+          ownerDisplayName: displayName,
           ...(gameWorkerUrl && room.game_id
             ? {
               gameWorkerUrl,
