@@ -6,6 +6,7 @@
 
 import React from 'react';
 import type { RolePerspective } from '../lib/types';
+
 import '../styles/game-message-bar.css';
 
 interface GameMessageBarProps {
