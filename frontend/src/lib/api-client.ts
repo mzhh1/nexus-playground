@@ -11,7 +11,8 @@
  */
 
 import { useOAuth } from '@autolabz/oauth-sdk';
-import axios, type { AxiosInstance } from 'axios';
+import axios from 'axios';
+import type { AxiosInstance } from 'axios';
 import type { RoomInfo, EngineConnectionResponse } from './types';
 
 /**
