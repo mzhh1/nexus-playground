@@ -67,14 +67,15 @@ export class LLMExecutor {
     systemPrompt: string,
     temperature: number,
     currentMemory: string | null,
-    previousError?: string
+    previousError?: string,
+    statePrompt?: string // Optional prompt provided by Worker
   ): Promise<{
     action: Action;
     memory_update?: { mode: 'append' | 'replace'; content: string };
     logId: string;
   } | { error: string; logId?: string }> {
     logger.info(
-      { roomId, roleId, modelName, attempt, maxAttempts },
+      { roomId, roleId, modelName, attempt, maxAttempts, hasStatePrompt: !!statePrompt },
       'LLM executor: Starting decision execution'
     );
 
@@ -83,7 +84,7 @@ export class LLMExecutor {
 
     try {
       // 1. Format perspective into LLM prompt (with memory if enabled)
-      const userPrompt = this.formatPrompt(gameId, perspective, currentMemory, previousError);
+      const userPrompt = this.formatPrompt(gameId, perspective, currentMemory, previousError, statePrompt);
 
       const createdLog = await this.llmLogDAO.createInteraction({
         interactionGroupId,
@@ -475,17 +476,28 @@ ${currentMemory || '(暂无记忆)'}
    * @param perspective Role perspective
    * @param currentMemory Current memory state (null if memory not enabled)
    * @param previousError Optional error message from previous failed attempt
+   * @param statePrompt Optional prompt string provided by Worker
    */
-  private formatPrompt(gameId: string | null, perspective: RolePerspective, currentMemory: string | null, previousError?: string): string {
+  private formatPrompt(
+    gameId: string | null,
+    perspective: RolePerspective,
+    currentMemory: string | null,
+    previousError?: string,
+    statePrompt?: string
+  ): string {
     const { action_space_definition } = perspective;
 
     // Get game logic instance to generate state prompt
-    let statePrompt: string;
-    if (gameId) {
+    let formattedStatePrompt: string;
+
+    if (statePrompt) {
+      // Use the prompt provided by Worker directly
+      formattedStatePrompt = statePrompt;
+    } else if (gameId) {
       try {
         const gameLogic = getGameLogic(gameId);
         // Call game's custom state prompt generator
-        statePrompt = gameLogic.generateStatePrompt(perspective);
+        formattedStatePrompt = gameLogic.generateStatePrompt(perspective);
       } catch (error) {
         logger.error({ gameId, error }, 'Failed to get game logic or generate state prompt');
         throw error;
@@ -493,7 +505,7 @@ ${currentMemory || '(暂无记忆)'}
     } else {
       // Fallback: if no gameId (shouldn't happen in normal flow), generate basic prompt
       logger.warn('No gameId provided to formatPrompt, using fallback state prompt generation');
-      statePrompt = `# 当前游戏状态\n${JSON.stringify(perspective.current_state, null, 2)}`;
+      formattedStatePrompt = `# 当前游戏状态\n${JSON.stringify(perspective.current_state, null, 2)}`;
     }
 
     // Format available actions (system-generated)
@@ -544,7 +556,7 @@ ${previousError ? `
       ? TASK_PROMPT_WITH_MEMORY
       : TASK_PROMPT_NO_MEMORY;
 
-    return `${statePrompt}${memorySection}${actionPrompt}${taskPrompt}`;
+    return `${formattedStatePrompt}${memorySection}${actionPrompt}${taskPrompt}`;
   }
 
   /**

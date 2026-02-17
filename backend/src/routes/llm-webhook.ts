@@ -18,6 +18,7 @@ interface LlmWebhookBody {
     roleId: string;
     gameId: string;
     perspective: any;
+    statePrompt?: string; // Optional prompt from Worker
     llmConfig: {
         modelName: string;
         systemPrompt: string;
@@ -45,6 +46,7 @@ const llmWebhookRoute: FastifyPluginAsync = async (fastify) => {
                     roleId: { type: 'string' },
                     gameId: { type: 'string' },
                     perspective: { type: 'object' },
+                    statePrompt: { type: 'string' },
                     llmConfig: {
                         type: 'object',
                         required: ['modelName', 'systemPrompt', 'temperature'],
@@ -74,6 +76,7 @@ const llmWebhookRoute: FastifyPluginAsync = async (fastify) => {
             roleId,
             gameId,
             perspective,
+            statePrompt,
             llmConfig,
             attempt = 1,
             maxAttempts = 3,
@@ -81,7 +84,7 @@ const llmWebhookRoute: FastifyPluginAsync = async (fastify) => {
         } = request.body;
 
         logger.info(
-            { roomId, roleId, gameId, modelName: llmConfig.modelName, attempt },
+            { roomId, roleId, gameId, modelName: llmConfig.modelName, attempt, hasStatePrompt: !!statePrompt },
             'LLM webhook: received request',
         );
 
@@ -101,6 +104,7 @@ const llmWebhookRoute: FastifyPluginAsync = async (fastify) => {
                 llmConfig.temperature,
                 llmConfig.memory ?? null,
                 previousError,
+                statePrompt, // Pass statePrompt to executor
             );
 
             // 3. Return result

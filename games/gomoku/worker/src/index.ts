@@ -119,7 +119,14 @@ app.post('/perspective', async (c) => {
             body.wholeHistory || [],
             body.diffHistory || []
         );
-        return c.json(perspective);
+
+        // Enhance with state prompt if available
+        let statePrompt: string | undefined;
+        if (typeof logic.generateStatePrompt === 'function') {
+            statePrompt = logic.generateStatePrompt(perspective);
+        }
+
+        return c.json({ ...perspective, statePrompt });
     } catch (error: any) {
         return c.json({ error: error.message }, 400);
     }

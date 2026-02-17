@@ -98,7 +98,7 @@ export class GameDO extends DurableObject {
         this.roleMapping = (await s.get("roleMapping")) || {};
         this.gameState = (await s.get("gameState")) || null;
         this.history = (await s.get("history")) || [];
-        this.llmWebhookUrl = (await s.get("llmWebhookUrl")) || null;
+        this.llmWebhookUrl = this.env.LLM_WEBHOOK_URL || (await s.get("llmWebhookUrl")) || null;
     }
 
     private async persistAll(): Promise<void> {
@@ -931,6 +931,7 @@ export class GameDO extends DurableObject {
                     roleId,
                     gameId: this.gameConfig.gameId,
                     perspective,
+                    statePrompt: (perspective as any).statePrompt, // Extract prompt if worker provided it
                     llmConfig: player.llmConfig,
                     attempt,
                     maxAttempts,

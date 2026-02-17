@@ -11,19 +11,11 @@ const healthRoute: FastifyPluginAsync = async (fastify) => {
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       services: {
-        redis: 'unknown',
         postgres: 'unknown',
       },
     };
 
-    // Check Redis
-    try {
-      await fastify.redis.ping();
-      health.services.redis = 'healthy';
-    } catch (error) {
-      health.services.redis = 'unhealthy';
-      health.status = 'degraded';
-    }
+    // Redis check removed
 
     // Check PostgreSQL
     try {

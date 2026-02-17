@@ -21,22 +21,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: nexus-redis
-    restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD}
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Backend Service
   backend:
     build:
@@ -47,8 +31,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     environment:
       NODE_ENV: ${NODE_ENV}
       PORT: ${BACKEND_PORT}
@@ -57,9 +39,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
       AUTH_BASE_URL: ${AUTH_BASE_URL}
       JWT_ALG: ${JWT_ALG}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
@@ -113,32 +92,7 @@ services:
   #     - ./frontend/callback.html:/app/callback.html
   #     - ./games:/app/games
 
-  # LLM Monitor Service
-  llm-monitor:
-    build:
-      context: ./llm-monitor
-      dockerfile: Dockerfile
-      target: development
-    container_name: nexus-llm-monitor
-    restart: unless-stopped
-    depends_on:
-      - backend
-    environment:
-      LLM_MONITOR_PORT: 5174
-      VITE_MONITOR_BASE_PATH: /llm-monitor
-      VITE_MONITOR_API_BASE_URL: /api/v1
-      VITE_MONITOR_REFRESH_INTERVAL_MS: 5000
-      VITE_MONITOR_PAGE_SIZE: 50
-    ports:
-      - "${LLM_MONITOR_PORT:-5174}:${LLM_MONITOR_PORT:-5174}"
-    volumes:
-      - ./llm-monitor/src:/app/src
-      - ./llm-monitor/index.html:/app/index.html
-      - ./llm-monitor/vite.config.ts:/app/vite.config.ts
-      - ./llm-monitor/tsconfig.json:/app/tsconfig.json
-      - ./llm-monitor/tsconfig.node.json:/app/tsconfig.node.json
-      - ./llm-monitor/public:/app/public
-      - ./llm-monitor/package.json:/app/package.json
+
 
   # Nginx Gateway
   nginx:
@@ -158,5 +112,4 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
 

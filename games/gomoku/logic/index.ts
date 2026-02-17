@@ -322,41 +322,59 @@ export class GomokuLogic implements GameLogic {
       global_rules,
       current_state,
       whole_history,
-      diff_history,
       your_role
     } = perspective;
 
-    // Format history
-    const historyText = whole_history.length > 0
-      ? whole_history.map(h =>
-        `Turn ${h.turn}: ${h.role_id} → ${h.action.action_id}${h.action.params ? ` (${JSON.stringify(h.action.params)})` : ''
-        }${h.description ? ` - ${h.description}` : ''}`
-      ).join('\n')
-      : '(Game just started)';
+    const state = current_state as GomokuState;
+    const board = state.board;
+    const size = board.length;
 
-    const recentHistoryText = diff_history.length > 0
-      ? diff_history.map(h =>
-        `Turn ${h.turn}: ${h.role_id} → ${h.action.action_id}${h.action.params ? ` (${JSON.stringify(h.action.params)})` : ''
-        }${h.description ? ` - ${h.description}` : ''}`
-      ).join('\n')
-      : '(No new events since your last turn)';
+    // Generate ASCII Board
+    let boardStr = '   ';
+    // Column headers
+    for (let i = 0; i < size; i++) {
+      boardStr += (i < 10 ? ` ${i} ` : `${i} `);
+    }
+    boardStr += '\n';
 
-    // Generate state prompt
+    for (let r = 0; r < size; r++) {
+      boardStr += (r < 10 ? ` ${r} ` : `${r} `); // Row header
+      for (let c = 0; c < size; c++) {
+        const cell = board[r][c];
+        if (cell === 0) boardStr += ' . ';
+        else if (cell === 1) boardStr += ' X '; // Black
+        else if (cell === 2) boardStr += ' O '; // White
+      }
+      boardStr += '\n';
+    }
+
+    const lastMoveStr = state.lastMove ? `Last move: (${state.lastMove.row}, ${state.lastMove.col})` : 'No moves yet';
+
+    // Format history (last 5 moves is enough context usually, but whole history is fine too)
+    const historyText = whole_history.slice(-10).map(h =>
+      `Turn ${h.turn}: ${h.roleId} placed at (${h.action.params.row}, ${h.action.params.col})`
+    ).join('\n');
+
     return `# 游戏规则
 ${global_rules}
 
-# 你为${your_role.identity}
-目标: ${your_role.goal}
-${your_role.is_current ? '**现在轮到你行动**' : '(目前不是你的回合)'}
+# 棋盘状态 (X=黑棋, O=白棋, .=空位)
+${boardStr}
 
-# 当前游戏状态
-${JSON.stringify(current_state)}
+# 游戏信息
+当前执子: ${state.currentRole === 'player_black' ? '黑棋 (X)' : '白棋 (O)'}
+最后落子: ${lastMoveStr}
+你的身份: ${your_role.identity}
 
-# 完整历史记录
-${historyText}
+# 最近历史 (最后10步)
+${historyText || '无'}
 
-# 自上次行动以来的变化
-${recentHistoryText}`;
+# 思考指引
+1. 上一步对手下在哪里？威胁大吗？
+2. 我有哪些连成5子的机会？
+3. 我是否需要防守？
+4. 请用坐标 (row, col) 输出你的决定。注意 row 是行号(0-14)，col 是列号(0-14)。
+`;
   }
 
   // ============ Helper Methods ============

@@ -25,7 +25,7 @@ const roomsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { roomId: string } }>('/rooms/:roomId/engine-connection', async (request, reply) => {
     const { roomId } = request.params;
     const userId = (request as any).auth?.userId;
-    const displayName = (request as any).auth?.displayName || userId;
+    const displayName = (request as any).auth?.nickname || userId;
 
     if (!isValidRoomId(roomId) || !userId) {
       return reply.code(400).send({ error: 'Invalid request' });

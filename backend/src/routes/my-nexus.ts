@@ -21,7 +21,7 @@ const myNexusRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.get('/my-nexus', async (request, reply) => {
     const userId = (request as any).auth?.userId;
-    const displayName = (request as any).auth?.displayName || userId;
+    const displayName = (request as any).auth?.nickname || userId;
     if (!userId) {
       return reply.code(401).send({ error: 'Unauthorized' });
     }

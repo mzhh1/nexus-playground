@@ -8,7 +8,7 @@ import Fastify from 'fastify';
 import logger from './utils/logger.js';
 
 // Plugins
-import redisPlugin from './plugins/redis.js';
+// import redisPlugin from './plugins/redis.js'; // Removed
 import postgresPlugin from './plugins/postgres.js';
 import corsPlugin from './plugins/cors.js';
 import authPlugin from './plugins/auth.js';
@@ -19,7 +19,6 @@ import healthRoute from './routes/health.js';
 import gamesRoute from './routes/games.js';
 import myNexusRoutes from './routes/my-nexus.js';
 import roomsRoutes from './routes/rooms.js';
-import roomsPublicRoutes from './routes/rooms-public.js';
 import llmLogsPublicRoutes from './routes/llm-logs-public.js';
 import llmWebhookRoute from './routes/llm-webhook.js';
 // NOTE: actionsRoutes and perspectivesProtectedRoutes removed in v4.0
@@ -43,7 +42,7 @@ async function buildServer() {
 
   // Register plugins (not auth - that's per-route)
   await fastify.register(corsPlugin);
-  await fastify.register(redisPlugin);
+  // await fastify.register(redisPlugin); // Removed
   await fastify.register(postgresPlugin);
   await fastify.register(appAuthPlugin); // Application-level auth for LLM calls
 
@@ -98,7 +97,6 @@ async function buildServer() {
       // Public routes (no auth)
       instance.register(healthRoute);
       instance.register(gamesRoute); // Games metadata
-      instance.register(roomsPublicRoutes); // Browse public rooms (no auth)
       instance.register(llmLogsPublicRoutes); // LLM interaction logs (public)
       instance.register(llmWebhookRoute); // LLM webhook (Engine → Backend, uses X-Engine-Secret)
 
