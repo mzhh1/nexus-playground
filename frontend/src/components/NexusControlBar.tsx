@@ -9,9 +9,11 @@ import type { RoomInfo, RoleMapping } from '../lib/types';
 import '../styles/control-bar.css';
 
 interface NexusControlBarProps {
-  room: RoomInfo;
+  roomId: string;
+  players: Record<string, any>;
   isOwner: boolean;
   gameName?: string;
+  gameId?: string;
   statusText?: string;
   roleMapping?: RoleMapping;
   enginePhase?: 'lobby' | 'playing' | 'finished';
@@ -22,9 +24,11 @@ interface NexusControlBarProps {
 }
 
 export const NexusControlBar: React.FC<NexusControlBarProps> = ({
-  room,
+  roomId,
+  players,
   isOwner,
   gameName,
+  gameId,
   statusText,
   roleMapping,
   enginePhase,
@@ -37,21 +41,21 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
   const [showRoleMapping, setShowRoleMapping] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
 
-  // Use Engine phase as primary source of truth, fallback to room.room_status
-  const isPlaying = enginePhase ? enginePhase === 'playing' : room.room_status === 'playing';
-  const isPaused = enginePhase ? false : room.room_status === 'paused';
+  // Use Engine phase as primary source of truth
+  const isPlaying = enginePhase === 'playing';
+  const isPaused = false; // Engine DO currently handled as 'lobby' if not playing
 
   // resume_locked 时也显示暂停/播放按钮
-  const canTogglePlayPause = isOwner && (isPlaying || isPaused);
-  const showActions = isOwner && (isPlaying || isPaused);
+  const canTogglePlayPause = isOwner && isPlaying;
+  const showActions = isOwner && (isPlaying || enginePhase === 'finished');
 
-  const playerCount = Object.keys(room.player_list).length;
+  const playerCount = Object.keys(players || {}).length;
   const roleIds = roleMapping ? Object.keys(roleMapping) : [];
 
   const displayStatus = statusText ||
-    (room.room_status === 'playing' ? '游戏进行中' :
-      room.room_status === 'paused' ? (room.resume_locked ? '已停止' : '已暂停') :
-        room.room_status === 'open' ? '准备中' : '');
+    (enginePhase === 'playing' ? '游戏进行中' :
+      enginePhase === 'finished' ? '游戏已结束' :
+        enginePhase === 'lobby' ? '准备中' : '');
 
   return (
     <div className="nexus-control-bar">
@@ -74,9 +78,9 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
             </button>
             {showPlayerList && (
               <div className="dropdown-menu">
-                {Object.entries(room.player_list).map(([pid, player]) => (
+                {Object.entries(players || {}).map(([pid, player]) => (
                   <div key={pid} className="dropdown-item">
-                    <span className="player-name">{player.display_name}</span>
+                    <span className="player-name">{player.display_name || player.displayName}</span>
                     <span className="player-type">{player.type}</span>
                   </div>
                 ))}
@@ -97,13 +101,13 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
               {showRoleMapping && (
                 <div className="dropdown-menu">
                   {Object.entries(roleMapping).map(([roleId, playerId]) => {
-                    const player = room.player_list[playerId];
+                    const player = players ? players[playerId] : null;
                     return (
                       <div key={roleId} className="dropdown-item">
                         <span className="role-name">{roleId}</span>
                         <span className="arrow">→</span>
                         <span className="player-name">
-                          {player?.display_name || '未分配'}
+                          {(player?.display_name || player?.displayName) || '未分配'}
                         </span>
                       </div>
                     );
@@ -117,8 +121,8 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
         {/* 中间：游戏名称和房间状态（桌面显示） */}
         <div className="control-bar-center">
           <div className="game-info">
-            {(gameName || room.game_id) && (
-              <h2 className="game-name">{gameName || room.game_id}</h2>
+            {(gameName || gameId) && (
+              <h2 className="game-name">{gameName || gameId}</h2>
             )}
             {displayStatus && (
               <p className="status-text">{displayStatus}</p>
@@ -209,8 +213,8 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
           )}
 
           {/* Room ID 显示（桌面显示） */}
-          <div className="room-id-display room-id-desktop" title={`房间ID: ${room.room_id}`}>
-            房间: {room.room_id}
+          <div className="room-id-display room-id-desktop" title={`房间ID: ${roomId}`}>
+            房间: {roomId}
           </div>
 
           {/* 头像组件 */}
@@ -227,14 +231,14 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
       {/* 第二行：游戏信息行（移动端显示） */}
       <div className="control-bar-row-2">
         <div className="game-info-mobile">
-          {(gameName || room.game_id) && displayStatus && (
+          {(gameName || gameId) && displayStatus && (
             <span className="game-name-status">
-              {gameName || room.game_id}: {displayStatus}
+              {gameName || gameId}: {displayStatus}
             </span>
           )}
         </div>
-        <div className="room-id-display room-id-mobile" title={`房间ID: ${room.room_id}`}>
-          {room.room_id}
+        <div className="room-id-display room-id-mobile" title={`房间ID: ${roomId}`}>
+          {roomId}
         </div>
       </div>
     </div>

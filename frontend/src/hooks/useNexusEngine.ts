@@ -10,14 +10,16 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useGameAPI } from '../lib/api-client';
-import { Player } from '../lib/types';
 
 // ─── Types matching Engine's ClientEngineState ───────────────
 
-export interface ClientPlayerInfo extends Player {
-    isOwner: boolean;
-    role: string | null;
+export interface ClientPlayerInfo {
+    displayName: string;
     connected: boolean;
+    isOwner: boolean;
+    type: 'human' | 'llm';
+    role: string | null;
+    modelName?: string;
 }
 
 export interface ClientEngineState {

@@ -6,12 +6,13 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import type { PlayerList, RoleMapping } from '../lib/types';
+import type { RoleMapping } from '../lib/types';
+import type { ClientPlayerInfo } from '../hooks/useNexusEngine';
 import { NodeCard } from './NodeCard';
 import styles from './RoleMappingGraph.module.css';
 
 interface RoleMappingGraphProps {
-  playerList: PlayerList;
+  playerList: Record<string, ClientPlayerInfo>;
   roleIds: string[];
   mapping: RoleMapping;
   onChange: (mapping: RoleMapping) => void;
@@ -389,7 +390,7 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
                       id={roleId}
                       label={formatRoleLabel(roleId)}
                       icon="🎭"
-                      subtitle={hasMapping ? `→ ${playerList[mapping[roleId]]?.display_name}` : '未分配'}
+                      subtitle={hasMapping ? `→ ${playerList[mapping[roleId]]?.displayName}` : '未分配'}
                       variant="role"
                       isActive={isSource}
                       isMapped={hasMapping}
@@ -430,9 +431,9 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
                         }
                       }}
                       id={playerId}
-                      label={player.display_name}
+                      label={player.displayName}
                       icon={isHuman ? '👤' : '🤖'}
-                      subtitle={isHuman ? 'Human' : `LLM (${player.model_name})`}
+                      subtitle={isHuman ? 'Human' : `LLM (${player.modelName || 'Bot'})`}
                       variant="player"
                       isMapped={isMapped}
                       isClickable={!readonly}

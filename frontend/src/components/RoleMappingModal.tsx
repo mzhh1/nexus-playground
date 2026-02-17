@@ -4,13 +4,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { PlayerList, RoleMapping } from '../lib/types';
+import type { RoleMapping } from '../lib/types';
+import type { ClientPlayerInfo } from '../hooks/useNexusEngine';
 import { PlayerCountSelector } from './PlayerCountSelector';
 import { RoleMappingGraph } from './RoleMappingGraph';
 import '../styles/modal.css';
 
 interface RoleMappingModalProps {
-  playerList: PlayerList;
+  playerList: Record<string, ClientPlayerInfo>;
   roleIds: string[];
   initialMapping: RoleMapping;
   onSave: (mapping: RoleMapping, selectedPlayerCount?: number) => void;
@@ -28,7 +29,7 @@ interface RoleMappingModalProps {
  * 生成自动映射：将前n个玩家自动分配到前n个角色
  * n = min(玩家数量, 角色数量)
  */
-const generateAutoMapping = (playerList: PlayerList, roleIds: string[]): RoleMapping => {
+const generateAutoMapping = (playerList: Record<string, ClientPlayerInfo>, roleIds: string[]): RoleMapping => {
   const playerIds = Object.keys(playerList);
   const n = Math.min(playerIds.length, roleIds.length);
 
@@ -44,7 +45,7 @@ const generateAutoMapping = (playerList: PlayerList, roleIds: string[]): RoleMap
  * 生成随机映射：将前n个玩家随机分配到前n个角色
  * n = min(玩家数量, 角色数量)
  */
-const generateRandomMapping = (playerList: PlayerList, roleIds: string[]): RoleMapping => {
+const generateRandomMapping = (playerList: Record<string, ClientPlayerInfo>, roleIds: string[]): RoleMapping => {
   const playerIds = Object.keys(playerList);
   const n = Math.min(playerIds.length, roleIds.length);
 

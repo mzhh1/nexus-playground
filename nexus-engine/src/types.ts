@@ -72,6 +72,7 @@ export interface ClientPlayerInfo {
     isOwner: boolean;
     type: 'human' | 'llm';
     role: string | null;
+    modelName?: string;
 }
 
 /** Engine state visible to the client */

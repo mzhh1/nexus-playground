@@ -6,7 +6,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOAuth } from '@autolabz/oauth-sdk';
 import '@autolabz/oauth-sdk/dist/style.css';
-import { useRoom } from '../../hooks/useRoom';
 import { useNexusEngine } from '../../hooks/useNexusEngine';
 import { useGamesMetadata, getGameName } from '../../hooks/useGamesMetadata';
 import type { RoleMapping, LLMPlayerTemplate } from '../../lib/types';
@@ -35,7 +34,6 @@ const Room: React.FC = () => {
   const [isCopied, setIsCopied] = useState(false);
 
   // Hooks
-  const { room, loading, error, fetchRoom } = useRoom();
   const { games: AVAILABLE_GAMES, loading: metadataLoading } = useGamesMetadata();
 
   // Nexus Engine WebSocket connection (handles both lobby and game state)
@@ -94,48 +92,29 @@ const Room: React.FC = () => {
     }
   }, []);
 
-  // Fetch room info when roomId is set
-  useEffect(() => {
-    if (roomId) {
-      fetchRoom(roomId);
-    }
-  }, [roomId, fetchRoom]);
+  // Removed fetchRoom effect to eliminate GET /api/v1/rooms/:id dependency
 
-  // Determine current role and player ID from Engine State or Backend Fallback
+  // Determine current role and player ID from Engine State
   useEffect(() => {
     if (myRoleEngine) {
       setCurrentRoleId(myRoleEngine);
       setPlayerId(myUserIdEngine);
-      return;
-    }
-
-    if (!room) return;
-
-    // Fallback to backend data before Engine connects
-    const myPlayerId = user?.id ? Object.entries(room.player_list).find(
-      ([_, player]) => player.type === 'human' && player.uid === user.id
-    )?.[0] : undefined;
-
-    if (myPlayerId) {
-      setPlayerId(myPlayerId);
-      const roleId = Object.entries(room.role_mapping).find(([_, pid]) => pid === myPlayerId)?.[0];
-      setCurrentRoleId(roleId || import.meta.env.VITE_SPECTATOR_ROLE_ID || 'spectator');
     } else {
       setCurrentRoleId(import.meta.env.VITE_SPECTATOR_ROLE_ID || 'spectator');
+      setPlayerId(null);
     }
-  }, [room, user?.id, myRoleEngine, myUserIdEngine]);
+  }, [myRoleEngine, myUserIdEngine]);
 
   // Sync selected player count with room
   useEffect(() => {
-    if (room?.selected_player_count !== undefined) {
-      setSelectedPlayerCount(room.selected_player_count);
+    if (engineState?.gameConfig?.maxPlayers !== undefined) {
+      setSelectedPlayerCount(engineState.gameConfig.maxPlayers);
     }
-  }, [room?.selected_player_count]);
+  }, [engineState?.gameConfig?.maxPlayers]);
 
   const currentPlayers = useMemo(() => {
-    if (engineState?.players) return engineState.players;
-    return room?.player_list || {};
-  }, [engineState?.players, room?.player_list]);
+    return engineState?.players || {};
+  }, [engineState?.players]);
 
   const effectiveRoleMapping = useMemo(() => {
     if (engineState?.players) {
@@ -145,21 +124,21 @@ const Room: React.FC = () => {
       });
       return mapping;
     }
-    return room?.role_mapping || {};
-  }, [engineState?.players, room?.role_mapping]);
+    return {};
+  }, [engineState?.players]);
 
   useEffect(() => {
-    const currentPhase = engineState?.phase || room?.room_status;
-    if (currentPhase !== 'open' && currentPhase !== 'lobby') {
+    const currentPhase = engineState?.phase;
+    if (currentPhase !== 'lobby') {
       return;
     }
 
-    if (room?.game_id) {
-      setSelectedGameId(room.game_id);
+    if (engineState?.gameConfig?.gameId) {
+      setSelectedGameId(engineState.gameConfig.gameId);
     } else {
       setSelectedGameId('');
     }
-  }, [room?.game_id, room?.room_status, engineState?.phase]);
+  }, [engineState?.gameConfig?.gameId, engineState?.phase]);
 
 
   // ========== Event Handlers ==========
@@ -222,14 +201,8 @@ const Room: React.FC = () => {
   };
 
   const handleStartGame = async () => {
-    // Find the gameWorkerUrl from metadata
-    const gameWorkerUrl = currentGameMetadata?.workerUrl;
-    if (!gameWorkerUrl) {
-      console.error('No game worker URL found for game:', room?.game_id);
-      return;
-    }
     // Send GAME_START with full config to Engine DO via WebSocket
-    engineStartGame(gameWorkerUrl, roleMapping);
+    engineStartGame();
   };
 
   const handleSaveRoleMapping = (newMapping: RoleMapping, playerCount?: number) => {
@@ -266,8 +239,7 @@ const Room: React.FC = () => {
   };
 
   const handleRandomAssign = () => {
-    if (!room) return;
-    const playerIds = Object.keys(room.player_list);
+    const playerIds = Object.keys(currentPlayers);
     const n = Math.min(playerIds.length, roleIds.length);
 
     // 取前n个玩家和角色
@@ -332,16 +304,15 @@ const Room: React.FC = () => {
 
   // ========== Computed Values (ALL HOOKS MUST BE BEFORE ANY RETURN) ==========
 
-  // Compute all values that depend on room data
+  // Determine current role and player ID from Engine State
   const currentUserId = user?.id || null;
-  const isOwner = engineState?.you.isOwner ?? (room ? room.owner_uid === currentUserId : false);
-  const isInRoom = engineState ? true : (playerId !== null); // If connected to engine, we are in the room
+  const isOwner = isOwnerEngine;
+  const isInRoom = !!engineState;
 
-  // Use Engine engineState.phase as primary source of truth, fallback to backend room_status
-  const isOpen = engineState ? engineState.phase === 'lobby' : (room ? room.room_status === 'open' : false);
-  const isPlaying = engineState ? engineState.phase === 'playing' : (room ? room.room_status === 'playing' : false);
-  const isFinished = engineState ? engineState.phase === 'finished' : false;
-  const canJoin = isOpen && !isInRoom && !isOwner;
+  const isOpen = engineState?.phase === 'lobby';
+  const isPlaying = engineState?.phase === 'playing';
+  const isFinished = engineState?.phase === 'finished';
+  const canJoin = false; // Join is automatic in v4.0 via connection
 
   // 在开放阶段也显示控制栏（当有游戏选择时）
   const shouldShowControlBar = engineState
@@ -349,7 +320,7 @@ const Room: React.FC = () => {
     : false;
 
   const baseContentPadding = isOpen ? 'var(--spacing-lg)' : 'var(--spacing-sm)';
-  const contentPaddingBottom = !isOpen && room?.game_id && perspective
+  const contentPaddingBottom = !isOpen && engineState?.gameConfig?.gameId && perspective
     ? '60px'
     : baseContentPadding;
 
@@ -357,20 +328,18 @@ const Room: React.FC = () => {
   const controlBarStatusText = undefined;
 
   // 根据 game_id 查找游戏名称
-  const gameName = room && room.game_id ? getGameName(room.game_id, AVAILABLE_GAMES) : undefined;
+  const gameName = engineState?.gameConfig?.gameId ? getGameName(engineState.gameConfig.gameId, AVAILABLE_GAMES) : undefined;
 
   const playerList = Object.entries(currentPlayers);
-  const hasGameSelected = room ? !!room.game_id : false;
+  const hasGameSelected = !!engineState?.gameConfig?.gameId;
   const hasPlayers = playerList.length > 0;
-  const accountAlreadyInRoom = user && room
-    ? playerList.some(([, player]) => player.type === 'human' && player.uid === user.id)
-    : false;
+  const accountAlreadyInRoom = !!engineState;
 
   // 获取当前游戏的元数据
   const currentGameMetadata = useMemo(() => {
-    if (!hasGameSelected || !room || !room.game_id) return null;
-    return AVAILABLE_GAMES.find(game => game.id === room.game_id) || null;
-  }, [hasGameSelected, room, AVAILABLE_GAMES]);
+    if (!hasGameSelected || !engineState?.gameConfig?.gameId) return null;
+    return AVAILABLE_GAMES.find(game => game.id === engineState.gameConfig!.gameId) || null;
+  }, [hasGameSelected, engineState?.gameConfig?.gameId, AVAILABLE_GAMES]);
 
   // 检测是否为多人数配置游戏
   const isMultiPlayerCountGame = useMemo(() => {
@@ -384,15 +353,10 @@ const Room: React.FC = () => {
     return getAvailablePlayerCounts(currentGameMetadata.roleIds);
   }, [currentGameMetadata]);
 
-  // 从房间状态或本地状态获取选择的人数
+  // 从 Engine 状态获取选择的人数
   const effectivePlayerCount = useMemo(() => {
-    // 优先使用房间状态中保存的人数
-    if (room?.selected_player_count) return room.selected_player_count;
-    // 其次使用本地选择的人数
-    if (selectedPlayerCount) return selectedPlayerCount;
-    // 默认返回 null
-    return null;
-  }, [room?.selected_player_count, selectedPlayerCount]);
+    return engineState?.gameConfig?.maxPlayers || selectedPlayerCount || null;
+  }, [engineState?.gameConfig?.maxPlayers, selectedPlayerCount]);
 
   // 获取当前有效的角色ID列表
   // IMPORTANT: This useMemo must be called on every render, not conditionally
@@ -416,29 +380,29 @@ const Room: React.FC = () => {
     );
   }
 
-  if ((loading && !room) || metadataLoading) {
+  if (!engineState && !engineError) {
     return (
       <div className="loading">
         <div className="spinner"></div>
-        <p>Loading room data...</p>
+        <p>Connecting to Nexus Engine...</p>
       </div>
     );
   }
 
-  if (error && !room) {
+  if (engineError) {
     return (
       <div className="container" style={{ paddingTop: 'var(--spacing-xl)' }}>
         <div className="error-message">
-          <h2>错误</h2>
-          <p>{typeof error === 'string' ? error : '加载房间失败'}</p>
-          <button onClick={fetchRoom}>重试</button>
+          <h2>Connection Error</h2>
+          <p>{engineError}</p>
+          <button onClick={() => window.location.reload()}>Retry</button>
         </div>
       </div>
     );
   }
 
-  if (!room) {
-    return <div>No room data</div>;
+  if (!engineState) {
+    return <div>No engine data</div>;
   }
 
   // ========== Render ==========
@@ -446,20 +410,20 @@ const Room: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       {/* Control Bar */}
-      {shouldShowControlBar && (
-        <NexusControlBar
-          room={room}
-          isOwner={isOwner}
-          gameName={gameName}
-          statusText={controlBarStatusText}
-          roleMapping={effectiveRoleMapping}
-          enginePhase={engineState?.phase}
-          onPlayPause={handlePlayPause}
-          onStop={handleStop}
-          onRestart={handleRestart}
-          onExit={() => (window.location.href = '/')}
-        />
-      )}
+      {shouldShowControlBar && <NexusControlBar
+        roomId={roomId!}
+        players={currentPlayers}
+        isOwner={isOwner}
+        gameName={gameName}
+        gameId={engineState.gameConfig?.gameId}
+        statusText={controlBarStatusText}
+        roleMapping={effectiveRoleMapping}
+        enginePhase={engineState.phase}
+        onPlayPause={handlePlayPause}
+        onStop={handleStop}
+        onRestart={handleRestart}
+        onExit={() => (window.location.href = '/')}
+      />}
 
       <div style={{
         flex: 1,
@@ -490,8 +454,8 @@ const Room: React.FC = () => {
               {canJoin && (
                 <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
                   <h2>加入这个房间？</h2>
-                  <p><strong>房主:</strong> {room.owner_uid}</p>
-                  <p><strong>游戏:</strong> {room.game_id || '未选择'}</p>
+                  <p><strong>房主:</strong> {engineState.ownerDisplayName}</p>
+                  <p><strong>游戏:</strong> {engineState.gameConfig?.gameId || '未选择'}</p>
                   <p><strong>玩家数:</strong> {playerList.length}</p>
                   <button onClick={handleJoin} style={{ width: '100%', marginTop: 'var(--spacing-sm)' }}>
                     Join Room
@@ -543,14 +507,14 @@ const Room: React.FC = () => {
                         </select>
                         <button
                           onClick={handleSelectGame}
-                          disabled={!selectedGameId || selectedGameId === (room?.game_id ?? '')}
+                          disabled={!selectedGameId || selectedGameId === (engineState.gameConfig?.gameId ?? '')}
                         >
                           {hasGameSelected ? '更新游戏' : '确认选择'}
                         </button>
                       </div>
                     ) : (
                       <p style={{ padding: 'var(--spacing-sm)', background: '#f3f4f6', borderRadius: '6px' }}>
-                        {room.game_id ? gameName || room.game_id : '未选择'}
+                        {engineState.gameConfig?.gameId ? gameName || engineState.gameConfig.gameId : '未选择'}
                       </p>
                     )}
                   </div>
@@ -646,7 +610,7 @@ const Room: React.FC = () => {
           )}
 
           {/* ========== PLAYING/PAUSED/FINISHED PHASE ========== */}
-          {!isOpen && room.game_id && perspective && currentRoleId && (
+          {!isOpen && engineState.gameConfig?.gameId && perspective && currentRoleId && (
             <div className="card" style={{
               height: '100%',
               display: 'flex',
@@ -656,13 +620,13 @@ const Room: React.FC = () => {
               padding: 0 /* 游戏UI自己管理padding */
             }}>
               <GameUIContainer
-                gameId={room.game_id}
+                gameId={engineState.gameConfig.gameId}
                 perspective={perspective}
                 onAction={submitAction}
                 isMyTurn={perspective.your_role.is_current}
-                readonly={engineState?.phase !== 'playing' || submitting}
+                readonly={engineState.phase !== 'playing' || submitting}
                 metadata={{
-                  roomId: room.room_id,
+                  roomId: engineState.roomId,
                   roleId: currentRoleId,
                   playerId: playerId || undefined,
                 }}
@@ -672,10 +636,10 @@ const Room: React.FC = () => {
           )}
 
           {/* Fallback: Status Display */}
-          {!isOpen && (!room.game_id || !perspective || !currentRoleId) && (
+          {!isOpen && (!engineState.gameConfig?.gameId || !perspective || !currentRoleId) && (
             <div className="card">
-              <h2>房间状态: {engineState?.phase || room.room_status}</h2>
-              <p>游戏ID: {room.game_id || '无'}</p>
+              <h2>房间状态: {engineState.phase}</h2>
+              <p>游戏ID: {engineState.gameConfig?.gameId || '无'}</p>
               <p>玩家数: {playerList.length}</p>
             </div>
           )}
@@ -683,11 +647,11 @@ const Room: React.FC = () => {
       </div>
 
       {/* Role Mapping Modal */}
-      {isRoleMappingModalOpen && room && (
+      {isRoleMappingModalOpen && (
         <RoleMappingModal
-          playerList={room.player_list}
+          playerList={currentPlayers as any}
           roleIds={roleIds}
-          initialMapping={roleMapping}
+          initialMapping={effectiveRoleMapping}
           onSave={handleSaveRoleMapping}
           onCancel={handleCancelRoleMapping}
           isMultiPlayerCountGame={isMultiPlayerCountGame}
@@ -714,7 +678,7 @@ const Room: React.FC = () => {
           isMappingComplete={isMappingComplete}
         />
       )}
-      {!isOpen && room.game_id && perspective && currentRoleId && (
+      {!isOpen && engineState.gameConfig?.gameId && perspective && currentRoleId && (
         <GameMessageBar perspective={perspective} />
       )}
     </div>

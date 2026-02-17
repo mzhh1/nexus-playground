@@ -1076,6 +1076,7 @@ export class GameDO extends DurableObject {
                 isOwner: p.isOwner,
                 type: p.type,
                 role: getRoleForUser(this.roleMapping, uid),
+                modelName: p.llmConfig?.modelName,
             };
         }
 

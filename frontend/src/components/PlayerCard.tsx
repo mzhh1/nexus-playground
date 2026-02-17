@@ -4,11 +4,11 @@
  */
 
 import React from 'react';
-import type { Player } from '../lib/types';
+import type { ClientPlayerInfo } from '../hooks/useNexusEngine';
 import styles from './PlayerCard.module.css';
 
 interface PlayerCardProps {
-  player: Player;
+  player: ClientPlayerInfo;
   playerId: string;
   canRemove?: boolean;
   onRemove?: (playerId: string) => void;
@@ -22,32 +22,12 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 }) => {
   const isHuman = player.type === 'human';
 
-  // Determine status indicator for human players
+  // Determine status indicator
   const getStatusIndicator = () => {
-    if (!isHuman) {
-      // LLM players: show active/inactive/error status
-      const statusColors = {
-        active: '#4ade80',    // green
-        inactive: '#94a3b8',  // gray
-        error: '#f87171',     // red
-      };
-      return {
-        color: statusColors[player.status] || '#94a3b8',
-        label: player.status.charAt(0).toUpperCase() + player.status.slice(1),
-      };
-    } else {
-      // Human players: show online/offline/banned status
-      const statusColors = {
-        online: '#4ade80',    // green
-        offline: '#94a3b8',   // gray
-        banned: '#f87171',    // red
-      };
-      return {
-        color: statusColors[player.status] || '#94a3b8',
-        label: player.status === 'online' ? 'Online' :
-          player.status === 'offline' ? 'Offline' : 'Banned',
-      };
-    }
+    return {
+      color: player.connected ? '#4ade80' : '#94a3b8',
+      label: player.connected ? 'Online' : 'Offline',
+    };
   };
 
   const statusIndicator = getStatusIndicator();
@@ -60,7 +40,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
       <div className={styles.playerInfo}>
         <div className={styles.playerName}>
-          {player.display_name}
+          {player.displayName}
           <span
             className={styles.statusDot}
             style={{ backgroundColor: statusIndicator.color }}
@@ -68,7 +48,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
           />
         </div>
         <div className={styles.playerType}>
-          {isHuman ? 'Human' : `LLM (${player.model_name})`}
+          {isHuman ? 'Human' : `LLM (${player.modelName || 'Bot'})`}
         </div>
         <div className={styles.playerStatus}>
           {statusIndicator.label}
