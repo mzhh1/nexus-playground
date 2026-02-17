@@ -507,7 +507,7 @@ const Room: React.FC = () => {
                         </select>
                         <button
                           onClick={handleSelectGame}
-                          disabled={!selectedGameId || selectedGameId === (engineState.gameConfig?.gameId ?? '')}
+                          disabled={!selectedGameId /*|| selectedGameId === (engineState.gameConfig?.gameId ?? '')*/}
                         >
                           {hasGameSelected ? '更新游戏' : '确认选择'}
                         </button>
