@@ -23,6 +23,7 @@ const corsPlugin: FastifyPluginAsync = async (fastify) => {
         'http://localhost:5173',
         'http://127.0.0.1:5173',
         'https://nexus.mzhh.xyz',
+        'https://np-llm-monitor.mzhh.xyz',
       ];
 
       // Allow Vercel preview deployments

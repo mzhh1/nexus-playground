@@ -213,3 +213,6 @@ deploy-engine: ## 部署 nexus-engine 到 Cloudflare
 	@echo "$(BLUE)🚀 部署 nexus-engine 到 Cloudflare...$(NC)"
 	cd nexus-engine && pnpm run deploy
 
+deploy-backend: ## 部署 hono-backend 到 Cloudflare
+	@echo "$(BLUE)🚀 部署 hono-backend 到 Cloudflare...$(NC)"
+	cd hono_backend && pnpm install --ignore-workspace && pnpm run deploy

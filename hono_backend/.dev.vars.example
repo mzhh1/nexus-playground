@@ -1,0 +1,10 @@
+# Copy to .dev.vars for local `wrangler dev`. Do not commit .dev.vars.
+AUTH_BASE_URL=https://your-auth-api.example/api
+JWT_ALG=HS256
+JWT_ACCESS_SECRET=your-access-secret-min-32-chars
+# JWT_ALG=RS256
+# JWKS_URL=https://your-auth/.well-known/jwks.json
+AUTH_ISSUER=
+OAUTH_USERINFO_TIMEOUT_MS=2000
+REQUEST_CLIENT_ID_REQUIRED=true
+ALLOW_REQUEST_CLIENT_ID=
