@@ -26,9 +26,7 @@ interface Room {
   created_at: string;
 }
 
-// 使用相对路径，通过 Nginx 网关访问后端
-// 在 Docker 环境中，Nginx 会将 /api/ 代理到 backend:3000
-const API_BASE_URL = '/api/v1';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_BASE_URL;
 
 function HomeContent() {
   const [games, setGames] = useState<Game[]>([]);

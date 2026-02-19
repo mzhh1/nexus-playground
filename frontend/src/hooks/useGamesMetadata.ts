@@ -11,6 +11,7 @@ interface GamesMetadataResponse {
 
 let cachedGames: GameMetadata[] | null = null;
 let fetchPromise: Promise<GameMetadata[]> | null = null;
+const API_BASE_URL = import.meta.env.VITE_BACKEND_BASE_URL;
 
 async function fetchGamesMetadata(): Promise<GameMetadata[]> {
   // Return cached data if available
@@ -26,8 +27,7 @@ async function fetchGamesMetadata(): Promise<GameMetadata[]> {
   // Create new fetch promise
   fetchPromise = (async () => {
     try {
-      // 使用相对路径，通过 Nginx 网关访问后端
-      const response = await fetch('/api/v1/games');
+      const response = await fetch(`${API_BASE_URL}/games`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch games metadata: ${response.statusText}`);

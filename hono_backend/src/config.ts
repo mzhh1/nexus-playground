@@ -1,14 +1,22 @@
 import type { AuthConfig } from '@autolabz/service-auth-hono';
 
 export interface Env {
+  DB: D1Database;
   AUTH_BASE_URL: string;
   JWT_ALG: 'HS256' | 'RS256';
   JWT_ACCESS_SECRET?: string;
   JWKS_URL?: string;
   AUTH_ISSUER?: string;
+  OAUTH_USERINFO_PATH?: string;
   OAUTH_USERINFO_TIMEOUT_MS?: string;
   REQUEST_CLIENT_ID_REQUIRED?: string;
   ALLOW_REQUEST_CLIENT_ID?: string;
+  NEXUS_ENGINE_URL: string;
+  NEXUS_ENGINE_ADMIN_SECRET: string;
+  NEXUS_ENGINE_JWT_SECRET: string;
+  GOMOKU_WORKER_URL?: string;
+  LLM_WEBHOOK_SECRET?: string;
+  CORS_ALLOW_ORIGINS?: string;
 }
 
 function getRequired(bindings: Env, key: keyof Env): string {
@@ -30,7 +38,7 @@ export function getAuthConfig(env: Env): AuthConfig {
     jwksUrl: jwtAlg === 'RS256' ? getRequired(env, 'JWKS_URL') : undefined,
     authIssuer: env.AUTH_ISSUER || undefined,
     authBaseUrl: getRequired(env, 'AUTH_BASE_URL'),
-    oauthUserinfoPath: '/oauth/userinfo',
+    oauthUserinfoPath: env.OAUTH_USERINFO_PATH || '/oauth/userinfo',
     oauthUserinfoTimeoutMs: Number(env.OAUTH_USERINFO_TIMEOUT_MS ?? '2000'),
   };
 }
@@ -44,4 +52,17 @@ export function requestClientIdRequired(env: Env): boolean {
 export function allowRequestClientId(env: Env): string | undefined {
   const v = env.ALLOW_REQUEST_CLIENT_ID;
   return v && v.trim() ? v.trim() : undefined;
+}
+
+export function getRequiredEnv(env: Env, key: keyof Env): string {
+  return getRequired(env, key);
+}
+
+export function getAllowedOrigins(env: Env): string[] {
+  const raw = env.CORS_ALLOW_ORIGINS;
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
 }

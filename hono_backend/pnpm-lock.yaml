@@ -9,11 +9,14 @@ importers:
   .:
     dependencies:
       '@autolabz/service-auth-hono':
-        specifier: ^1.0.0
-        version: 1.0.2(hono@4.11.9)
+        specifier: ^1.0.3
+        version: 1.0.3(hono@4.11.9)
       hono:
         specifier: ^4.0.0
         version: 4.11.9
+      jose:
+        specifier: ^6.1.3
+        version: 6.1.3
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20240208.0
@@ -27,11 +30,11 @@ importers:
 
 packages:
 
-  '@autolabz/service-auth-core@1.0.6':
-    resolution: {integrity: sha512-sftp7laKZ3xBcnphIn4kxXeWBQdSfSKHXYCjCp+TY9ktTydxtXRmj8l3lPPc5PV3cPHjZCrCEQW1gRhMByghHA==}
+  '@autolabz/service-auth-core@1.0.7':
+    resolution: {integrity: sha512-jagBemg38/qjrLkWkGDKiWb/3sK0o5NPSVXVBD8pHSMNOlmGZLEiiQanzWg29ReaeugdOrdlW9jX7FRXunadgg==}
 
-  '@autolabz/service-auth-hono@1.0.2':
-    resolution: {integrity: sha512-SoKw8/1xFq0kriOVBVUCf1FCut9+znY/Fljnhd3K/rYuLQQTYfVcI969a+k3SnQduWrfmk02Xdi7r5NYhygExA==}
+  '@autolabz/service-auth-hono@1.0.3':
+    resolution: {integrity: sha512-Afby/AiIdGb+DD/+mfhaew81GtyAnnn0OZ8LGHftqXrCnOWuSOzVfSNNemcNYPycfCT2ijUHLAVUZnVjCkLJRw==}
     peerDependencies:
       hono: ^4.0.0
 
@@ -432,6 +435,9 @@ packages:
   jose@5.10.0:
     resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
 
+  jose@6.1.3:
+    resolution: {integrity: sha512-0TpaTfihd4QMNwrz/ob2Bp7X04yuxJkjRGi4aKmOqwhov54i6u79oCv7T+C7lo70MKH6BesI3vscD1yb/yzKXQ==}
+
   magic-string@0.25.9:
     resolution: {integrity: sha512-RmF0AsMzgt25qzqqLc1+MbHmhdx0ojF2Fvs4XnOqz2ZOBXzzkEwc/dJQZCYHAn7v1jbVOjAZfK8msRn4BxO4VQ==}
 
@@ -551,13 +557,13 @@ packages:
 
 snapshots:
 
-  '@autolabz/service-auth-core@1.0.6':
+  '@autolabz/service-auth-core@1.0.7':
     dependencies:
       jose: 5.10.0
 
-  '@autolabz/service-auth-hono@1.0.2(hono@4.11.9)':
+  '@autolabz/service-auth-hono@1.0.3(hono@4.11.9)':
     dependencies:
-      '@autolabz/service-auth-core': 1.0.6
+      '@autolabz/service-auth-core': 1.0.7
       hono: 4.11.9
 
   '@cloudflare/kv-asset-handler@0.3.4':
@@ -846,6 +852,8 @@ snapshots:
     optional: true
 
   jose@5.10.0: {}
+
+  jose@6.1.3: {}
 
   magic-string@0.25.9:
     dependencies:

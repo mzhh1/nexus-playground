@@ -92,8 +92,6 @@ const Room: React.FC = () => {
     }
   }, []);
 
-  // Removed fetchRoom effect to eliminate GET /api/v1/rooms/:id dependency
-
   // Determine current role and player ID from Engine State
   useEffect(() => {
     if (myRoleEngine) {

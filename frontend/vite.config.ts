@@ -13,11 +13,11 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0', // Listen on all interfaces for Docker access
-    port: 5173,      // Default port
+    host: '0.0.0.0', // Listen on all interfaces
+    port: 5173,      // Default dev port
     strictPort: true,
     watch: {
-      usePolling: true, // For Docker compatibility
+      usePolling: true,
     },
     fs: {
       strict: false,
@@ -49,7 +49,8 @@ export default defineConfig({
       },
       // Suppress game asset resolution errors for now if they are missing
       onwarn(warning, warn) {
-        if (warning.code === 'UNRESOLVED_IMPORT' && warning.source.includes('@games')) {
+        const source = 'source' in warning ? warning.source : undefined;
+        if (warning.code === 'UNRESOLVED_IMPORT' && typeof source === 'string' && source.includes('@games')) {
           return;
         }
         warn(warning);

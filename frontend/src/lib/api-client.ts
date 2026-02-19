@@ -46,7 +46,7 @@ export function useGameAPI() {
   const { apiClient, getAccessToken } = useOAuth();
 
   const gameAxios = axios.create({
-    baseURL: import.meta.env.VITE_BACKEND_BASE_URL || '/api/v1',
+    baseURL: import.meta.env.VITE_BACKEND_BASE_URL,
     timeout: 30000,
     headers: {
       'Content-Type': 'application/json',

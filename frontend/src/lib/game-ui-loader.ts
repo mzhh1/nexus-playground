@@ -7,7 +7,7 @@ import type { GameUIComponent } from './game-ui-types';
 
 // Game UI module registry - manually register game modules here
 // This is necessary because Vite's glob imports need to be statically analyzable
-// Note: In Docker, games directory is mounted at /app/games, so path is ../../games from src/lib/
+// Game modules are resolved from repository root via relative path.
 const gameUIRegistry: Record<string, () => Promise<{ default: GameUIComponent }>> = {
   // 'tic-tac-toe': () => import('../../games/tic-tac-toe/ui/ui.tsx'),
   // 'gomoku': () => import('../../games/gomoku/ui/ui.tsx'),

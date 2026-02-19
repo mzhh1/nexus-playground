@@ -10,12 +10,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@autolabz/service-auth-hono": "^1.0.0",
-    "hono": "^4.0.0"
+    "@autolabz/service-auth-hono": "^1.0.3",
+    "hono": "^4.0.0",
+    "jose": "^6.1.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240208.0",
     "typescript": "^5.5.4",
-    "wrangler": "^3.114.17"
+    "wrangler": "^4.65.0"
   }
 }

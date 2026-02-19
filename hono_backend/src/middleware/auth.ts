@@ -8,7 +8,25 @@ export type AppEnv = {
 };
 
 export function registerAuthMiddleware(app: Hono<AppEnv>) {
-  app.use('/api/*', async (c: Context<AppEnv>, next: Next) => {
+  app.use('/api/v1/my-nexus', async (c: Context<AppEnv>, next: Next) => {
+    if (c.req.method === 'OPTIONS') {
+      return next();
+    }
+
+    const authConfig = getAuthConfig(c.env);
+    const chain = authMiddlewareChain({
+      authConfig,
+      clientId: {},
+      enforce: { requiredScopes: [] },
+    });
+    return chain(c as unknown as Context<HonoAuthEnv>, next);
+  });
+
+  app.use('/api/v1/rooms/*', async (c: Context<AppEnv>, next: Next) => {
+    if (c.req.method === 'OPTIONS') {
+      return next();
+    }
+
     const authConfig = getAuthConfig(c.env);
     const chain = authMiddlewareChain({
       authConfig,
