@@ -26,7 +26,7 @@ export interface ClientEngineState {
     roomId: string;
     ownerId: string;
     ownerDisplayName: string;
-    phase: 'lobby' | 'playing' | 'finished';
+    phase: 'lobby' | 'playing' | 'paused' | 'finished';
     players: Record<string, ClientPlayerInfo>;
     gameConfig: {
         gameId: string;

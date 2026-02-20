@@ -34,3 +34,18 @@ ADMIN_SECRET = "dev-secret-123"
 #LLM_WEBHOOK_URL = "https://nexus.mzhh.xyz/api/v1/webhook/llm"
 # Shared secret for Engine -> Backend webhook auth
 #LLM_WEBHOOK_SECRET = "dev-secret-123"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
+persist = true
+head_sampling_rate = 1

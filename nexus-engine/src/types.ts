@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────
 
 /** Room lifecycle phase */
-export type RoomPhase = 'lobby' | 'playing' | 'finished';
+export type RoomPhase = 'lobby' | 'playing' | 'paused' | 'finished';
 
 // ─── Engine Internal State ──────────────────────────────────
 

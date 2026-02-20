@@ -309,12 +309,13 @@ const Room: React.FC = () => {
 
   const isOpen = engineState?.phase === 'lobby';
   const isPlaying = engineState?.phase === 'playing';
+  const isPaused = engineState?.phase === 'paused';
   const isFinished = engineState?.phase === 'finished';
   const canJoin = false; // Join is automatic in v4.0 via connection
 
   // 在开放阶段也显示控制栏（当有游戏选择时）
   const shouldShowControlBar = engineState
-    ? isPlaying || isFinished || (engineState.gameConfig && (isOwner || isInRoom))
+    ? isPlaying || isPaused || isFinished || (engineState.gameConfig && (isOwner || isInRoom))
     : false;
 
   const baseContentPadding = isOpen ? 'var(--spacing-lg)' : 'var(--spacing-sm)';
