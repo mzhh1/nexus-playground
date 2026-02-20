@@ -20,6 +20,7 @@ export interface GameConfig {
     gameId: string;
     maxPlayers: number;
     roleIds: string[];
+    enable_llm_memory?: boolean;
     [key: string]: any;
 }
 
@@ -135,7 +136,12 @@ export interface LlmWebhookRequest {
     previousError?: string;
 }
 
-/** Response from Backend's LLM webhook endpoint */
+/** Raw response from the simplified backend proxy */
+export interface LlmProxyResponse {
+    content: string;
+}
+
+/** Parsed result of LLM output - processed internally by LlmManager */
 export interface LlmWebhookResponse {
     action: {
         action_id: string;

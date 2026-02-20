@@ -49,7 +49,8 @@ function matchesFilter(record: MonitorLogRecord, filter: StreamFilter): boolean 
 export class MonitorDO extends DurableObject {
     private app: Hono = new Hono();
     private subscribers = new Map<string, Subscriber>();
-    private heartbeatTimer: number | null = null;
+    private lastProcessedTs: number = Date.now();
+    private isPolling: boolean = false;
 
     constructor(state: DurableObjectState, env: Env) {
         super(state, env);
@@ -61,7 +62,43 @@ export class MonitorDO extends DurableObject {
         if (this.heartbeatTimer !== null) return;
         this.heartbeatTimer = setInterval(() => {
             this.broadcast("heartbeat", { ts: Date.now() });
+            this.checkAndStartPolling();
         }, 20000) as unknown as number;
+    }
+
+    private checkAndStartPolling(): void {
+        if (this.subscribers.size > 0 && !this.isPolling) {
+            this.isPolling = true;
+            void this.pollD1();
+        }
+    }
+
+    private async pollD1(): Promise<void> {
+        while (this.subscribers.size > 0) {
+            try {
+                // Query D1 for new logs since lastProcessedTs
+                const sql = `
+                    SELECT * FROM player_action_logs 
+                    WHERE event_ts > ? 
+                    ORDER BY event_ts ASC 
+                    LIMIT 20
+                `;
+                const result = await this.env.DB.prepare(sql).bind(this.lastProcessedTs).all<MonitorLogRecord>();
+
+                if (result.results && result.results.length > 0) {
+                    for (const record of result.results) {
+                        await this.broadcastRecord(record);
+                        this.lastProcessedTs = Math.max(this.lastProcessedTs, record.event_ts);
+                    }
+                }
+            } catch (e) {
+                console.error("[MonitorDO] Polling D1 failed:", e);
+            }
+
+            // Wait for a short interval before next poll
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+        this.isPolling = false;
     }
 
     private setupRoutes(): void {
@@ -83,6 +120,8 @@ export class MonitorDO extends DurableObject {
             };
 
             this.subscribers.set(subscriberId, { id: subscriberId, filter, writer });
+            this.checkAndStartPolling();
+
             await writer.write(encodeSse("ready", { connected: true }));
             const lastEventId = c.req.header("last-event-id") || "";
             await writer.write(encodeSse("replay_end", { lastEventId }));
@@ -108,15 +147,6 @@ export class MonitorDO extends DurableObject {
                     Connection: "keep-alive",
                 },
             });
-        });
-
-        this.app.post("/publish", async (c) => {
-            const body = await c.req.json<MonitorStreamEvent>();
-            if (!body || body.kind !== "upsert" || !body.data) {
-                return c.json({ error: "Invalid publish payload" }, 400);
-            }
-            await this.broadcastRecord(body.data);
-            return c.json({ ok: true });
         });
     }
 

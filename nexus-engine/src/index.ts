@@ -165,30 +165,6 @@ app.get('/api/monitor/logs', async (c) => {
     return c.json(result);
 });
 
-app.get('/api/monitor/logs/:interactionId', async (c) => {
-    const access = await requireMonitorRoom(c);
-    if (access instanceof Response) return access;
-
-    const interactionId = c.req.param('interactionId');
-    const data = await getMonitorLogById(c.env.DB, interactionId);
-    if (!data) return c.json({ error: 'Not found' }, 404);
-    if (!access.authBypassed && data.room_id !== access.roomId) return c.json({ error: 'Forbidden room' }, 403);
-    return c.json({ data });
-});
-
-app.get('/api/monitor/logs/groups/:groupId', async (c) => {
-    const access = await requireMonitorRoom(c);
-    if (access instanceof Response) return access;
-
-    const groupId = c.req.param('groupId');
-    const data = await getMonitorLogsByGroup(c.env.DB, groupId);
-    if (data.length === 0) {
-        return c.json({ interaction_group_id: groupId, data: [] });
-    }
-    if (!access.authBypassed && data[0].room_id !== access.roomId) return c.json({ error: 'Forbidden room' }, 403);
-    return c.json({ interaction_group_id: groupId, data });
-});
-
 app.get('/api/monitor/logs/stream', async (c) => {
     const roomResult = await requireMonitorRoom(c);
     if (roomResult instanceof Response) return roomResult;
@@ -211,6 +187,30 @@ app.get('/api/monitor/logs/stream', async (c) => {
         },
     });
     return stub.fetch(req);
+});
+
+app.get('/api/monitor/logs/groups/:groupId', async (c) => {
+    const access = await requireMonitorRoom(c);
+    if (access instanceof Response) return access;
+
+    const groupId = c.req.param('groupId');
+    const data = await getMonitorLogsByGroup(c.env.DB, groupId);
+    if (data.length === 0) {
+        return c.json({ interaction_group_id: groupId, data: [] });
+    }
+    if (!access.authBypassed && data[0].room_id !== access.roomId) return c.json({ error: 'Forbidden room' }, 403);
+    return c.json({ interaction_group_id: groupId, data });
+});
+
+app.get('/api/monitor/logs/:interactionId', async (c) => {
+    const access = await requireMonitorRoom(c);
+    if (access instanceof Response) return access;
+
+    const interactionId = c.req.param('interactionId');
+    const data = await getMonitorLogById(c.env.DB, interactionId);
+    if (!data) return c.json({ error: 'Not found' }, 404);
+    if (!access.authBypassed && data.room_id !== access.roomId) return c.json({ error: 'Forbidden room' }, 403);
+    return c.json({ data });
 });
 
 // ==========================================

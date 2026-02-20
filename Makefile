@@ -1,4 +1,4 @@
-.PHONY: help build-games d1-migrate deploy-engine deploy-backend typecheck set-engine-secret set-backend-secret
+.PHONY: help build-games d1-migrate deploy-engine deploy-backend deploy-game typecheck set-engine-secret set-backend-secret
 
 .DEFAULT_GOAL := help
 
@@ -34,6 +34,15 @@ deploy-engine: ## 部署 nexus-engine 到 Cloudflare
 deploy-backend: ## 部署 hono_backend 到 Cloudflare
 	@echo "$(BLUE)🚀 部署 hono-backend 到 Cloudflare...$(NC)"
 	pnpm --filter ./hono_backend run deploy
+
+deploy-game: ## 部署指定游戏 (用法: make deploy-game G=<game_dir>)
+	@if [ -z "$(G)" ]; then \
+		echo "$(YELLOW)⚠️ 请指定游戏目录名，例如: make deploy-game G=gomoku$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)🚀 正在构建并部署游戏: $(G)...$(NC)"
+	cd games/$(G) && npm run build
+	cd games/$(G)/worker && npm run deploy
 
 set-engine-secret: ## 手动设置 nexus-engine 的 CF Worker 环境变量（secret）
 	@echo "$(BLUE)🔐 设置 nexus-engine Secret$(NC)"

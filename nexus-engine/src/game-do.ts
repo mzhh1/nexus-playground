@@ -233,6 +233,7 @@ export class GameDO extends DurableObject implements IRoomContext {
     // ═════════════════════════════════════════════════════════
 
     public async handleMessage(userId: string, msg: ClientMessage): Promise<void> {
+        console.log(`[GameDO] Incoming message from ${userId}: ${msg.type}`);
         switch (msg.type) {
             case "LOBBY_SELECT_ROLE":
                 await this.roomMgr.handleSelectRole(userId, msg.payload.roleId);
@@ -283,17 +284,24 @@ export class GameDO extends DurableObject implements IRoomContext {
     }
 
     public async checkAndTriggerNextTurn(): Promise<void> {
-        if (this.phase !== "playing") return;
+        if (this.phase !== "playing") {
+            console.log(`[GameDO] checkAndTriggerNextTurn: skipping because phase is ${this.phase}`);
+            return;
+        }
 
         const roleId = await this.getCurrentRole();
+        console.log(`[GameDO] Current role identified as: ${roleId}`);
         if (!roleId) return;
 
         const userId = this.roleMapping[roleId];
         const player = this.players[userId];
+        console.log(`[GameDO] roleId ${roleId} is mapped to userId ${userId}. Player info:`, player ? JSON.stringify(player) : "null");
 
         if (player && player.type === "llm") {
             console.log(`[GameDO] Triggering LLM turn for ${roleId} (${userId})`);
             this.ctx.waitUntil(this.llm.callLlmWebhook(roleId));
+        } else {
+            console.log(`[GameDO] Next turn is for human player or player not found. Standing by.`);
         }
     }
 
@@ -323,9 +331,14 @@ export class GameDO extends DurableObject implements IRoomContext {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ state: this.gameState }),
             });
-            if (!res.ok) return null;
+            if (!res.ok) {
+                console.error(`[GameDO] getCurrentRole: worker returned ${res.status}`);
+                return null;
+            }
             const data = await res.json() as any;
-            return data.roleId || data.role_id || data;
+            const roleId = data.roleId || data.role_id || data;
+            console.log(`[GameDO] getCurrentRole: worker returned ${JSON.stringify(data)}, extracted: ${roleId}`);
+            return roleId;
         } catch (e) {
             console.error("[GameDO] Failed to get current role:", e);
             return null;
@@ -410,20 +423,6 @@ export class GameDO extends DurableObject implements IRoomContext {
         }
         if (lastIndex === -1) return [...this.history];
         return this.history.slice(lastIndex);
-    }
-
-    public async publishMonitorEvent(record: MonitorLogRecord): Promise<void> {
-        try {
-            const id = this.bindings.MONITOR_DO.idFromName("global");
-            const stub = this.bindings.MONITOR_DO.get(id);
-            await stub.fetch("http://do/publish", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ kind: "upsert", data: record }),
-            });
-        } catch (e) {
-            console.error("[GameDO] Failed to publish monitor event:", e);
-        }
     }
 
     public applyMemoryUpdate(

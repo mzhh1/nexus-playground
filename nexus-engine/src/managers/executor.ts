@@ -144,7 +144,7 @@ export class GameExecutor extends BaseManager {
         if (currentRoleId !== roleId) {
             return this.room.sendErrorToUser(userId, "Not your turn");
         }
-
+        //console.log("[GameExecutor] Submitting action to game worker:", payload.action_id, payload.params);
         const result = await this.room.submitActionToGameWorker(roleId, {
             action_id: payload.action_id,
             params: payload.params || {},
@@ -163,7 +163,7 @@ export class GameExecutor extends BaseManager {
             modelName: null,
             systemPrompt: null,
             userPrompt: null,
-            response: null,
+            response: JSON.stringify({ action_id: payload.action_id, params: payload.params || {} }),
             action_id: payload.action_id,
             actionParams: payload.params || {},
             attempt: 1,
@@ -175,24 +175,18 @@ export class GameExecutor extends BaseManager {
         };
 
         if (!result.success) {
-            const log = await insertMonitorLog(this.room.bindings.DB, {
+            await insertMonitorLog(this.room.bindings.DB, {
                 ...baseHumanLog,
                 status: "rejected",
                 errorMessage: result.error || "Action rejected",
             });
-            if (log) {
-                await this.room.publishMonitorEvent(log);
-            }
             return this.room.sendErrorToUser(userId, result.error || "Action rejected");
         }
 
-        const log = await insertMonitorLog(this.room.bindings.DB, {
+        await insertMonitorLog(this.room.bindings.DB, {
             ...baseHumanLog,
             status: "success",
         });
-        if (log) {
-            await this.room.publishMonitorEvent(log);
-        }
 
         this.room.gameState = result.nextState;
         this.room.history.push({
@@ -205,6 +199,7 @@ export class GameExecutor extends BaseManager {
         await this.room.persist("gameState", "history");
         this.room.broadcastSyncState();
 
+        console.log(`[GameExecutor] Action processed for ${userId} (${roleId}), checking next turn...`);
         await this.room.checkAndTriggerNextTurn();
     }
 }

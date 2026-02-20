@@ -36,7 +36,7 @@ ADMIN_SECRET = "dev-secret-123"
 #LLM_WEBHOOK_SECRET = "dev-secret-123"
 
 [observability]
-enabled = false
+enabled = true
 head_sampling_rate = 1
 
 [observability.logs]

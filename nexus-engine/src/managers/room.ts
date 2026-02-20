@@ -90,6 +90,7 @@ export class RoomManager extends BaseManager {
                 gameId: payload.gameId || metadata.id,
                 maxPlayers: metadata.maxPlayers || roleIds.length,
                 roleIds,
+                enable_llm_memory: metadata.enable_llm_memory,
             };
 
             // Clear role mapping since game changed

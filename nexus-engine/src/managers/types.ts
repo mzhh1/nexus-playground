@@ -1,6 +1,8 @@
 import { RoomPhase, PlayerInfo, GameConfig, HistoryEvent, Env, EngineRoomState } from "../types";
+import { DurableObjectState } from "cloudflare:workers";
 
 export interface IRoomContext {
+    ctx: DurableObjectState;
     roomId: string;
     ownerId: string;
     ownerDisplayName: string;

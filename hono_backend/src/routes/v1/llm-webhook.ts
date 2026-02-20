@@ -29,84 +29,6 @@ interface OpenAIChatCompletionResponse {
   };
 }
 
-interface ParsedLlmOutput {
-  action: {
-    action_id: string;
-    params: Record<string, unknown>;
-  };
-  memoryUpdate?: {
-    mode: 'append' | 'replace';
-    content: string;
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function extractJsonFromText(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-    return trimmed;
-  }
-  const match = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (match?.[1]) {
-    return match[1].trim();
-  }
-  return trimmed;
-}
-
-function parseLlmOutput(rawContent: string): ParsedLlmOutput {
-  const jsonText = extractJsonFromText(rawContent);
-  const parsed = JSON.parse(jsonText) as unknown;
-  if (!isRecord(parsed)) {
-    throw new Error('LLM output must be a JSON object');
-  }
-
-  const rawActionId = parsed.action_id ?? parsed.actionId;
-  if (typeof rawActionId !== 'string' || rawActionId.trim() === '') {
-    throw new Error('LLM output missing action_id/actionId');
-  }
-
-  const rawParams = parsed.params;
-  const params = isRecord(rawParams) ? rawParams : {};
-
-  let memoryUpdate: ParsedLlmOutput['memoryUpdate'];
-  const rawMemoryUpdate = parsed.memory_update ?? parsed.memoryUpdate;
-  if (isRecord(rawMemoryUpdate)) {
-    const mode = rawMemoryUpdate.mode;
-    const content = rawMemoryUpdate.content;
-    if ((mode === 'append' || mode === 'replace') && typeof content === 'string') {
-      memoryUpdate = { mode, content };
-    }
-  }
-
-  return {
-    action: {
-      action_id: rawActionId,
-      params,
-    },
-    memoryUpdate,
-  };
-}
-
-function buildUserPrompt(body: LlmWebhookBody): string {
-  if (body.statePrompt && body.statePrompt.trim()) {
-    return body.statePrompt;
-  }
-  return [
-    `gameId: ${body.gameId}`,
-    `roomId: ${body.roomId}`,
-    `roleId: ${body.roleId}`,
-    '',
-    'perspective:',
-    JSON.stringify(body.perspective ?? {}, null, 2),
-    '',
-    '请只返回 JSON 对象，结构如下：',
-    '{"action_id":"<action-id>","params":{},"memory_update":{"mode":"append|replace","content":"optional"}}',
-  ].join('\n');
-}
-
 export function registerV1LLMWebhookRoute(app: Hono<AppEnv>) {
   app.post('/api/v1/webhook/llm', async (c) => {
     const expectedSecret = c.env.LLM_WEBHOOK_SECRET;
@@ -125,17 +47,16 @@ export function registerV1LLMWebhookRoute(app: Hono<AppEnv>) {
       return c.json({ error: 'Invalid JSON body' }, 400);
     }
 
+    // Basic validation — we only need llmConfig and statePrompt now
     if (
       !body ||
-      typeof body.roleId !== 'string' ||
-      typeof body.roomId !== 'string' ||
-      typeof body.gameId !== 'string' ||
       !body.llmConfig ||
       typeof body.llmConfig.modelName !== 'string' ||
       typeof body.llmConfig.systemPrompt !== 'string' ||
-      typeof body.llmConfig.temperature !== 'number'
+      typeof body.llmConfig.temperature !== 'number' ||
+      typeof body.statePrompt !== 'string'
     ) {
-      return c.json({ error: 'Invalid webhook payload' }, 400);
+      return c.json({ error: 'Invalid webhook payload: statePrompt and llmConfig are required' }, 400);
     }
 
     const envMap = c.env as unknown as Record<string, string | undefined>;
@@ -146,7 +67,6 @@ export function registerV1LLMWebhookRoute(app: Hono<AppEnv>) {
     }
 
     const apiUrl = `${openAiBase.replace(/\/+$/, '')}/chat/completions`;
-    const userPrompt = buildUserPrompt(body);
 
     const llmResp = await fetch(apiUrl, {
       method: 'POST',
@@ -159,7 +79,7 @@ export function registerV1LLMWebhookRoute(app: Hono<AppEnv>) {
         temperature: body.llmConfig.temperature,
         messages: [
           { role: 'system', content: body.llmConfig.systemPrompt },
-          { role: 'user', content: userPrompt },
+          { role: 'user', content: body.statePrompt },
         ],
       }),
     });
@@ -188,18 +108,7 @@ export function registerV1LLMWebhookRoute(app: Hono<AppEnv>) {
       );
     }
 
-    try {
-      const parsed = parseLlmOutput(content);
-      return c.json(parsed);
-    } catch (err) {
-      return c.json(
-        {
-          error: 'Failed to parse LLM response as action JSON',
-          detail: err instanceof Error ? err.message : String(err),
-          raw: content.slice(0, 1000),
-        },
-        422
-      );
-    }
+    // Just return raw content to engine
+    return c.json({ content });
   });
 }
