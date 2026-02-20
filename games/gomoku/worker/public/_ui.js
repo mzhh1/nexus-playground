@@ -1,4 +1,4 @@
-var I = { exports: {} }, E = {}, T = { exports: {} }, n = {};
+var T = { exports: {} }, E = {}, L = { exports: {} }, n = {};
 /**
  * @license React
  * react.production.min.js
@@ -12,14 +12,14 @@ var k = Symbol.for("react.element"), Y = Symbol.for("react.portal"), K = Symbol.
 function ue(e) {
   return e === null || typeof e != "object" ? null : (e = P && e[P] || e["@@iterator"], typeof e == "function" ? e : null);
 }
-var L = { isMounted: function() {
+var U = { isMounted: function() {
   return !1;
 }, enqueueForceUpdate: function() {
 }, enqueueReplaceState: function() {
 }, enqueueSetState: function() {
-} }, U = Object.assign, D = {};
+} }, D = Object.assign, I = {};
 function h(e, t, o) {
-  this.props = e, this.context = t, this.refs = D, this.updater = o || L;
+  this.props = e, this.context = t, this.refs = I, this.updater = o || U;
 }
 h.prototype.isReactComponent = {};
 h.prototype.setState = function(e, t) {
@@ -33,11 +33,11 @@ function F() {
 }
 F.prototype = h.prototype;
 function j(e, t, o) {
-  this.props = e, this.context = t, this.refs = D, this.updater = o || L;
+  this.props = e, this.context = t, this.refs = I, this.updater = o || U;
 }
 var w = j.prototype = new F();
 w.constructor = j;
-U(w, h.prototype);
+D(w, h.prototype);
 w.isPureReactComponent = !0;
 var N = Array.isArray, V = Object.prototype.hasOwnProperty, C = { current: null }, q = { key: !0, ref: !0, __self: !0, __source: !0 };
 function B(e, t, o) {
@@ -147,7 +147,7 @@ n.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = le;
 n.act = M;
 n.cloneElement = function(e, t, o) {
   if (e == null) throw Error("React.cloneElement(...): The argument must be a React element, but you passed " + e + ".");
-  var r = U({}, e.props), u = e.key, s = e.ref, i = e._owner;
+  var r = D({}, e.props), u = e.key, s = e.ref, i = e._owner;
   if (t != null) {
     if (t.ref !== void 0 && (s = t.ref, i = C.current), t.key !== void 0 && (u = "" + t.key), e.type && e.type.defaultProps) var l = e.type.defaultProps;
     for (c in t) V.call(t, c) && !q.hasOwnProperty(c) && (r[c] = t[c] === void 0 && l !== void 0 ? l[c] : t[c]);
@@ -237,8 +237,8 @@ n.useTransition = function() {
   return p.current.useTransition();
 };
 n.version = "18.3.1";
-T.exports = n;
-var ae = T.exports;
+L.exports = n;
+var ae = L.exports;
 /**
  * @license React
  * react-jsx-runtime.production.min.js
@@ -259,8 +259,8 @@ function W(e, t, o) {
 E.Fragment = ye;
 E.jsx = W;
 E.jsxs = W;
-I.exports = E;
-var m = I.exports;
+T.exports = E;
+var m = T.exports;
 const ve = "_intersections_6mc94_57", he = "_intersection_6mc94_57", ke = "_clickable_6mc94_77", $e = "_stone_6mc94_92", be = "_black_6mc94_100", Se = "_white_6mc94_104", d = {
   "gomoku-container": "_gomoku-container_6mc94_3",
   "gomoku-board": "_gomoku-board_6mc94_15",
@@ -282,7 +282,7 @@ const ve = "_intersections_6mc94_57", he = "_intersection_6mc94_57", ke = "_clic
 }) => {
   const { current_state: u, your_role: s, action_space_definition: i } = e, { board: l, lastMove: c } = u, y = (f, a) => {
     if (!o || r || !i.actions.find(
-      ($) => $.actionId === "place"
+      ($) => $.action_id === "place"
     ) || l[f][a] !== 0)
       return;
     let _;
@@ -293,12 +293,12 @@ const ve = "_intersections_6mc94_57", he = "_intersection_6mc94_57", ke = "_clic
     else
       return;
     t({
-      actionId: "place",
+      action_id: "place",
       role_id: _,
       params: { row: f, col: a }
     });
   }, z = (f, a) => !o || r ? !1 : i.actions.find(
-    (_) => _.actionId === "place"
+    (_) => _.action_id === "place"
   ) !== void 0 && l[f][a] === 0, H = (f, a) => c !== null && c.row === f && c.col === a, G = (f) => f === 1 ? "black" : f === 2 ? "white" : null;
   return /* @__PURE__ */ m.jsx("div", { className: d["gomoku-container"], children: /* @__PURE__ */ m.jsxs("div", { className: d["gomoku-board"], children: [
     /* @__PURE__ */ m.jsxs("svg", { className: d["board-lines"], viewBox: "0 0 100 100", preserveAspectRatio: "none", children: [
