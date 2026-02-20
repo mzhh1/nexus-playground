@@ -41,12 +41,12 @@ export function useAction(roomId: string | null) {
    * Create and submit action
    */
   const performAction = useCallback(async (
-    actionId: string,
+    action_id: string,
     roleId: string,
     params?: Record<string, any>
   ) => {
     const action: Action = {
-      action_id: actionId,
+      action_id,
       role_id: roleId,
       params: params || {},
     };

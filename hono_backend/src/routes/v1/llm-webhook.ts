@@ -31,7 +31,7 @@ interface OpenAIChatCompletionResponse {
 
 interface ParsedLlmOutput {
   action: {
-    actionId: string;
+    action_id: string;
     params: Record<string, unknown>;
   };
   memoryUpdate?: {
@@ -83,7 +83,7 @@ function parseLlmOutput(rawContent: string): ParsedLlmOutput {
 
   return {
     action: {
-      actionId: rawActionId,
+      action_id: rawActionId,
       params,
     },
     memoryUpdate,

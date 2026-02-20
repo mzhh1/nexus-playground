@@ -125,7 +125,7 @@ export class GameExecutor extends BaseManager {
 
     public async handleAction(
         userId: string,
-        payload: { actionId: string; params?: Record<string, any> },
+        payload: { action_id: string; params?: Record<string, any> },
     ): Promise<void> {
         const startedAt = Date.now();
         if (this.room.phase !== "playing") {
@@ -146,7 +146,7 @@ export class GameExecutor extends BaseManager {
         }
 
         const result = await this.room.submitActionToGameWorker(roleId, {
-            actionId: payload.actionId,
+            action_id: payload.action_id,
             params: payload.params || {},
         });
 
@@ -164,7 +164,7 @@ export class GameExecutor extends BaseManager {
             systemPrompt: null,
             userPrompt: null,
             response: null,
-            actionId: payload.actionId,
+            action_id: payload.action_id,
             actionParams: payload.params || {},
             attempt: 1,
             outerAttempt: 1,
@@ -198,7 +198,7 @@ export class GameExecutor extends BaseManager {
         this.room.history.push({
             turn: this.room.history.length,
             roleId,
-            action: { actionId: payload.actionId, params: payload.params || {} },
+            action: { action_id: payload.action_id, params: payload.params || {} },
             timestamp: Date.now(),
         });
 

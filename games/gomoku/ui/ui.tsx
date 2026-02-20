@@ -156,9 +156,8 @@ const GomokuUI: React.FC<GameUIProps> = ({
               return (
                 <div
                   key={`${rowIndex}-${colIndex}`}
-                  className={`${styles['intersection']} ${
-                    isClickable ? styles['clickable'] : ''
-                  }`}
+                  className={`${styles['intersection']} ${isClickable ? styles['clickable'] : ''
+                    }`}
                   style={{
                     left: `${(colIndex / 14) * 100}%`,
                     top: `${(rowIndex / 14) * 100}%`,
@@ -167,9 +166,8 @@ const GomokuUI: React.FC<GameUIProps> = ({
                 >
                   {stoneType && (
                     <div
-                      className={`${styles['stone']} ${styles[stoneType]} ${
-                        isLast ? styles['last-move'] : ''
-                      }`}
+                      className={`${styles['stone']} ${styles[stoneType]} ${isLast ? styles['last-move'] : ''
+                        }`}
                     />
                   )}
                 </div>

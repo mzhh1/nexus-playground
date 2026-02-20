@@ -218,8 +218,8 @@ export function useNexusEngine({ roomId }: UseNexusEngineProps) {
 
     // ─── Game Actions ────────────────────────────────────
 
-    const sendAction = useCallback((actionId: string, params?: Record<string, any>) => {
-        send('ACT', { actionId, params });
+    const sendAction = useCallback((action_id: string, params?: Record<string, any>) => {
+        send('ACT', { action_id, params });
     }, [send]);
 
     // ─── Return ──────────────────────────────────────────

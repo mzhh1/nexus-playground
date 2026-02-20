@@ -45,7 +45,7 @@ export interface PlayerInfo {
 export interface HistoryEvent {
     turn: number;
     roleId: string;
-    action: { actionId: string; params: Record<string, any> };
+    action: { action_id: string; params: Record<string, any> };
     timestamp: number;
 }
 
@@ -118,7 +118,7 @@ export type ClientMessage =
     | { type: 'ADMIN_PAUSE_GAME' }
     | { type: 'ADMIN_RESUME_GAME' }
     // Game action
-    | { type: 'ACT'; payload: { actionId: string; params?: Record<string, any> } };
+    | { type: 'ACT'; payload: { action_id: string; params?: Record<string, any> } };
 
 // ─── LLM Webhook Types ──────────────────────────────────────
 
@@ -138,7 +138,7 @@ export interface LlmWebhookRequest {
 /** Response from Backend's LLM webhook endpoint */
 export interface LlmWebhookResponse {
     action: {
-        actionId: string;
+        action_id: string;
         params: Record<string, any>;
     };
     memoryUpdate?: {

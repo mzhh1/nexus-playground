@@ -58,7 +58,7 @@ export interface InsertMonitorLogInput {
     systemPrompt?: string | null;
     userPrompt?: string | null;
     response?: string | null;
-    actionId?: string | null;
+    action_id?: string | null;
     actionParams?: Record<string, unknown> | null;
     status: InteractionStatus;
     attempt: number;
@@ -74,7 +74,7 @@ export interface UpdateMonitorLogInput {
     status?: InteractionStatus;
     userPrompt?: string | null;
     response?: string | null;
-    actionId?: string | null;
+    action_id?: string | null;
     actionParams?: Record<string, unknown> | null;
     previousError?: string | null;
     errorMessage?: string | null;
@@ -291,7 +291,7 @@ export async function insertMonitorLog(
         input.systemPrompt ?? null,
         input.userPrompt ?? null,
         input.response ?? null,
-        input.actionId ?? null,
+        input.action_id ?? null,
         input.actionParams ? JSON.stringify(input.actionParams) : null,
         input.status,
         input.attempt,
@@ -326,9 +326,9 @@ export async function updateMonitorLog(
         setClauses.push("response = ?");
         binds.push(patch.response);
     }
-    if (patch.actionId !== undefined) {
+    if (patch.action_id !== undefined) {
         setClauses.push("action_id = ?");
-        binds.push(patch.actionId);
+        binds.push(patch.action_id);
     }
     if (patch.actionParams !== undefined) {
         setClauses.push("action_params_json = ?");

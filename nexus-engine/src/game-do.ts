@@ -372,7 +372,7 @@ export class GameDO extends DurableObject implements IRoomContext {
 
     public async submitActionToGameWorker(
         roleId: string,
-        action: { actionId: string; params: Record<string, any> },
+        action: { action_id: string; params: Record<string, any> },
     ): Promise<{ success: boolean; nextState?: any; error?: string }> {
         if (!this.gameConfig || !this.gameState) return { success: false, error: "Game not initialized" };
         try {
