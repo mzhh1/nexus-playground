@@ -511,7 +511,7 @@ export default new MyGameLogic();
 make deploy-game G=my-game
 ```
 
-详细的游戏接入规范请参考 [`game_integration_guide.md`](./game_integration_guide.md)。
+详细的游戏接入规范请参考 [`game_integration_guide.md`](./docs/old/game_integration_guide.md)。
 
 ---
 
@@ -519,13 +519,13 @@ make deploy-game G=my-game
 
 | 文档 | 说明 |
 |------|------|
-| [`game_integration_guide.md`](./game_integration_guide.md) | 游戏接入与运行设计规范 |
-| [`overview.md`](./overview.md) | 项目总览与愿景 |
-| [`platform_design.md`](./platform_design.md) | 平台设计文档 |
-| [`NEXUS_ENGINE_DESIGN.md`](./NEXUS_ENGINE_DESIGN.md) | 游戏引擎设计文档 |
-| [`AUTO_PLAYER_SYSTEM.md`](./AUTO_PLAYER_SYSTEM.md) | 自动玩家系统详解 |
-| [`LLM_EXECUTOR_GUIDE.md`](./LLM_EXECUTOR_GUIDE.md) | LLM 执行器使用指南 |
-| [`LLM_MEMORY_GUIDE.md`](./LLM_MEMORY_GUIDE.md) | LLM 记忆系统指南 |
+| [`game_integration_guide.md`](./docs/old/game_integration_guide.md) | 游戏接入与运行设计规范 |
+| [`overview.md`](./docs/old/overview.md) | 项目总览与愿景 |
+| [`platform_design.md`](./docs/old/platform_design.md) | 平台设计文档 |
+| [`NEXUS_ENGINE_DESIGN.md`](./docs/old/NEXUS_ENGINE_DESIGN.md) | 游戏引擎设计文档 |
+| [`AUTO_PLAYER_SYSTEM.md`](./docs/old/AUTO_PLAYER_SYSTEM.md) | 自动玩家系统详解 |
+| [`LLM_EXECUTOR_GUIDE.md`](./docs/old/LLM_EXECUTOR_GUIDE.md) | LLM 执行器使用指南 |
+| [`LLM_MEMORY_GUIDE.md`](./docs/old/LLM_MEMORY_GUIDE.md) | LLM 记忆系统指南 |
 
 ---
 
