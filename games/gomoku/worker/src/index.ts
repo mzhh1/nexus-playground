@@ -40,6 +40,17 @@ app.get('/style.css', async (c) => {
     return newResponse;
 });
 
+// Route for game-ui.html (loaded in sandboxed iframe)
+app.get('/game-ui.html', async (c) => {
+    const url = new URL(c.req.url);
+    const response = await c.env.ASSETS.fetch(new Request(url, c.req.raw));
+
+    const newResponse = new Response(response.body, response);
+    newResponse.headers.set('Access-Control-Allow-Origin', '*');
+    newResponse.headers.set('Content-Type', 'text/html');
+    return newResponse;
+});
+
 // 1. Metadata Endpoint
 app.get('/metadata', (c) => {
     const metadata = logic.getMetadata();
@@ -48,13 +59,12 @@ app.get('/metadata', (c) => {
     // Note: c.env.UI_BASE_URL might be provided by .dev.vars or environment
     const uiBaseUrl = c.env.UI_BASE_URL || new URL(url).origin;
 
-    // Enhance metadata with UI URL
+    // Enhance metadata with UI URL (points to iframe HTML page)
     return c.json({
         ...metadata,
         ui: {
             mode: 'url',
-            url: `${uiBaseUrl}/game-ui.js`,
-            css: `${uiBaseUrl}/style.css`,
+            url: `${uiBaseUrl}/game-ui.html`,
         },
     });
 });

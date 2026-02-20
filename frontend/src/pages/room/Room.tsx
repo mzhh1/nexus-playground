@@ -629,7 +629,7 @@ const Room: React.FC = () => {
                   roleId: currentRoleId,
                   playerId: playerId || undefined,
                 }}
-                uiConfig={currentGameMetadata?.ui}
+                uiUrl={currentGameMetadata?.ui?.url}
               />
             </div>
           )}

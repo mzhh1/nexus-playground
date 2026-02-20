@@ -1,61 +1,42 @@
 /**
  * Game UI Type Definitions
- * Interface for game UI plugins
+ * Types for iframe sandbox communication protocol
  */
 
 import type { RolePerspective, Action } from './types';
 
+// ============ iframe Communication Messages ============
+
 /**
- * Props passed to game UI components
+ * Message sent from parent (main site) to iframe (game UI)
  */
-export interface GameUIProps {
-  /**
-   * Role perspective (from backend)
-   */
-  perspective: RolePerspective;
-
-  /**
-   * Callback to submit an action
-   */
-  onAction: (action: Action) => void;
-
-  /**
-   * Is it current player's turn?
-   */
-  isMyTurn: boolean;
-
-  /**
-   * Is the game in read-only mode? (观察或终局暂停)
-   */
-  readonly: boolean;
-
-  /**
-   * Additional metadata
-   */
-  metadata?: {
-    roomId: string;
-    roleId: string;
-    playerId?: string;
+export interface SyncStateMessage {
+  type: 'SYNC_STATE';
+  payload: {
+    perspective: RolePerspective;
+    isMyTurn: boolean;
+    readonly: boolean;
+    metadata?: {
+      roomId: string;
+      roleId: string;
+      playerId?: string;
+    };
   };
 }
 
 /**
- * Game UI Plugin Interface
+ * Message sent from iframe (game UI) to parent (main site)
  */
-export interface GameUIPlugin {
-  /**
-   * Render function for the game UI
-   */
-  render(props: GameUIProps): JSX.Element;
-
-  /**
-   * Optional: Custom styles
-   */
-  styles?: string;
+export interface ActMessage {
+  type: 'ACT';
+  payload: {
+    action_id: string;
+    role_id: string;
+    params?: any;
+  };
 }
 
 /**
- * Game UI component type
+ * Union type for all iframe messages
  */
-export type GameUIComponent = React.FC<GameUIProps>;
-
+export type GameIframeMessage = SyncStateMessage | ActMessage;

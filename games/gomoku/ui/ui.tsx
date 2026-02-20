@@ -4,9 +4,39 @@
  */
 
 import React from 'react';
-import type { GameUIProps } from '../../../frontend/src/lib/game-ui-types';
-import type { Action } from '../../../frontend/src/lib/types';
 import styles from './ui.module.css';
+
+/**
+ * Game UI Props — self-contained type for the iframe-hosted component.
+ * No longer imports from the frontend project.
+ */
+interface Action {
+  action_id: string;
+  role_id: string;
+  params?: any;
+}
+
+interface GameUIProps {
+  perspective: {
+    global_rules: string;
+    whole_history: any[];
+    diff_history: any[];
+    current_state: any;
+    your_role: {
+      identity: string;
+      goal: string;
+      is_current: boolean;
+    };
+    action_space_definition: {
+      actions: { action_id: string; description: string; params_schema?: any }[];
+    };
+    [key: string]: any;
+  };
+  onAction: (action: Action) => void;
+  isMyTurn: boolean;
+  readonly: boolean;
+  metadata?: any;
+}
 
 const GomokuUI: React.FC<GameUIProps> = ({
   perspective,

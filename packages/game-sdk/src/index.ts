@@ -14,6 +14,7 @@ export interface GameMetadata {
     getStatusText?: (perspective: RolePerspective) => string;
     ui?: {
         mode: 'url';
+        /** URL to the game-ui.html page (loaded in sandboxed iframe) */
         url: string;
     };
 }
