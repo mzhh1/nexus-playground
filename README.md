@@ -6,7 +6,7 @@
 [![Vercel](https://img.shields.io/badge/Vercel-Deployed-000?logo=vercel)](https://vercel.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 
-🌐 **在线体验**：<https://nexus.mzhh.xyz>　|　📦 **源码**：<https://github.com/mzhh1/nexus-playground>
+🌐 **在线体验**：<https://np.mzhh.xyz>　|　📦 **源码**：<https://github.com/mzhh1/nexus-playground>
 
 ---
 
