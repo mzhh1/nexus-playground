@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  connectLogStream,
   DEFAULT_PAGE_SIZE,
-  DEFAULT_REFRESH_INTERVAL,
   fetchInteractionGroup,
   fetchInteractions,
 } from './api';
@@ -9,6 +9,7 @@ import {
   InteractionStatus,
   LLMInteraction,
   InteractionGroupResponse,
+  PlayerType,
 } from './types';
 
 const STATUS_OPTIONS: Array<{ value: '' | InteractionStatus; label: string }> = [
@@ -35,6 +36,12 @@ const STATUS_CLASS: Record<InteractionStatus, string> = {
   failed: 'badge badge--failed',
   rejected: 'badge badge--rejected',
 };
+
+const PLAYER_TYPE_OPTIONS: Array<{ value: '' | PlayerType; label: string }> = [
+  { value: '', label: '全部类型' },
+  { value: 'llm', label: 'LLM' },
+  { value: 'human', label: 'Human' },
+];
 
 function formatTimestamp(value: string | null, fallback = '—'): string {
   if (!value) return fallback;
@@ -76,13 +83,14 @@ function AttemptChip({
 }
 
 const PAGE_SIZE = DEFAULT_PAGE_SIZE;
-const REFRESH_INTERVAL = DEFAULT_REFRESH_INTERVAL;
-
 function App() {
   const [statusFilter, setStatusFilter] = useState<'' | InteractionStatus>('');
+  const [playerTypeFilter, setPlayerTypeFilter] = useState<'' | PlayerType>('');
   const [roomFilter, setRoomFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [gameFilter, setGameFilter] = useState('');
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
   const [order, setOrder] = useState<'desc' | 'asc'>('desc');
   const [interactions, setInteractions] = useState<LLMInteraction[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -95,6 +103,7 @@ function App() {
   });
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [streamStatus, setStreamStatus] = useState<'idle' | 'connected' | 'disconnected'>('idle');
 
   const selectedInteraction = useMemo(() => {
     if (!selectedId) return null;
@@ -108,9 +117,12 @@ function App() {
     try {
       const response = await fetchInteractions({
         status: statusFilter,
+        playerType: playerTypeFilter,
         roomId: roomFilter || undefined,
         roleId: roleFilter || undefined,
         gameId: gameFilter || undefined,
+        startDate: startDateFilter || undefined,
+        endDate: endDateFilter || undefined,
         order,
         limit: PAGE_SIZE,
       });
@@ -131,21 +143,65 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, roomFilter, roleFilter, gameFilter, order, selectedId]);
+  }, [statusFilter, playerTypeFilter, roomFilter, roleFilter, gameFilter, startDateFilter, endDateFilter, order, selectedId]);
 
   useEffect(() => {
     loadInteractions();
   }, [loadInteractions]);
 
   useEffect(() => {
-    if (!autoRefresh) return;
+    if (!autoRefresh || !roomFilter) {
+      setStreamStatus('idle');
+      return;
+    }
 
-    const timer = setInterval(() => {
-      loadInteractions();
-    }, REFRESH_INTERVAL);
+    const eventSource = connectLogStream(
+      {
+        roomId: roomFilter,
+        status: statusFilter,
+        playerType: playerTypeFilter,
+        roleId: roleFilter || undefined,
+        gameId: gameFilter || undefined,
+        startDate: startDateFilter || undefined,
+        endDate: endDateFilter || undefined,
+      },
+      (nextLog) => {
+        setStreamStatus('connected');
+        setInteractions((prev) => {
+          const idx = prev.findIndex((item) => item.interaction_id === nextLog.interaction_id);
+          if (idx >= 0) {
+            const copy = [...prev];
+            copy[idx] = nextLog;
+            return copy;
+          }
+          const next = [nextLog, ...prev];
+          if (order === 'asc') {
+            next.sort((a, b) => (a.event_ts - b.event_ts) || a.interaction_id.localeCompare(b.interaction_id));
+          } else {
+            next.sort((a, b) => (b.event_ts - a.event_ts) || b.interaction_id.localeCompare(a.interaction_id));
+          }
+          return next.slice(0, PAGE_SIZE);
+        });
+        setLastUpdated(new Date());
+      },
+      () => setStreamStatus('disconnected')
+    );
 
-    return () => clearInterval(timer);
-  }, [autoRefresh, loadInteractions]);
+    return () => {
+      eventSource.close();
+      setStreamStatus('idle');
+    };
+  }, [
+    autoRefresh,
+    roomFilter,
+    statusFilter,
+    playerTypeFilter,
+    roleFilter,
+    gameFilter,
+    startDateFilter,
+    endDateFilter,
+    order,
+  ]);
 
   useEffect(() => {
     if (!selectedInteraction) {
@@ -184,7 +240,7 @@ function App() {
         <div>
           <h1>LLM 监控面板</h1>
           <p className="toolbar__subtitle">
-            观察 Nexus Playground 中 LLM 玩家产生的系统提示、应用提示与回应
+            观察 Nexus Playground 中 LLM 与 Human 玩家动作日志
           </p>
         </div>
 
@@ -197,6 +253,20 @@ function App() {
                 onChange={(event) => setStatusFilter(event.target.value as '' | InteractionStatus)}
               >
                 {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value || 'all'} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              类型
+              <select
+                value={playerTypeFilter}
+                onChange={(event) => setPlayerTypeFilter(event.target.value as '' | PlayerType)}
+              >
+                {PLAYER_TYPE_OPTIONS.map((option) => (
                   <option key={option.value || 'all'} value={option.value}>
                     {option.label}
                   </option>
@@ -235,6 +305,24 @@ function App() {
             </label>
 
             <label>
+              开始时间
+              <input
+                type="datetime-local"
+                value={startDateFilter}
+                onChange={(event) => setStartDateFilter(event.target.value)}
+              />
+            </label>
+
+            <label>
+              结束时间
+              <input
+                type="datetime-local"
+                value={endDateFilter}
+                onChange={(event) => setEndDateFilter(event.target.value)}
+              />
+            </label>
+
+            <label>
               排序
               <select value={order} onChange={(event) => setOrder(event.target.value as 'desc' | 'asc')}>
                 <option value="desc">最新优先</option>
@@ -250,12 +338,13 @@ function App() {
                 checked={autoRefresh}
                 onChange={(event) => setAutoRefresh(event.target.checked)}
               />
-              <span>自动刷新（{Math.round(REFRESH_INTERVAL / 1000)}s）</span>
+              <span>实时流（SSE）</span>
             </label>
             <button type="button" className="button" onClick={loadInteractions} disabled={isLoading}>
               {isLoading ? '刷新中…' : '手动刷新'}
             </button>
             <span className="last-updated">最近刷新：{lastUpdatedText}</span>
+            <span className="last-updated">流状态：{streamStatus}</span>
             <span className="summary">当前显示 {interactions.length}/{PAGE_SIZE}</span>
           </div>
         </div>
@@ -294,6 +383,7 @@ function App() {
                   <div className="interaction-card__meta">
                     <span>房间 {interaction.room_id}</span>
                     <span>角色 {interaction.role_id}</span>
+                    <span>类型 {interaction.player_type}</span>
                   </div>
                   <div className="interaction-card__time">
                     {formatTimestamp(interaction.created_at)}
@@ -318,7 +408,7 @@ function App() {
                 <div>
                   <h2>{selectedInteraction.game_name || selectedInteraction.game_id || '未知游戏'}</h2>
                   <p>
-                    房间 {selectedInteraction.room_id} · 角色 {selectedInteraction.role_id} · 模型 {selectedInteraction.model_name}
+                    房间 {selectedInteraction.room_id} · 角色 {selectedInteraction.role_id} · 类型 {selectedInteraction.player_type} · 模型 {selectedInteraction.model_name || '—'}
                   </p>
                 </div>
                 <div className="detail-panel__status">
@@ -335,11 +425,11 @@ function App() {
                   <h3>提示信息</h3>
                   <div className="detail-block">
                     <h4>System Prompt</h4>
-                    <pre>{selectedInteraction.system_prompt}</pre>
+                    <pre>{selectedInteraction.system_prompt || '（仅 LLM 类型可用）'}</pre>
                   </div>
                   <div className="detail-block">
                     <h4>应用 Prompt</h4>
-                    <pre>{selectedInteraction.user_prompt}</pre>
+                    <pre>{selectedInteraction.user_prompt || '（仅 LLM 类型可用）'}</pre>
                   </div>
                 </div>
 

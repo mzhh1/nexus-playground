@@ -15,3 +15,5 @@ NEXUS_ENGINE_ADMIN_SECRET=replace-with-engine-admin-secret
 NEXUS_ENGINE_JWT_SECRET=replace-with-engine-jwt-secret
 GOMOKU_WORKER_URL=
 LLM_WEBHOOK_SECRET=
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_API_KEY=

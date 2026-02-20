@@ -1,4 +1,4 @@
-.PHONY: help build-games d1-migrate deploy-engine deploy-backend typecheck
+.PHONY: help build-games d1-migrate deploy-engine deploy-backend typecheck set-engine-secret set-backend-secret
 
 .DEFAULT_GOAL := help
 
@@ -34,6 +34,18 @@ deploy-engine: ## 部署 nexus-engine 到 Cloudflare
 deploy-backend: ## 部署 hono_backend 到 Cloudflare
 	@echo "$(BLUE)🚀 部署 hono-backend 到 Cloudflare...$(NC)"
 	pnpm --filter ./hono_backend run deploy
+
+set-engine-secret: ## 手动设置 nexus-engine 的 CF Worker 环境变量（secret）
+	@echo "$(BLUE)🔐 设置 nexus-engine Secret$(NC)"
+	@printf "变量名 (例如 LLM_WEBHOOK_SECRET): "; \
+	read -r VAR_NAME; \
+	cd nexus-engine && pnpm exec wrangler secret put "$$VAR_NAME"
+
+set-backend-secret: ## 手动设置 hono_backend 的 CF Worker 环境变量（secret）
+	@echo "$(BLUE)🔐 设置 hono_backend Secret$(NC)"
+	@printf "变量名 (例如 OPENAI_API_KEY): "; \
+	read -r VAR_NAME; \
+	cd hono_backend && pnpm exec wrangler secret put "$$VAR_NAME"
 
 ##@ 数据库
 d1-migrate: ## 应用 hono_backend 的 D1 迁移（本地）

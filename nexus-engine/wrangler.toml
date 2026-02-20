@@ -7,17 +7,30 @@ compatibility_date = "2024-02-08"
 name = "GAME_DO"
 class_name = "GameDO"
 
+[[durable_objects.bindings]]
+name = "MONITOR_DO"
+class_name = "MonitorDO"
+
 # Migrations (required for DO)
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["GameDO"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["MonitorDO"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "np-engine-monitor-db"
+database_id = "40e1e5aa-e360-4701-85d0-62716ce9ef3b"
 
 [vars]
 # Admin secret for backend->engine auth
 ADMIN_SECRET = "dev-secret-123"
 # HS256 shared secret for JWT verification (must match backend NEXUS_ENGINE_JWT_SECRET)
 #JWT_SECRET = "dev-jwt-secret-change-me"
-# LLM webhook endpoint (Backend's stateless LLM executor)
-LLM_WEBHOOK_URL = "https://nexus.mzhh.xyz/api/v1/webhook/llm"
-# Shared secret for Engine->Backend webhook auth
-LLM_WEBHOOK_SECRET = "dev-secret-123"
+# Backend LLM webhook endpoint
+#LLM_WEBHOOK_URL = "https://nexus.mzhh.xyz/api/v1/webhook/llm"
+# Shared secret for Engine -> Backend webhook auth
+#LLM_WEBHOOK_SECRET = "dev-secret-123"

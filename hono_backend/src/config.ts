@@ -16,6 +16,8 @@ export interface Env {
   NEXUS_ENGINE_JWT_SECRET: string;
   GOMOKU_WORKER_URL?: string;
   LLM_WEBHOOK_SECRET?: string;
+  OPENAI_API_BASE?: string;
+  OPENAI_API_KEY?: string;
   CORS_ALLOW_ORIGINS?: string;
 }
 

@@ -10,6 +10,7 @@ import type {
     ServerMessage,
     GameConfig,
     HistoryEvent,
+    MonitorLogRecord,
     LlmWebhookRequest,
     LlmWebhookResponse,
     GameWorkerMetadata,
@@ -19,6 +20,7 @@ import type {
     RoomPhase,
     LlmConfig,
 } from "./types";
+import { insertMonitorLog, updateMonitorLog } from "./monitor-store";
 
 // ─── Helper: Is this userId an LLM player? ──────────────────
 function isLlmUserId(userId: string): boolean {
@@ -53,7 +55,7 @@ function getRoleForUser(
  */
 export class GameDO extends DurableObject {
     private app: Hono = new Hono();
-    private env: Env;
+    private bindings: Env;
 
     // ─── Persisted state ────────────────────────────────────
     private roomId: string = "";
@@ -73,7 +75,7 @@ export class GameDO extends DurableObject {
 
     constructor(state: DurableObjectState, env: Env) {
         super(state, env);
-        this.env = env;
+        this.bindings = env;
 
         // Load persisted state on wake
         this.ctx.blockConcurrencyWhile(async () => {
@@ -98,7 +100,7 @@ export class GameDO extends DurableObject {
         this.roleMapping = (await s.get("roleMapping")) || {};
         this.gameState = (await s.get("gameState")) || null;
         this.history = (await s.get("history")) || [];
-        this.llmWebhookUrl = this.env.LLM_WEBHOOK_URL || (await s.get("llmWebhookUrl")) || null;
+        this.llmWebhookUrl = this.bindings.LLM_WEBHOOK_URL || (await s.get("llmWebhookUrl")) || null;
     }
 
     private async persistAll(): Promise<void> {
@@ -157,7 +159,7 @@ export class GameDO extends DurableObject {
             this.roleMapping = {};
             this.gameState = null;
             this.history = [];
-            this.llmWebhookUrl = this.env.LLM_WEBHOOK_URL || null;
+            this.llmWebhookUrl = this.bindings.LLM_WEBHOOK_URL || null;
 
             if (body.gameWorkerUrl) {
                 this.gameConfig = {
@@ -731,6 +733,7 @@ export class GameDO extends DurableObject {
         userId: string,
         payload: { actionId: string; params?: Record<string, any> },
     ): Promise<void> {
+        const startedAt = Date.now();
         if (this.phase !== "playing") {
             return this.sendErrorToUser(userId, "Game is not in playing phase");
         }
@@ -756,8 +759,49 @@ export class GameDO extends DurableObject {
             params: payload.params || {},
         });
 
+        const interactionId = crypto.randomUUID();
+        const baseHumanLog = {
+            interactionId,
+            interactionGroupId: interactionId,
+            roomId: this.roomId,
+            gameId: this.gameConfig.gameId || null,
+            gameName: null,
+            roleId,
+            userId,
+            playerType: "human" as const,
+            modelName: null,
+            systemPrompt: null,
+            userPrompt: null,
+            response: null,
+            actionId: payload.actionId,
+            actionParams: payload.params || {},
+            attempt: 1,
+            outerAttempt: 1,
+            maxAttempts: 1,
+            previousError: null,
+            responseTimeMs: Date.now() - startedAt,
+            eventTs: Date.now(),
+        };
+
         if (!result.success) {
+            const log = await insertMonitorLog(this.bindings.DB, {
+                ...baseHumanLog,
+                status: "rejected",
+                errorMessage: result.error || "Action rejected",
+            });
+            if (log) {
+                await this.publishMonitorEvent(log);
+            }
             return this.sendErrorToUser(userId, result.error || "Action rejected");
+        }
+
+        const log = await insertMonitorLog(this.bindings.DB, {
+            ...baseHumanLog,
+            status: "success",
+            errorMessage: null,
+        });
+        if (log) {
+            await this.publishMonitorEvent(log);
         }
 
         // Update state
@@ -884,9 +928,42 @@ export class GameDO extends DurableObject {
     }
 
     private calculateDiffHistory(roleId: string): HistoryEvent[] {
-        const lastIndex = this.history.findLastIndex((e) => e.roleId === roleId);
+        let lastIndex = -1;
+        for (let i = this.history.length - 1; i >= 0; i--) {
+            if (this.history[i].roleId === roleId) {
+                lastIndex = i;
+                break;
+            }
+        }
         if (lastIndex === -1) return [...this.history];
         return this.history.slice(lastIndex);
+    }
+
+    private async publishMonitorEvent(record: MonitorLogRecord): Promise<void> {
+        try {
+            const id = this.bindings.MONITOR_DO.idFromName("global");
+            const stub = this.bindings.MONITOR_DO.get(id);
+            await stub.fetch("http://do/publish", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    kind: "upsert",
+                    data: record,
+                }),
+            });
+        } catch (error) {
+            console.error("[GameDO] Failed to publish monitor event:", error);
+        }
+    }
+
+    private async upsertAndPublishMonitorLog(
+        interactionId: string,
+        patch: Parameters<typeof updateMonitorLog>[2],
+    ): Promise<void> {
+        const updated = await updateMonitorLog(this.bindings.DB, interactionId, patch);
+        if (updated) {
+            await this.publishMonitorEvent(updated);
+        }
     }
 
     // ═════════════════════════════════════════════════════════
@@ -910,28 +987,65 @@ export class GameDO extends DurableObject {
     private async callLlmWebhook(roleId: string): Promise<void> {
         const userId = this.roleMapping[roleId];
         const player = this.players[userId];
-        if (!player?.llmConfig || !this.llmWebhookUrl || !this.gameConfig) return;
+        if (!player?.llmConfig || !this.gameConfig || !this.llmWebhookUrl) return;
 
         const maxAttempts = 3;
         let previousError: string | undefined;
+        const interactionGroupId = crypto.randomUUID();
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const interactionId = crypto.randomUUID();
+            const logInserted = await insertMonitorLog(this.bindings.DB, {
+                interactionId,
+                interactionGroupId,
+                roomId: this.roomId,
+                gameId: this.gameConfig.gameId || null,
+                gameName: null,
+                roleId,
+                userId,
+                playerType: "llm",
+                modelName: player.llmConfig.modelName,
+                systemPrompt: player.llmConfig.systemPrompt,
+                userPrompt: null,
+                response: null,
+                actionId: null,
+                actionParams: null,
+                status: "pending",
+                attempt,
+                outerAttempt: 1,
+                maxAttempts,
+                previousError: previousError ?? null,
+                errorMessage: null,
+                responseTimeMs: null,
+                eventTs: Date.now(),
+            });
+            if (logInserted) {
+                await this.publishMonitorEvent(logInserted);
+            }
+
             try {
                 // 1. Get perspective
                 const perspective = await this.fetchPerspective(roleId);
                 if (!perspective) {
                     previousError = "Failed to generate perspective";
+                    await this.upsertAndPublishMonitorLog(interactionId, {
+                        status: attempt < maxAttempts ? "retrying" : "failed",
+                        previousError,
+                        errorMessage: previousError,
+                        eventTs: Date.now(),
+                    });
                     await this.sleep(Math.pow(2, attempt - 1) * 500);
                     continue;
                 }
 
-                // 2. Call Backend LLM webhook
+                // 2. Call backend webhook to execute LLM
+                const startedAt = Date.now();
                 const webhookBody: LlmWebhookRequest = {
                     roomId: this.roomId,
                     roleId,
                     gameId: this.gameConfig.gameId,
                     perspective,
-                    statePrompt: (perspective as any).statePrompt, // Extract prompt if worker provided it
+                    statePrompt: (perspective as any)?.statePrompt,
                     llmConfig: player.llmConfig,
                     attempt,
                     maxAttempts,
@@ -941,8 +1055,8 @@ export class GameDO extends DurableObject {
                 const headers: Record<string, string> = {
                     "Content-Type": "application/json",
                 };
-                if (this.env.LLM_WEBHOOK_SECRET) {
-                    headers["X-Engine-Secret"] = this.env.LLM_WEBHOOK_SECRET;
+                if (this.bindings.LLM_WEBHOOK_SECRET) {
+                    headers["X-Engine-Secret"] = this.bindings.LLM_WEBHOOK_SECRET;
                 }
 
                 const resp = await fetch(this.llmWebhookUrl, {
@@ -950,10 +1064,19 @@ export class GameDO extends DurableObject {
                     headers,
                     body: JSON.stringify(webhookBody),
                 });
+                const responseTimeMs = Date.now() - startedAt;
 
                 if (!resp.ok) {
                     previousError = `Webhook HTTP ${resp.status}: ${await resp.text()}`;
                     console.error(`[GameDO] LLM webhook failed (attempt ${attempt}):`, previousError);
+                    await this.upsertAndPublishMonitorLog(interactionId, {
+                        status: attempt < maxAttempts ? "retrying" : "failed",
+                        userPrompt: webhookBody.statePrompt ?? null,
+                        previousError,
+                        errorMessage: previousError,
+                        responseTimeMs,
+                        eventTs: Date.now(),
+                    });
                     await this.sleep(Math.pow(2, attempt - 1) * 500);
                     continue;
                 }
@@ -972,9 +1095,30 @@ export class GameDO extends DurableObject {
                         `[GameDO] LLM action rejected (attempt ${attempt}):`,
                         previousError,
                     );
+                    await this.upsertAndPublishMonitorLog(interactionId, {
+                        status: attempt < maxAttempts ? "retrying" : "rejected",
+                        userPrompt: webhookBody.statePrompt ?? null,
+                        actionId: result.action.actionId,
+                        actionParams: result.action.params,
+                        previousError,
+                        errorMessage: previousError,
+                        responseTimeMs,
+                        eventTs: Date.now(),
+                    });
                     await this.sleep(Math.pow(2, attempt - 1) * 500);
                     continue;
                 }
+
+                await this.upsertAndPublishMonitorLog(interactionId, {
+                    status: "success",
+                    userPrompt: webhookBody.statePrompt ?? null,
+                    actionId: result.action.actionId,
+                    actionParams: result.action.params,
+                    previousError: previousError ?? null,
+                    errorMessage: null,
+                    responseTimeMs,
+                    eventTs: Date.now(),
+                });
 
                 // 4. Update state
                 this.gameState = actResult.nextState;
@@ -1018,6 +1162,12 @@ export class GameDO extends DurableObject {
             } catch (e) {
                 console.error(`[GameDO] LLM webhook error (attempt ${attempt}):`, e);
                 previousError = `Exception: ${e}`;
+                await this.upsertAndPublishMonitorLog(interactionId, {
+                    status: attempt < maxAttempts ? "retrying" : "failed",
+                    previousError,
+                    errorMessage: previousError,
+                    eventTs: Date.now(),
+                });
                 await this.sleep(Math.pow(2, attempt - 1) * 500);
             }
         }

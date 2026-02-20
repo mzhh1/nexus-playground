@@ -5,6 +5,8 @@ export type InteractionStatus =
   | 'failed'
   | 'rejected';
 
+export type PlayerType = 'llm' | 'human';
+
 export interface LLMInteraction {
   interaction_id: string;
   interaction_group_id: string;
@@ -12,10 +14,14 @@ export interface LLMInteraction {
   game_id: string | null;
   game_name: string | null;
   role_id: string;
-  model_name: string;
-  system_prompt: string;
-  user_prompt: string;
+  user_id: string | null;
+  player_type: PlayerType;
+  model_name: string | null;
+  system_prompt: string | null;
+  user_prompt: string | null;
   response: string | null;
+  action_id: string | null;
+  action_params_json: string | null;
   status: InteractionStatus;
   attempt: number;
   outer_attempt: number;
@@ -23,6 +29,7 @@ export interface LLMInteraction {
   previous_error: string | null;
   error_message: string | null;
   response_time_ms: number | null;
+  event_ts: number;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -38,8 +45,11 @@ export interface InteractionListResponse {
   filters: {
     status?: InteractionStatus;
     roomId?: string;
+    playerType?: PlayerType;
     gameId?: string;
     roleId?: string;
+    startDate?: string;
+    endDate?: string;
     interactionGroupId?: string;
     order: 'asc' | 'desc';
   };

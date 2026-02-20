@@ -128,6 +128,7 @@ export interface LlmWebhookRequest {
     roleId: string;
     gameId: string;
     perspective: any; // RolePerspective from Game Worker
+    statePrompt?: string;
     llmConfig: LlmConfig;
     attempt: number;
     maxAttempts: number;
@@ -144,6 +145,71 @@ export interface LlmWebhookResponse {
         mode: 'append' | 'replace';
         content: string;
     };
+}
+
+// ─── Monitor Log Types ──────────────────────────────────────
+
+export type PlayerType = 'llm' | 'human';
+
+export type InteractionStatus =
+    | 'pending'
+    | 'retrying'
+    | 'success'
+    | 'failed'
+    | 'rejected';
+
+export interface MonitorLogRecord {
+    interaction_id: string;
+    interaction_group_id: string;
+    room_id: string;
+    game_id: string | null;
+    game_name: string | null;
+    role_id: string;
+    user_id: string | null;
+    player_type: PlayerType;
+    model_name: string | null;
+    system_prompt: string | null;
+    user_prompt: string | null;
+    response: string | null;
+    action_id: string | null;
+    action_params_json: string | null;
+    status: InteractionStatus;
+    attempt: number;
+    outer_attempt: number;
+    max_attempts: number;
+    previous_error: string | null;
+    error_message: string | null;
+    response_time_ms: number | null;
+    event_ts: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface MonitorListFilters {
+    roomId: string;
+    playerType?: PlayerType;
+    status?: InteractionStatus;
+    gameId?: string;
+    roleId?: string;
+    startDate?: string;
+    endDate?: string;
+    order: 'asc' | 'desc';
+}
+
+export interface MonitorListResponse {
+    data: MonitorLogRecord[];
+    pagination: {
+        limit: number;
+        offset: number;
+        count: number;
+        hasMore: boolean;
+    };
+    filters: MonitorListFilters;
+}
+
+export interface MonitorStreamEvent {
+    kind: 'upsert';
+    data: MonitorLogRecord;
 }
 
 // ─── JWT ─────────────────────────────────────────────────────
@@ -216,6 +282,8 @@ export interface GameWorkerIsTerminalRequest {
 
 export interface Env {
     GAME_DO: DurableObjectNamespace;
+    MONITOR_DO: DurableObjectNamespace;
+    DB: D1Database;
     ADMIN_SECRET: string;
     JWT_SECRET: string;
     LLM_WEBHOOK_URL?: string;
