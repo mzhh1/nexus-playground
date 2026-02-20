@@ -18,6 +18,8 @@ build/
 
 # IDE
 .vscode/
+.cursor/
+.turbo/
 .idea/
 *.swp
 *.swo
