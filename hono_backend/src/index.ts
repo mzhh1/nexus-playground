@@ -7,7 +7,6 @@ import { registerV1HealthRoute } from './routes/v1/health.js';
 import { registerV1GamesRoute } from './routes/v1/games.js';
 import { registerV1MyNexusRoute } from './routes/v1/my-nexus.js';
 import { registerV1RoomsRoute } from './routes/v1/rooms.js';
-import { registerV1LLMLogsRoutes } from './routes/v1/llm-logs.js';
 import { registerV1LLMWebhookRoute } from './routes/v1/llm-webhook.js';
 
 const app = new Hono<AppEnv>();
@@ -42,7 +41,6 @@ registerV1HealthRoute(app);
 registerV1GamesRoute(app);
 registerV1MyNexusRoute(app);
 registerV1RoomsRoute(app);
-registerV1LLMLogsRoutes(app);
 registerV1LLMWebhookRoute(app);
 
 export default {
