@@ -1,4 +1,4 @@
-.PHONY: help build-engine build-backend build-frontend build-game d1-migrate deploy-engine deploy-backend deploy-game typecheck set-engine-secret set-backend-secret
+.PHONY: help build-engine build-backend build-frontend build-game d1-migrate deploy-engine deploy-backend deploy-frontend deploy-game typecheck set-engine-secret set-backend-secret
 
 .DEFAULT_GOAL := help
 
@@ -50,6 +50,10 @@ deploy-engine: ## 部署 nexus-engine 到 Cloudflare
 deploy-backend: ## 部署 hono_backend 到 Cloudflare
 	@echo "$(BLUE)🚀 部署 hono-backend 到 Cloudflare...$(NC)"
 	pnpm --filter ./hono_backend run deploy
+
+deploy-frontend: ## 部署 frontend 到 Vercel
+	@echo "$(BLUE)🚀 部署 frontend 到 Vercel...$(NC)"
+	vercel --prod --token $$VERCEL_TOKENN
 
 deploy-game: ## 部署指定游戏 (用法: make deploy-game G=<game_dir>)
 	@if [ -z "$(G)" ]; then \

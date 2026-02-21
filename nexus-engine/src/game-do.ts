@@ -19,6 +19,7 @@ import type {
     GameWorkerPerspectiveRequest,
     RoomPhase,
     LlmConfig,
+    StateHistoryEntry,
 } from "./types";
 import { insertMonitorLog, updateMonitorLog } from "./monitor-store";
 import { IRoomContext } from "./managers/types";
@@ -57,7 +58,7 @@ export function getRoleForUser(
  * - GameExecutor: Game lifecycle and actions
  * - LlmManager: LLM bot logic
  */
-export class GameDO extends DurableObject implements IRoomContext {
+export class GameDO extends DurableObject<Env> implements IRoomContext {
     public app: Hono = new Hono();
     public bindings: Env;
 
@@ -154,9 +155,6 @@ export class GameDO extends DurableObject implements IRoomContext {
                 roomId?: string;
                 ownerId: string;
                 ownerDisplayName?: string;
-                gameWorkerUrl?: string;
-                config?: any;
-                context?: any;
             }>();
 
             if (this.ownerId === body.ownerId && this.roomId) {
@@ -177,18 +175,7 @@ export class GameDO extends DurableObject implements IRoomContext {
             this.history = [];
             this.stateHistory = [];
             this.llmWebhookUrl = this.bindings.LLM_WEBHOOK_URL || null;
-
-            if (body.gameWorkerUrl) {
-                this.gameConfig = {
-                    gameWorkerUrl: body.gameWorkerUrl,
-                    gameId: body.context?.gameId || "",
-                    maxPlayers: body.config?.maxPlayers || 2,
-                    roleIds: body.config?.players || [],
-                    ...body.config,
-                };
-            } else {
-                this.gameConfig = null;
-            }
+            this.gameConfig = null;
 
             await this.persistAll();
             return c.json({ success: true });
@@ -353,6 +340,10 @@ export class GameDO extends DurableObject implements IRoomContext {
             return false;
         }
         return true;
+    }
+
+    public waitUntil(promise: Promise<unknown>): void {
+        this.ctx.waitUntil(promise);
     }
 
     // ─── Game RPC Helpers ───────────────────────────────────

@@ -23,7 +23,7 @@ app.use('/*', cors());
 /**
  * POST /api/engine/create
  * Create or re-initialize a room DO.
- * Body: { roomId, ownerId, gameWorkerUrl?, config?, context? }
+ * Body: { roomId, ownerId }
  */
 app.post('/api/engine/create', async (c) => {
     const authHeader = c.req.header('Authorization');
@@ -34,9 +34,6 @@ app.post('/api/engine/create', async (c) => {
     const body = await c.req.json<{
         roomId: string;
         ownerId: string;
-        gameWorkerUrl?: string;
-        config?: any;
-        context?: any;
     }>();
 
     const roomId = body.roomId;
@@ -54,9 +51,6 @@ app.post('/api/engine/create', async (c) => {
         body: JSON.stringify({
             roomId: body.roomId,
             ownerId: body.ownerId,
-            gameWorkerUrl: body.gameWorkerUrl,
-            config: body.config,
-            context: body.context,
         })
     });
 

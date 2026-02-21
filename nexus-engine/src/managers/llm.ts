@@ -231,7 +231,7 @@ export class LlmManager extends BaseManager {
             console.log(`[LlmManager] Successfully processed LLM turn for ${roleId}${hasActions ? " (action applied)" : " (memory only)"}`);
 
             // Trigger next turn if applicable
-            this.room.ctx.waitUntil(this.room.checkAndTriggerNextTurn());
+            this.room.waitUntil(this.room.checkAndTriggerNextTurn());
         } catch (e: any) {
             console.error(`[LlmManager] LLM turn failed for ${roleId}:`, e);
 

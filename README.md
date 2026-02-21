@@ -311,6 +311,7 @@ Game Worker 暴露的 HTTP API：
 ```
 浏览器 → frontend (/) → OAuth 登录 → (/my-nexus)
     → hono_backend: POST /api/v1/my-nexus (D1 查询/创建)
+    → 初始化/唤醒 GameDO（不注入 gameWorkerUrl）
     → 返回 roomId → 重定向至 /room?id={roomId}
 ```
 
@@ -320,6 +321,7 @@ Game Worker 暴露的 HTTP API：
 frontend (/room) ← WebSocket → nexus-engine (GameDO)
     │
     ├── ADMIN_SET_GAME { gameWorkerUrl }
+    │       → GameDO 调用 game-worker /__nexus_worker_verify 验证签名
     │       → GameDO 调用 game-worker /metadata 获取元数据
     │       → 更新 gameConfig
     │

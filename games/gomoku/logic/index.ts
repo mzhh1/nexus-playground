@@ -59,6 +59,7 @@ export class GomokuLogic implements GameLogic {
       maxPlayers: 2,
       roleIds: ['player_black', 'player_white'], // Define the roles required for this game
       enable_llm_memory: false, // Perfect information game, no memory needed
+      auto_save_mode: 'enabled',
       getStatusText: (perspective: RolePerspective) => {
         const state = perspective.current_state;
 

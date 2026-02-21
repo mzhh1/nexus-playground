@@ -1,6 +1,9 @@
 import { BaseManager } from "./base";
 import { GameWorkerMetadata } from "../types";
 
+const WORKER_VERIFY_PATH = "/__nexus_worker_verify";
+const WORKER_VERIFY_SIGNATURE = "NEXUS_GAME_WORKER_VERIFIED_V1";
+
 export class RoomManager extends BaseManager {
     public async handleSelectRole(userId: string, roleId: string | null): Promise<void> {
         if (this.room.phase !== "lobby") {
@@ -66,10 +69,18 @@ export class RoomManager extends BaseManager {
         }
 
         try {
+            const baseUrl = payload.gameWorkerUrl.replace(/\/$/, "");
+            const verifyRes = await fetch(`${baseUrl}${WORKER_VERIFY_PATH}`);
+            if (!verifyRes.ok) {
+                return this.room.sendErrorToUser(userId, "Game worker verification failed");
+            }
+            const signature = (await verifyRes.text()).trim();
+            if (signature !== WORKER_VERIFY_SIGNATURE) {
+                return this.room.sendErrorToUser(userId, "Game worker verification signature mismatch");
+            }
+
             // Fetch metadata from Game Worker
-            const metaRes = await fetch(
-                `${payload.gameWorkerUrl.replace(/\/$/, "")}/metadata`,
-            );
+            const metaRes = await fetch(`${baseUrl}/metadata`);
             if (!metaRes.ok) {
                 return this.room.sendErrorToUser(userId, "Failed to fetch game metadata");
             }
@@ -86,11 +97,12 @@ export class RoomManager extends BaseManager {
             }
 
             this.room.gameConfig = {
-                gameWorkerUrl: payload.gameWorkerUrl,
+                gameWorkerUrl: baseUrl,
                 gameId: payload.gameId || metadata.id,
                 maxPlayers: metadata.maxPlayers || roleIds.length,
                 roleIds,
                 enable_llm_memory: metadata.enable_llm_memory,
+                auto_save_mode: metadata.auto_save_mode,
             };
 
             // Clear role mapping since game changed

@@ -56,3 +56,5 @@ frontend/.vite/
 *.db
 *.sqlite
 *.sqlite3
+.vercel
+.env*.local

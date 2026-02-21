@@ -35,6 +35,7 @@ const Room: React.FC = () => {
   const [visitorDisplayName, setVisitorDisplayName] = useState('');
   const [pendingJoinRequests, setPendingJoinRequests] = useState<{ userId: string, displayName: string, id: string }[]>([]);
   const [joinCooldown, setJoinCooldown] = useState(0); // 冷却倒计时（秒）
+  const [selectedBacktrackIndex, setSelectedBacktrackIndex] = useState<number | null>(null);
 
   // Hooks
   const { games: AVAILABLE_GAMES, loading: metadataLoading } = useGamesMetadata();
@@ -900,34 +901,73 @@ const Room: React.FC = () => {
               {engineState.stateHistory.map((item) => (
                 <div
                   key={item.index}
-                  onClick={() => engineBacktrackState(item.index)}
+                  onClick={() => setSelectedBacktrackIndex(item.index)}
                   style={{
                     padding: 'var(--spacing-sm)',
                     borderRadius: '8px',
-                    background: 'white',
-                    border: '1px solid #e5e7eb',
+                    background: selectedBacktrackIndex === item.index ? 'rgba(var(--color-primary-rgb), 0.1)' : 'white',
+                    border: `1px solid ${selectedBacktrackIndex === item.index ? 'var(--color-primary)' : '#e5e7eb'}`,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--color-primary)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    if (selectedBacktrackIndex !== item.index) {
+                      e.currentTarget.style.borderColor = 'var(--color-primary)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#e5e7eb';
-                    e.currentTarget.style.transform = 'translateY(0)';
+                    if (selectedBacktrackIndex !== item.index) {
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }
                   }}
                 >
                   <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                     State {item.index}: {item.name}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
-                    {new Date(item.timestamp).toLocaleTimeString()}
-                  </div>
+                  {item.timestamp && (
+                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
+                      {new Date(item.timestamp).toLocaleTimeString()}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
+
+            {selectedBacktrackIndex !== null && (
+              <div style={{ marginTop: 'auto', paddingTop: 'var(--spacing-md)', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    engineBacktrackState(selectedBacktrackIndex);
+                    setSelectedBacktrackIndex(null);
+                  }}
+                  style={{
+                    background: 'var(--color-primary)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: 'var(--spacing-sm) var(--spacing-md)',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(var(--color-primary-rgb), 0.3)',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-primary-dark, #005bb7)';
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-primary)';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  确认回溯
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

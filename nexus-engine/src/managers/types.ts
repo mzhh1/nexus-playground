@@ -1,8 +1,6 @@
-import { RoomPhase, PlayerInfo, GameConfig, HistoryEvent, Env, EngineRoomState } from "../types";
-import { DurableObjectState } from "cloudflare:workers";
+import { RoomPhase, PlayerInfo, GameConfig, HistoryEvent, Env, EngineRoomState, StateHistoryEntry } from "../types";
 
 export interface IRoomContext {
-    ctx: DurableObjectState;
     roomId: string;
     ownerId: string;
     ownerDisplayName: string;
@@ -12,6 +10,7 @@ export interface IRoomContext {
     roleMapping: Record<string, string>;
     gameState: any | null;
     history: HistoryEvent[];
+    stateHistory: StateHistoryEntry[];
     llmWebhookUrl: string | null;
     bindings: Env;
 
@@ -29,7 +28,7 @@ export interface IRoomContext {
     getCurrentRole(): Promise<string | null>;
     submitActionToGameWorker(roleId: string, action: any): Promise<any>;
     checkAndTriggerNextTurn(): Promise<void>;
-    publishMonitorEvent(record: any): Promise<void>;
+    waitUntil(promise: Promise<unknown>): void;
 
     broadcastSyncState(): void;
     sendErrorToUser(userId: string, msg: string): void;

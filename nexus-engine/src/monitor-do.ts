@@ -46,11 +46,12 @@ function matchesFilter(record: MonitorLogRecord, filter: StreamFilter): boolean 
     return true;
 }
 
-export class MonitorDO extends DurableObject {
+export class MonitorDO extends DurableObject<Env> {
     private app: Hono = new Hono();
     private subscribers = new Map<string, Subscriber>();
     private lastProcessedTs: number = Date.now();
     private isPolling: boolean = false;
+    private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
     constructor(state: DurableObjectState, env: Env) {
         super(state, env);

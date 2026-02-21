@@ -2,7 +2,6 @@ import type { Hono } from 'hono';
 import type { AppEnv } from '../../middleware/auth.js';
 import { createRoomsRepo } from '../../db/rooms-repo.js';
 import { createNexusEngineClient } from '../../runtime/nexus-engine-client.js';
-import { getGomokuWorkerUrl } from '../../runtime/games.js';
 import { validateClientId, ensureAuthenticated } from '../../middleware/guards.js';
 
 export function registerV1MyNexusRoute(app: Hono<AppEnv>) {
@@ -17,7 +16,6 @@ export function registerV1MyNexusRoute(app: Hono<AppEnv>) {
 
     const roomsRepo = createRoomsRepo(c.env);
     const room = await roomsRepo.getOrCreate(user.userId);
-    const gomokuWorkerUrl = getGomokuWorkerUrl(c.env);
 
     const engine = createNexusEngineClient(c.env);
     try {
@@ -25,12 +23,6 @@ export function registerV1MyNexusRoute(app: Hono<AppEnv>) {
         roomId: room.room_id,
         ownerId: user.userId,
         ownerDisplayName: user.displayName,
-        ...(room.game_id && gomokuWorkerUrl
-          ? {
-              gameWorkerUrl: gomokuWorkerUrl,
-              context: { gameId: room.game_id },
-            }
-          : {}),
       });
     } catch {
       // Engine DO create endpoint is idempotent in current architecture.

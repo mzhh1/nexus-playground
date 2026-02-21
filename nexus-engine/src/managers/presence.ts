@@ -110,7 +110,7 @@ export class PresenceManager extends BaseManager {
 
         // Get game perspective for this user's role
         let gamePerspective: any | null = null;
-        if (this.room.phase === "playing" || this.room.phase === "finished") {
+        if (this.room.phase === "playing" || this.room.phase === "finished" || this.room.phase === "paused") {
             const roleId = getRoleForUser(this.room.roleMapping, userId) || "spectator";
             gamePerspective = await this.room.fetchPerspective(roleId);
         }

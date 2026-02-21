@@ -5,9 +5,6 @@ interface CreateRoomParams {
   roomId: string;
   ownerId: string;
   ownerDisplayName?: string;
-  gameWorkerUrl?: string;
-  config?: unknown;
-  context?: unknown;
 }
 
 interface CreateRoomResponse {

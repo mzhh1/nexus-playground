@@ -9,6 +9,7 @@ type Bindings = {
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
+const WORKER_VERIFY_SIGNATURE = 'NEXUS_GAME_WORKER_VERIFIED_V1';
 
 // Enable CORS
 app.use('/*', cors());
@@ -66,6 +67,12 @@ app.get('/metadata', (c) => {
             mode: 'url',
             url: `${uiBaseUrl}/game-ui.html`,
         },
+    });
+});
+
+app.get('/__nexus_worker_verify', (c) => {
+    return c.text(WORKER_VERIFY_SIGNATURE, 200, {
+        'Content-Type': 'text/plain; charset=utf-8',
     });
 });
 
