@@ -16,6 +16,19 @@ import type { AxiosInstance } from 'axios';
 import type { RoomInfo, EngineConnectionResponse } from './types';
 
 /**
+ * Get or create a stable guest ID for unauthenticated users
+ */
+function getOrCreateGuestId(): string {
+  const KEY = 'nexus_guest_id';
+  let id = localStorage.getItem(KEY);
+  if (!id) {
+    id = `guest_${Math.random().toString(36).substring(2, 10)}`;
+    localStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
+/**
  * Simplified Game API
  */
 export class GameAPI {
@@ -59,6 +72,10 @@ export function useGameAPI() {
       const token = await getAccessToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+      } else {
+        // For guests, send a stable ID from localStorage
+        const guestId = getOrCreateGuestId();
+        config.headers['X-Guest-Id'] = guestId;
       }
 
       const clientId = import.meta.env.VITE_OAUTH_CLIENT_ID;

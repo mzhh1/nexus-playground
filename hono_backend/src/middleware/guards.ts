@@ -24,9 +24,9 @@ export function getUserOrGuest(c: Context<AppEnv>): { userId: string; displayNam
     return user;
   }
 
-  // Generate a random guest ID and name
-  const guestId = `guest_${Math.random().toString(36).substring(2, 10)}`;
-  const guestName = `Guest ${guestId.substring(6, 10)}`;
+  // Use stable guest ID from frontend if available
+  const guestId = c.get('guestId') || `guest_${Math.random().toString(36).substring(2, 10)}`;
+  const guestName = `Guest ${guestId.substring(guestId.length - 4).toUpperCase()}`;
 
   return {
     userId: guestId,
