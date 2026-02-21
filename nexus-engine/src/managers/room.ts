@@ -176,4 +176,22 @@ export class RoomManager extends BaseManager {
         await this.room.persist("roleMapping");
         this.room.broadcastSyncState();
     }
+
+    public async handleAdminApproveJoin(
+        userId: string,
+        payload: { userId: string; displayName: string },
+    ): Promise<void> {
+        if (!this.room.requireOwner(userId)) return;
+
+        // Add to players
+        this.room.players[payload.userId] = {
+            displayName: payload.displayName,
+            connected: true,
+            isOwner: false,
+            type: "human",
+        };
+
+        await this.room.persist("players");
+        this.room.broadcastSyncState();
+    }
 }

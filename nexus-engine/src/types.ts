@@ -92,6 +92,7 @@ export interface ClientEngineState {
         userId: string;
         isOwner: boolean;
         role: string | null;
+        isAuthorized: boolean;
     };
 }
 
@@ -101,17 +102,20 @@ export interface ClientEngineState {
 export type ServerMessage =
     | { type: 'SYNC_STATE'; payload: { engine: ClientEngineState; game: any | null } }
     | { type: 'ERROR'; payload: string }
-    | { type: 'KICKED'; payload: string };
+    | { type: 'KICKED'; payload: string }
+    | { type: 'JOIN_REQUEST_INTERNAL'; payload: { userId: string; displayName: string } };
 
 /** Messages sent from client to server */
 export type ClientMessage =
     // Lobby
     | { type: 'LOBBY_SELECT_ROLE'; payload: { roleId: string | null } }
     | { type: 'LOBBY_LEAVE' }
+    | { type: 'LOBBY_JOIN_REQUEST'; payload: { displayName: string } }
     // Admin (owner only)
     | { type: 'ADMIN_SET_GAME'; payload: { gameId: string; gameWorkerUrl: string } }
     | { type: 'ADMIN_ADD_BOT'; payload: { displayName: string; modelName: string; systemPrompt?: string; temperature?: number } }
     | { type: 'ADMIN_REMOVE_PLAYER'; payload: { userId: string } }
+    | { type: 'ADMIN_APPROVE_JOIN'; payload: { userId: string; displayName: string } }
     | { type: 'ADMIN_ASSIGN_ROLE'; payload: { roleId: string; userId: string } }
     | { type: 'ADMIN_START_GAME' }
     | { type: 'ADMIN_STOP_GAME' }

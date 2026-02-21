@@ -37,6 +37,7 @@ export interface ClientEngineState {
         userId: string;
         isOwner: boolean;
         role: string | null;
+        isAuthorized: boolean;
     };
 }
 
@@ -44,9 +45,10 @@ export interface ClientEngineState {
 
 interface UseNexusEngineProps {
     roomId: string | null;
+    onJoinRequest?: (userId: string, displayName: string) => void;
 }
 
-export function useNexusEngine({ roomId }: UseNexusEngineProps) {
+export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
     const [engineState, setEngineState] = useState<ClientEngineState | null>(null);
     const [gameState, setGameState] = useState<any>(null);
     const [isConnected, setIsConnected] = useState(false);
@@ -86,6 +88,11 @@ export function useNexusEngine({ roomId }: UseNexusEngineProps) {
                             case 'SYNC_STATE':
                                 setEngineState(msg.payload.engine);
                                 setGameState(msg.payload.game);
+                                break;
+                            case 'JOIN_REQUEST_INTERNAL':
+                                if (onJoinRequest) {
+                                    onJoinRequest(msg.payload.userId, msg.payload.displayName);
+                                }
                                 break;
                             case 'KICKED':
                                 setError(msg.payload || "You were removed by the room owner");
@@ -165,6 +172,10 @@ export function useNexusEngine({ roomId }: UseNexusEngineProps) {
         send('LOBBY_LEAVE');
     }, [send]);
 
+    const requestJoin = useCallback((displayName: string) => {
+        send('LOBBY_JOIN_REQUEST', { displayName });
+    }, [send]);
+
     // ─── Admin Actions (owner only) ──────────────────────
 
     const setGame = useCallback((gameId: string, gameWorkerUrl: string) => {
@@ -194,6 +205,10 @@ export function useNexusEngine({ roomId }: UseNexusEngineProps) {
 
     const assignRole = useCallback((roleId: string, userId: string) => {
         send('ADMIN_ASSIGN_ROLE', { roleId, userId });
+    }, [send]);
+
+    const approveJoin = useCallback((userId: string, displayName: string) => {
+        send('ADMIN_APPROVE_JOIN', { userId, displayName });
     }, [send]);
 
     const startGame = useCallback(() => {
@@ -244,12 +259,14 @@ export function useNexusEngine({ roomId }: UseNexusEngineProps) {
         // Lobby actions
         selectRole,
         leaveRoom,
+        requestJoin,
 
         // Admin actions (owner only)
         setGame,
         addBot,
         removePlayer,
         assignRole,
+        approveJoin,
         startGame,
         stopGame,
         restartGame,

@@ -12,17 +12,18 @@ export class PresenceManager extends BaseManager {
 
         const isOwner = userId === this.room.ownerId;
 
-        // Register or re-register this player
-        if (!this.room.players[userId]) {
+        const isAlreadyMember = !!this.room.players[userId];
+        if (isAlreadyMember) {
+            this.room.players[userId].connected = true;
+            this.room.players[userId].displayName = displayName;
+        } else if (isOwner) {
+            // Register owner if not already there
             this.room.players[userId] = {
                 displayName,
                 connected: true,
-                isOwner,
+                isOwner: true,
                 type: "human",
             };
-        } else {
-            this.room.players[userId].connected = true;
-            this.room.players[userId].displayName = displayName;
         }
 
         // Track connection
@@ -111,16 +112,20 @@ export class PresenceManager extends BaseManager {
     }
 
     public generateClientState(userId: string): ClientEngineState {
+        const isAuthorized = !!this.room.players[userId] || userId === this.room.ownerId;
+
         const clientPlayers: Record<string, ClientPlayerInfo> = {};
-        for (const [uid, p] of Object.entries(this.room.players)) {
-            clientPlayers[uid] = {
-                displayName: p.displayName,
-                connected: p.connected,
-                isOwner: p.isOwner,
-                type: p.type,
-                role: getRoleForUser(this.room.roleMapping, uid),
-                modelName: p.llmConfig?.modelName,
-            };
+        if (isAuthorized) {
+            for (const [uid, p] of Object.entries(this.room.players)) {
+                clientPlayers[uid] = {
+                    displayName: p.displayName,
+                    connected: p.connected,
+                    isOwner: p.isOwner,
+                    type: p.type,
+                    role: getRoleForUser(this.room.roleMapping, uid),
+                    modelName: p.llmConfig?.modelName,
+                };
+            }
         }
 
         return {
@@ -129,7 +134,7 @@ export class PresenceManager extends BaseManager {
             ownerDisplayName: this.room.ownerDisplayName,
             phase: this.room.phase,
             players: clientPlayers,
-            gameConfig: this.room.gameConfig
+            gameConfig: isAuthorized && this.room.gameConfig
                 ? {
                     gameId: this.room.gameConfig.gameId,
                     maxPlayers: this.room.gameConfig.maxPlayers,
@@ -140,6 +145,7 @@ export class PresenceManager extends BaseManager {
                 userId,
                 isOwner: userId === this.room.ownerId,
                 role: getRoleForUser(this.room.roleMapping, userId),
+                isAuthorized,
             },
         };
     }

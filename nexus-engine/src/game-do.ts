@@ -241,6 +241,16 @@ export class GameDO extends DurableObject implements IRoomContext {
             case "LOBBY_LEAVE":
                 await this.roomMgr.handleLeave(userId);
                 break;
+            case "LOBBY_JOIN_REQUEST":
+                // Forward to owner
+                const ownerWs = this.sessions.get(this.ownerId);
+                if (ownerWs) {
+                    this.sendMessage(ownerWs, {
+                        type: "JOIN_REQUEST_INTERNAL",
+                        payload: { userId, displayName: msg.payload.displayName },
+                    });
+                }
+                break;
             case "ADMIN_SET_GAME":
                 await this.roomMgr.handleAdminSetGame(userId, msg.payload);
                 break;
@@ -249,6 +259,9 @@ export class GameDO extends DurableObject implements IRoomContext {
                 break;
             case "ADMIN_REMOVE_PLAYER":
                 await this.roomMgr.handleAdminRemovePlayer(userId, msg.payload.userId);
+                break;
+            case "ADMIN_APPROVE_JOIN":
+                await this.roomMgr.handleAdminApproveJoin(userId, msg.payload);
                 break;
             case "ADMIN_ASSIGN_ROLE":
                 await this.roomMgr.handleAdminAssignRole(userId, msg.payload);

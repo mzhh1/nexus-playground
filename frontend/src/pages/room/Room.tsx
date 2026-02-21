@@ -32,6 +32,8 @@ const Room: React.FC = () => {
   const [isRoleMappingModalOpen, setIsRoleMappingModalOpen] = useState(false);
   const [isLLMTemplateModalOpen, setIsLLMTemplateModalOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [visitorDisplayName, setVisitorDisplayName] = useState('');
+  const [pendingJoinRequests, setPendingJoinRequests] = useState<{ userId: string, displayName: string, id: string }[]>([]);
 
   // Hooks
   const { games: AVAILABLE_GAMES, loading: metadataLoading } = useGamesMetadata();
@@ -52,10 +54,24 @@ const Room: React.FC = () => {
     restartGame: engineRestartGame,
     pauseGame: enginePauseGame,
     resumeGame: engineResumeGame,
+    requestJoin: engineRequestJoin,
+    approveJoin: engineApproveJoin,
     isOwner: isOwnerEngine,
     myRole: myRoleEngine,
     myUserId: myUserIdEngine,
-  } = useNexusEngine({ roomId });
+    engineState,
+  } = useNexusEngine({
+    roomId,
+    onJoinRequest: (userId, displayName) => {
+      const requestId = Math.random().toString(36).substring(7);
+      setPendingJoinRequests(prev => [...prev, { userId, displayName, id: requestId }]);
+
+      // Auto-remove after 10 seconds
+      setTimeout(() => {
+        setPendingJoinRequests(prev => prev.filter(req => req.id !== requestId));
+      }, 10000);
+    }
+  });
 
   const submitting = false; // Actions are async via WebSocket now
 
@@ -81,6 +97,12 @@ const Room: React.FC = () => {
 
     return user.id;
   }, [user]);
+
+  useEffect(() => {
+    if (accountDisplayName && !visitorDisplayName) {
+      setVisitorDisplayName(accountDisplayName);
+    }
+  }, [accountDisplayName]);
 
   // Extract room ID from URL (/room?id=...)
   useEffect(() => {
@@ -257,8 +279,12 @@ const Room: React.FC = () => {
   };
 
   const handleJoin = async () => {
-    // Human joining is handled by DO connection
-    alert('已通过 WebSocket 自动加入。');
+    if (!visitorDisplayName.trim()) {
+      alert('请输入显示名称');
+      return;
+    }
+    engineRequestJoin(visitorDisplayName.trim());
+    alert('申请已发送，等待房主批准...');
   };
 
   const handleCopyRoomLink = async () => {
@@ -311,7 +337,8 @@ const Room: React.FC = () => {
   const isPlaying = engineState?.phase === 'playing';
   const isPaused = engineState?.phase === 'paused';
   const isFinished = engineState?.phase === 'finished';
-  const canJoin = false; // Join is automatic in v4.0 via connection
+  const isAuthorized = engineState?.you.isAuthorized ?? false;
+  const canRequestJoin = !isAuthorized && !isOwner;
 
   // 在开放阶段也显示控制栏（当有游戏选择时）
   const shouldShowControlBar = engineState
@@ -449,22 +476,146 @@ const Room: React.FC = () => {
           {/* ========== OPEN PHASE ========== */}
           {isOpen && (
             <LobbyContainer>
-              {/* Visitor: Join Button (未加入房间) */}
-              {canJoin && (
-                <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
-                  <h2>加入这个房间？</h2>
-                  <p><strong>房主:</strong> {engineState.ownerDisplayName}</p>
-                  <p><strong>游戏:</strong> {engineState.gameConfig?.gameId || '未选择'}</p>
-                  <p><strong>玩家数:</strong> {playerList.length}</p>
-                  <button onClick={handleJoin} style={{ width: '100%', marginTop: 'var(--spacing-sm)' }}>
-                    Join Room
-                  </button>
+              {/* Visitor: Join Form (未被授权) */}
+              {canRequestJoin && (
+                <div className="card" style={{
+                  marginBottom: 'var(--spacing-lg)',
+                  background: 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)',
+                  border: '1px solid #e5e7eb',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                  borderRadius: '12px',
+                  padding: 'var(--spacing-lg)'
+                }}>
+                  <h2 style={{ color: 'var(--color-primary)', marginBottom: 'var(--spacing-sm)' }}>加入房间申请</h2>
+                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                    您当前作为访客查看。请输入您的显示名称并申请加入，以便参与游戏。
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                      <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>显示名称</label>
+                      <input
+                        type="text"
+                        value={visitorDisplayName}
+                        onChange={(e) => setVisitorDisplayName(e.target.value)}
+                        placeholder={accountDisplayName || "您的昵称"}
+                        style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                      />
+                    </div>
+                    <button
+                      onClick={handleJoin}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        fontSize: '1rem',
+                        fontWeight: 600,
+                        background: 'var(--color-primary)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'transform 0.1s ease, background 0.2s ease'
+                      }}
+                      onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
+                      onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    >
+                      发送申请入场
+                    </button>
+                  </div>
                 </div>
               )}
 
-              {/* Owner Controls or Visitor View (已加入房间或房主) */}
-              {(isOwner || isInRoom) && (
+              {/* Owner Controls or Visitor View (已授权) */}
+              {isAuthorized && (
                 <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                  {/* Approval Toasts for Owner */}
+                  {isOwner && pendingJoinRequests.length > 0 && (
+                    <div style={{
+                      position: 'fixed',
+                      top: '80px',
+                      right: '20px',
+                      zIndex: 1000,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px'
+                    }}>
+                      {pendingJoinRequests.map(req => (
+                        <div key={req.id} style={{
+                          background: 'white',
+                          padding: '16px',
+                          borderRadius: '12px',
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                          border: '1px solid #e5e7eb',
+                          width: '300px',
+                          animation: 'slideIn 0.3s ease-out'
+                        }}>
+                          <style>{`
+                            @keyframes slideIn {
+                              from { transform: translateX(100%); opacity: 0; }
+                              to { transform: translateX(0); opacity: 1; }
+                            }
+                          `}</style>
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ fontWeight: 600, fontSize: '1rem' }}>有人申请加入</div>
+                            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}><strong>{req.displayName}</strong> 想要加入房间</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => {
+                                engineApproveJoin(req.userId, req.displayName);
+                                setPendingJoinRequests(prev => prev.filter(r => r.id !== req.id));
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: '8px',
+                                background: '#10b981',
+                                border: 'none',
+                                color: 'white',
+                                borderRadius: '6px',
+                                fontWeight: 500,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              允许
+                            </button>
+                            <button
+                              onClick={() => setPendingJoinRequests(prev => prev.filter(r => r.id !== req.id))}
+                              className="secondary"
+                              style={{
+                                flex: 1,
+                                padding: '8px',
+                                borderRadius: '6px',
+                                fontWeight: 500,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              忽略
+                            </button>
+                          </div>
+                          <div style={{
+                            height: '3px',
+                            background: '#e5e7eb',
+                            marginTop: '12px',
+                            borderRadius: '2px',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              background: 'var(--color-primary)',
+                              width: '100%',
+                              animation: 'shrink 10s linear forwards'
+                            }}></div>
+                            <style>{`
+                              @keyframes shrink {
+                                from { width: 100%; }
+                                to { width: 0%; }
+                              }
+                            `}</style>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
                     <h2 style={{ margin: 0 }}>{isOwner ? '房主控制' : '房间信息'}</h2>
                     {isOwner && (
