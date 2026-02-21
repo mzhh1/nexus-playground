@@ -430,7 +430,81 @@ const Room: React.FC = () => {
     return <div>No engine data</div>;
   }
 
-  // ========== Render ==========
+  // ========== AUTHORIZATION CHECK (Minimal Visitor View) ==========
+  if (!isAuthorized) {
+    return (
+      <div style={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#f3f4f6',
+        padding: 'var(--spacing-md)'
+      }}>
+        <LobbyContainer style={{ maxWidth: '450px', width: '100%' }}>
+          <div className="card" style={{
+            background: 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)',
+            border: '1px solid #e5e7eb',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            borderRadius: '16px',
+            padding: '2rem'
+          }}>
+            <h2 style={{ color: 'var(--color-primary)', marginBottom: 'var(--spacing-xs)' }}>加入房间申请</h2>
+            <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem', fontSize: '0.925rem' }}>
+              <strong>房间 ID:</strong> <code style={{ background: '#eee', padding: '2px 6px', borderRadius: '4px' }}>{roomId}</code>
+            </p>
+            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+              您当前作为访客查看。请输入您的显示名称并申请加入。
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>显示名称</label>
+                <input
+                  type="text"
+                  value={visitorDisplayName}
+                  onChange={(e) => setVisitorDisplayName(e.target.value)}
+                  placeholder={accountDisplayName || "您的昵称"}
+                  style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                />
+              </div>
+              <button
+                onClick={handleJoin}
+                className="primary"
+                style={{
+                  width: '100%',
+                  padding: '0.875rem',
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  transition: 'transform 0.1s ease'
+                }}
+              >
+                发送申请入场
+              </button>
+            </div>
+            {engineState.phase === 'playing' && (
+              <div style={{
+                marginTop: '1.5rem',
+                padding: '0.75rem',
+                background: '#fffbeb',
+                border: '1px solid #fef3c7',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.875rem',
+                color: '#92400e'
+              }}>
+                <span style={{ fontSize: '1.2rem' }}>🎮</span>
+                <span>游戏正在进行中，您可以申请作为观众加入或等待转正。</span>
+              </div>
+            )}
+          </div>
+        </LobbyContainer>
+      </div>
+    );
+  }
+
+  // ========== Authorized Render ==========
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
@@ -561,250 +635,190 @@ const Room: React.FC = () => {
           {/* Header - 只在开放状态显示，游戏中的头像已在控制栏 */}
           {engineError && <div className="error-message">{engineError}</div>}
 
-          {/* ========== VISITOR / JOIN REQUEST PHASE ========== */}
-          {canRequestJoin && (
-            <LobbyContainer>
-              <div className="card" style={{
-                marginBottom: 'var(--spacing-lg)',
-                background: 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)',
-                border: '1px solid #e5e7eb',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                borderRadius: '12px',
-                padding: 'var(--spacing-lg)'
-              }}>
-                <h2 style={{ color: 'var(--color-primary)', marginBottom: 'var(--spacing-sm)' }}>加入房间申请</h2>
-                <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-md)' }}>
-                  您当前作为访客查看。请输入您的显示名称并申请加入，以便参与游戏。
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
-                    <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>显示名称</label>
-                    <input
-                      type="text"
-                      value={visitorDisplayName}
-                      onChange={(e) => setVisitorDisplayName(e.target.value)}
-                      placeholder={accountDisplayName || "您的昵称"}
-                      style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }}
-                    />
-                  </div>
-                  <button
-                    onClick={handleJoin}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      background: 'var(--color-primary)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      transition: 'transform 0.1s ease, background 0.2s ease'
-                    }}
-                    onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
-                    onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                  >
-                    发送申请入场
-                  </button>
-                </div>
-              </div>
-              {!isOpen && (
-                <div className="card" style={{ opacity: 0.8 }}>
-                  <h3 style={{ margin: 0 }}>当前状态: {engineState.phase === 'playing' ? '进行中' : engineState.phase}</h3>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-xs)' }}>
-                    申请被批准后，您将立即进入。
-                  </p>
-                </div>
-              )}
-            </LobbyContainer>
-          )}
-
           {/* ========== AUTHORIZED PHASE (Owner or Joined Player) ========== */}
-          {isAuthorized && (
-            <React.Fragment>
-              {/* ========== OPEN PHASE ========== */}
-              {isOpen && (
-                <LobbyContainer>
-                  {/* Owner Controls or Visitor View (已授权) */}
-                  <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
-                      <h2 style={{ margin: 0 }}>{isOwner ? '房主控制' : '房间信息'}</h2>
-                      {isOwner && (
-                        <button
-                          onClick={handleCopyRoomLink}
-                          className="secondary"
-                          style={{
-                            fontSize: '0.875rem',
-                            padding: '0.5rem 1rem',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {isCopied ? '✓ 已复制到剪切板' : '复制房间链接'}
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Game Selection */}
-                    <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                      <h3>{hasGameSelected ? '当前游戏' : '选择游戏'}</h3>
-                      {isOwner ? (
-                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-                          <select
-                            value={selectedGameId}
-                            onChange={(e) => setSelectedGameId(e.target.value)}
-                            style={{ flex: 1 }}
-                          >
-                            <option value="">-- 请选择游戏 --</option>
-                            {selectedGameId && !AVAILABLE_GAMES.some(game => game.id === selectedGameId) && (
-                              <option value={selectedGameId} disabled>
-                                {selectedGameId}
-                              </option>
-                            )}
-                            {AVAILABLE_GAMES.map(game => (
-                              <option key={game.id} value={game.id}>
-                                {game.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={handleSelectGame}
-                            disabled={!selectedGameId /*|| selectedGameId === (engineState.gameConfig?.gameId ?? '')*/}
-                          >
-                            {hasGameSelected ? '更新游戏' : '确认选择'}
-                          </button>
-                        </div>
-                      ) : (
-                        <p style={{ padding: 'var(--spacing-sm)', background: '#f3f4f6', borderRadius: '6px' }}>
-                          {engineState.gameConfig?.gameId ? gameName || engineState.gameConfig.gameId : '未选择'}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Player Management (after game selected) */}
-                    {hasGameSelected && (
-                      <>
-                        <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                          <h3>玩家列表</h3>
-                          {isOwner && (
-                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-sm)' }}>
-                              <button
-                                onClick={handleAddSelf}
-                                disabled={!user || accountAlreadyInRoom}
-                              >
-                                + Add Self
-                              </button>
-                              <button onClick={handleAddLLMPlayer} className="secondary">+ Add LLM Player</button>
-                            </div>
-                          )}
-
-                          {/* Player List */}
-                          <PlayerList
-                            players={currentPlayers as any}
-                            canRemove={isOwner}
-                            onRemove={handleRemovePlayer}
-                            emptyMessage="请添加玩家以开始游戏"
-                          />
-                        </div>
-
-                        {/* Role Template Selector (for multi-player-count games) */}
-                        {isMultiPlayerCountGame && hasPlayers && (
-                          <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                            <h3>角色模板</h3>
-                            <RoleTemplateSelector
-                              availableCounts={availablePlayerCounts}
-                              selectedCount={effectivePlayerCount}
-                              playerCountLabels={currentGameMetadata?.playerCountLabels}
-                              onSelect={handlePlayerCountChange}
-                              disabled={!isOwner}
-                              isOwner={isOwner}
-                            />
-                          </div>
-                        )}
-
-                        {/* Role Mapping Display (after players added) */}
-                        {hasPlayers && (
-                          <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-sm)' }}>
-                              <h3>角色分配</h3>
-                              {isOwner && (
-                                <button onClick={handleRandomAssign} className="secondary" style={{ fontSize: '0.875rem' }}>
-                                  随机分配
-                                </button>
-                              )}
-                            </div>
-                            <RoleMappingGraph
-                              playerList={currentPlayers as any}
-                              roleIds={roleIds}
-                              mapping={effectiveRoleMapping}
-                              onChange={handleRoleMappingChange}
-                              readonly={!isOwner}
-                            />
-                          </div>
-                        )}
-
-                        {/* Start Game Button (Owner only) */}
-                        {isOwner && (
-                          <div>
-                            <button
-                              onClick={handleStartGame}
-                              disabled={!isMappingComplete}
-                              style={{ width: '100%' }}
-                            >
-                              Start Game
-                            </button>
-                            {!isMappingComplete && (
-                              <p style={{
-                                marginTop: 'var(--spacing-xs)',
-                                fontSize: '0.875rem',
-                                color: 'var(--color-text-secondary)'
-                              }}>
-                                请分配所有角色后才能开始游戏
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </>
+          <React.Fragment>
+            {/* ========== OPEN PHASE ========== */}
+            {isOpen && (
+              <LobbyContainer>
+                {/* Owner Controls or Visitor View (已授权) */}
+                <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+                    <h2 style={{ margin: 0 }}>{isOwner ? '房主控制' : '房间信息'}</h2>
+                    {isOwner && (
+                      <button
+                        onClick={handleCopyRoomLink}
+                        className="secondary"
+                        style={{
+                          fontSize: '0.875rem',
+                          padding: '0.5rem 1rem',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {isCopied ? '✓ 已复制到剪切板' : '复制房间链接'}
+                      </button>
                     )}
                   </div>
-                </LobbyContainer>
-              )}
 
-              {/* ========== PLAYING/PAUSED/FINISHED PHASE ========== */}
-              {!isOpen && engineState.gameConfig?.gameId && perspective && currentRoleId && (
-                <div className="card" style={{
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  minHeight: 0,
-                  overflow: 'hidden',
-                  padding: 0 /* 游戏UI自己管理padding */
-                }}>
-                  <GameUIContainer
-                    gameId={engineState.gameConfig.gameId}
-                    perspective={perspective}
-                    onAction={submitAction}
-                    isMyTurn={perspective.your_role.is_current}
-                    readonly={engineState.phase !== 'playing' || submitting}
-                    metadata={{
-                      roomId: engineState.roomId,
-                      roleId: currentRoleId,
-                      playerId: playerId || undefined,
-                    }}
-                    uiUrl={currentGameMetadata?.ui?.url}
-                  />
-                </div>
-              )}
+                  {/* Game Selection */}
+                  <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                    <h3>{hasGameSelected ? '当前游戏' : '选择游戏'}</h3>
+                    {isOwner ? (
+                      <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                        <select
+                          value={selectedGameId}
+                          onChange={(e) => setSelectedGameId(e.target.value)}
+                          style={{ flex: 1 }}
+                        >
+                          <option value="">-- 请选择游戏 --</option>
+                          {selectedGameId && !AVAILABLE_GAMES.some(game => game.id === selectedGameId) && (
+                            <option value={selectedGameId} disabled>
+                              {selectedGameId}
+                            </option>
+                          )}
+                          {AVAILABLE_GAMES.map(game => (
+                            <option key={game.id} value={game.id}>
+                              {game.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={handleSelectGame}
+                          disabled={!selectedGameId /*|| selectedGameId === (engineState.gameConfig?.gameId ?? '')*/}
+                        >
+                          {hasGameSelected ? '更新游戏' : '确认选择'}
+                        </button>
+                      </div>
+                    ) : (
+                      <p style={{ padding: 'var(--spacing-sm)', background: '#f3f4f6', borderRadius: '6px' }}>
+                        {engineState.gameConfig?.gameId ? gameName || engineState.gameConfig.gameId : '未选择'}
+                      </p>
+                    )}
+                  </div>
 
-              {/* Fallback: Status Display */}
-              {!isOpen && (!engineState.gameConfig?.gameId || !perspective || !currentRoleId) && (
-                <div className="card">
-                  <h2>房间状态: {engineState.phase}</h2>
-                  <p>游戏ID: {engineState.gameConfig?.gameId || '无'}</p>
-                  <p>玩家数: {playerList.length}</p>
+                  {/* Player Management (after game selected) */}
+                  {hasGameSelected && (
+                    <>
+                      <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                        <h3>玩家列表</h3>
+                        {isOwner && (
+                          <div style={{ display: 'flex', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-sm)' }}>
+                            <button
+                              onClick={handleAddSelf}
+                              disabled={!user || accountAlreadyInRoom}
+                            >
+                              + Add Self
+                            </button>
+                            <button onClick={handleAddLLMPlayer} className="secondary">+ Add LLM Player</button>
+                          </div>
+                        )}
+
+                        {/* Player List */}
+                        <PlayerList
+                          players={currentPlayers as any}
+                          canRemove={isOwner}
+                          onRemove={handleRemovePlayer}
+                          emptyMessage="请添加玩家以开始游戏"
+                        />
+                      </div>
+
+                      {/* Role Template Selector (for multi-player-count games) */}
+                      {isMultiPlayerCountGame && hasPlayers && (
+                        <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                          <h3>角色模板</h3>
+                          <RoleTemplateSelector
+                            availableCounts={availablePlayerCounts}
+                            selectedCount={effectivePlayerCount}
+                            playerCountLabels={currentGameMetadata?.playerCountLabels}
+                            onSelect={handlePlayerCountChange}
+                            disabled={!isOwner}
+                            isOwner={isOwner}
+                          />
+                        </div>
+                      )}
+
+                      {/* Role Mapping Display (after players added) */}
+                      {hasPlayers && (
+                        <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-sm)' }}>
+                            <h3>角色分配</h3>
+                            {isOwner && (
+                              <button onClick={handleRandomAssign} className="secondary" style={{ fontSize: '0.875rem' }}>
+                                随机分配
+                              </button>
+                            )}
+                          </div>
+                          <RoleMappingGraph
+                            playerList={currentPlayers as any}
+                            roleIds={roleIds}
+                            mapping={effectiveRoleMapping}
+                            onChange={handleRoleMappingChange}
+                            readonly={!isOwner}
+                          />
+                        </div>
+                      )}
+
+                      {/* Start Game Button (Owner only) */}
+                      {isOwner && (
+                        <div>
+                          <button
+                            onClick={handleStartGame}
+                            disabled={!isMappingComplete}
+                            style={{ width: '100%' }}
+                          >
+                            Start Game
+                          </button>
+                          {!isMappingComplete && (
+                            <p style={{
+                              marginTop: 'var(--spacing-xs)',
+                              fontSize: '0.875rem',
+                              color: 'var(--color-text-secondary)'
+                            }}>
+                              请分配所有角色后才能开始游戏
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              )}
-            </React.Fragment>
-          )}
+              </LobbyContainer>
+            )}
+
+            {/* ========== PLAYING/PAUSED/FINISHED PHASE ========== */}
+            {!isOpen && engineState.gameConfig?.gameId && perspective && currentRoleId && (
+              <div className="card" style={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
+                overflow: 'hidden',
+                padding: 0 /* 游戏UI自己管理padding */
+              }}>
+                <GameUIContainer
+                  gameId={engineState.gameConfig.gameId}
+                  perspective={perspective}
+                  onAction={submitAction}
+                  isMyTurn={perspective.your_role.is_current}
+                  readonly={engineState.phase !== 'playing' || submitting}
+                  metadata={{
+                    roomId: engineState.roomId,
+                    roleId: currentRoleId,
+                    playerId: playerId || undefined,
+                  }}
+                  uiUrl={currentGameMetadata?.ui?.url}
+                />
+              </div>
+            )}
+
+            {/* Fallback: Status Display */}
+            {!isOpen && (!engineState.gameConfig?.gameId || !perspective || !currentRoleId) && (
+              <div className="card">
+                <h2>房间状态: {engineState.phase}</h2>
+                <p>游戏ID: {engineState.gameConfig?.gameId || '无'}</p>
+                <p>玩家数: {playerList.length}</p>
+              </div>
+            )}
+          </React.Fragment>
         </div>
       </div>
 
