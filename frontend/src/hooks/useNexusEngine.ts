@@ -55,7 +55,13 @@ export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
     const [error, setError] = useState<string | null>(null);
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const onJoinRequestRef = useRef(onJoinRequest);
     const gameApi = useGameAPI();
+
+    // Sync ref
+    useEffect(() => {
+        onJoinRequestRef.current = onJoinRequest;
+    }, [onJoinRequest]);
 
     // ─── Connect to Engine ────────────────────────────────
 
@@ -90,8 +96,8 @@ export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
                                 setGameState(msg.payload.game);
                                 break;
                             case 'JOIN_REQUEST_INTERNAL':
-                                if (onJoinRequest) {
-                                    onJoinRequest(msg.payload.userId, msg.payload.displayName);
+                                if (onJoinRequestRef.current) {
+                                    onJoinRequestRef.current(msg.payload.userId, msg.payload.displayName);
                                 }
                                 break;
                             case 'KICKED':
