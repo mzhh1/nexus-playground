@@ -69,28 +69,30 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
           </button>
 
           {/* 玩家列表下拉菜单 */}
-          <div className="dropdown-container">
-            <button
-              className="dropdown-button"
-              onClick={() => setShowPlayerList(!showPlayerList)}
-              title="玩家列表"
-            >
-              👥 玩家 ({playerCount})
-            </button>
-            {showPlayerList && (
-              <div className="dropdown-menu">
-                {Object.entries(players || {}).map(([pid, player]) => (
-                  <div key={pid} className="dropdown-item">
-                    <span className="player-name">{player.display_name || player.displayName}</span>
-                    <span className="player-type">{player.type}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {playerCount > 0 && (
+            <div className="dropdown-container">
+              <button
+                className="dropdown-button"
+                onClick={() => setShowPlayerList(!showPlayerList)}
+                title="玩家列表"
+              >
+                👥 玩家 ({playerCount})
+              </button>
+              {showPlayerList && (
+                <div className="dropdown-menu">
+                  {Object.entries(players || {}).map(([pid, player]) => (
+                    <div key={pid} className="dropdown-item">
+                      <span className="player-name">{player.display_name || player.displayName}</span>
+                      <span className="player-type">{player.type}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 角色映射下拉菜单 */}
-          {roleMapping && roleIds.length > 0 && (
+          {roleMapping && roleIds.length > 0 && Object.keys(roleMapping).length > 0 && (
             <div className="dropdown-container">
               <button
                 className="dropdown-button"

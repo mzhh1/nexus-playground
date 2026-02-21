@@ -447,93 +447,105 @@ const Room: React.FC = () => {
   // ========== AUTHORIZATION CHECK (Minimal Visitor View) ==========
   if (!isAuthorized) {
     return (
-      <div style={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#f3f4f6',
-        padding: 'var(--spacing-md)'
-      }}>
-        <LobbyContainer style={{ maxWidth: '450px', width: '100%' }}>
-          <div className="card" style={{
-            background: 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)',
-            border: '1px solid #e5e7eb',
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-            borderRadius: '16px',
-            padding: '2rem'
-          }}>
-            <h2 style={{ color: 'var(--color-primary)', marginBottom: 'var(--spacing-xs)' }}>加入房间申请</h2>
-            <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem', fontSize: '0.925rem' }}>
-              <strong>房间 ID:</strong> <code style={{ background: '#eee', padding: '2px 6px', borderRadius: '4px' }}>{roomId}</code>
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
-                <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>房间昵称</label>
-                <input
-                  type="text"
-                  value={visitorDisplayName}
-                  onChange={(e) => setVisitorDisplayName(e.target.value)}
-                  placeholder={accountDisplayName || "您的昵称"}
-                  style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }}
-                />
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        {/* Control Bar for Visitors */}
+        <NexusControlBar
+          roomId={roomId!}
+          players={{}}
+          isOwner={false}
+          gameName="申请加入"
+          onExit={() => (window.location.href = '/')}
+        />
+
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f3f4f6',
+          padding: 'var(--spacing-md)',
+          overflowY: 'auto'
+        }}>
+          <LobbyContainer style={{ maxWidth: '450px', width: '100%' }}>
+            <div className="card" style={{
+              background: 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)',
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+              borderRadius: '16px',
+              padding: '2rem'
+            }}>
+              <h2 style={{ color: 'var(--color-primary)', marginBottom: 'var(--spacing-xs)' }}>加入房间申请</h2>
+              <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem', fontSize: '0.925rem' }}>
+                <strong>房间 ID:</strong> <code style={{ background: '#eee', padding: '2px 6px', borderRadius: '4px' }}>{roomId}</code>
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>房间昵称</label>
+                  <input
+                    type="text"
+                    value={visitorDisplayName}
+                    onChange={(e) => setVisitorDisplayName(e.target.value)}
+                    placeholder={accountDisplayName || "您的昵称"}
+                    style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                  />
+                </div>
+                <button
+                  onClick={handleJoin}
+                  className={joinCooldown > 0 ? "" : "primary"}
+                  disabled={joinCooldown > 0}
+                  style={{
+                    width: '100%',
+                    padding: '0.875rem',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    transition: 'all 0.2s ease',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    cursor: joinCooldown > 0 ? 'not-allowed' : 'pointer',
+                    backgroundColor: joinCooldown > 0 ? '#e5e7eb' : undefined,
+                    color: joinCooldown > 0 ? '#9ca3af' : 'white',
+                    border: 'none',
+                    borderRadius: '8px'
+                  }}
+                >
+                  {/* 倒流进度条背景 */}
+                  {joinCooldown > 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      height: '100%',
+                      background: '#d1d5db',
+                      width: `${(joinCooldown / 10) * 100}%`,
+                      transition: 'width 1s linear',
+                      zIndex: 0
+                    }} />
+                  )}
+                  <span style={{ position: 'relative', zIndex: 1 }}>
+                    {joinCooldown > 0 ? `已发送 (${joinCooldown}s)` : '发送申请入场'}
+                  </span>
+                </button>
               </div>
-              <button
-                onClick={handleJoin}
-                className={joinCooldown > 0 ? "" : "primary"}
-                disabled={joinCooldown > 0}
-                style={{
-                  width: '100%',
-                  padding: '0.875rem',
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  transition: 'all 0.2s ease',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  cursor: joinCooldown > 0 ? 'not-allowed' : 'pointer',
-                  backgroundColor: joinCooldown > 0 ? '#e5e7eb' : undefined,
-                  color: joinCooldown > 0 ? '#9ca3af' : 'white',
-                  border: 'none',
-                  borderRadius: '8px'
-                }}
-              >
-                {/* 倒流进度条背景 */}
-                {joinCooldown > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    height: '100%',
-                    background: '#d1d5db',
-                    width: `${(joinCooldown / 10) * 100}%`,
-                    transition: 'width 1s linear',
-                    zIndex: 0
-                  }} />
-                )}
-                <span style={{ position: 'relative', zIndex: 1 }}>
-                  {joinCooldown > 0 ? `已发送 (${joinCooldown}s)` : '发送申请入场'}
-                </span>
-              </button>
+              {engineState.phase === 'playing' && (
+                <div style={{
+                  marginTop: '1.5rem',
+                  padding: '0.75rem',
+                  background: '#fffbeb',
+                  border: '1px solid #fef3c7',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '0.875rem',
+                  color: '#92400e'
+                }}>
+                  <span style={{ fontSize: '1.2rem' }}>🎮</span>
+                  <span>游戏正在进行中，您可以申请作为观众加入或等待转正。</span>
+                </div>
+              )}
             </div>
-            {engineState.phase === 'playing' && (
-              <div style={{
-                marginTop: '1.5rem',
-                padding: '0.75rem',
-                background: '#fffbeb',
-                border: '1px solid #fef3c7',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '0.875rem',
-                color: '#92400e'
-              }}>
-                <span style={{ fontSize: '1.2rem' }}>🎮</span>
-                <span>游戏正在进行中，您可以申请作为观众加入或等待转正。</span>
-              </div>
-            )}
-          </div>
-        </LobbyContainer>
+          </LobbyContainer>
+        </div>
       </div>
     );
   }
