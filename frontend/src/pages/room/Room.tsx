@@ -450,6 +450,95 @@ const Room: React.FC = () => {
         onExit={() => (window.location.href = '/')}
       />}
 
+      {/* Approval Toasts for Owner - 全局层级，任何阶段可见 */}
+      {isOwner && pendingJoinRequests.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          top: '80px',
+          right: '20px',
+          zIndex: 1000,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px'
+        }}>
+          {pendingJoinRequests.map(req => (
+            <div key={req.id} style={{
+              background: 'white',
+              padding: '16px',
+              borderRadius: '12px',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+              border: '1px solid #e5e7eb',
+              width: '300px',
+              animation: 'slideIn 0.3s ease-out'
+            }}>
+              <style>{`
+                @keyframes slideIn {
+                  from { transform: translateX(100%); opacity: 0; }
+                  to { transform: translateX(0); opacity: 1; }
+                }
+              `}</style>
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontWeight: 600, fontSize: '1rem' }}>有人申请加入</div>
+                <div style={{ color: '#6b7280', fontSize: '0.875rem' }}><strong>{req.displayName}</strong> 想要加入房间</div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => {
+                    engineApproveJoin(req.userId, req.displayName);
+                    setPendingJoinRequests(prev => prev.filter(r => r.id !== req.id));
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    background: '#10b981',
+                    border: 'none',
+                    color: 'white',
+                    borderRadius: '6px',
+                    fontWeight: 500,
+                    cursor: 'pointer'
+                  }}
+                >
+                  允许
+                </button>
+                <button
+                  onClick={() => setPendingJoinRequests(prev => prev.filter(r => r.id !== req.id))}
+                  className="secondary"
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '6px',
+                    fontWeight: 500,
+                    cursor: 'pointer'
+                  }}
+                >
+                  忽略
+                </button>
+              </div>
+              <div style={{
+                height: '3px',
+                background: '#e5e7eb',
+                marginTop: '12px',
+                borderRadius: '2px',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  height: '100%',
+                  background: 'var(--color-primary)',
+                  width: '100%',
+                  animation: 'shrink 10s linear forwards'
+                }}></div>
+                <style>{`
+                  @keyframes shrink {
+                    from { width: 100%; }
+                    to { width: 0%; }
+                  }
+                `}</style>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{
         flex: 1,
         overflow: isOpen ? 'auto' : 'hidden',
@@ -536,96 +625,8 @@ const Room: React.FC = () => {
               {/* ========== OPEN PHASE ========== */}
               {isOpen && (
                 <LobbyContainer>
+                  {/* Owner Controls or Visitor View (已授权) */}
                   <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
-                    {/* Approval Toasts for Owner */}
-                    {isOwner && pendingJoinRequests.length > 0 && (
-                      <div style={{
-                        position: 'fixed',
-                        top: '80px',
-                        right: '20px',
-                        zIndex: 1000,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '10px'
-                      }}>
-                        {pendingJoinRequests.map(req => (
-                          <div key={req.id} style={{
-                            background: 'white',
-                            padding: '16px',
-                            borderRadius: '12px',
-                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                            border: '1px solid #e5e7eb',
-                            width: '300px',
-                            animation: 'slideIn 0.3s ease-out'
-                          }}>
-                            <style>{`
-                            @keyframes slideIn {
-                              from { transform: translateX(100%); opacity: 0; }
-                              to { transform: translateX(0); opacity: 1; }
-                            }
-                          `}</style>
-                            <div style={{ marginBottom: '12px' }}>
-                              <div style={{ fontWeight: 600, fontSize: '1rem' }}>有人申请加入</div>
-                              <div style={{ color: '#6b7280', fontSize: '0.875rem' }}><strong>{req.displayName}</strong> 想要加入房间</div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button
-                                onClick={() => {
-                                  engineApproveJoin(req.userId, req.displayName);
-                                  setPendingJoinRequests(prev => prev.filter(r => r.id !== req.id));
-                                }}
-                                style={{
-                                  flex: 1,
-                                  padding: '8px',
-                                  background: '#10b981',
-                                  border: 'none',
-                                  color: 'white',
-                                  borderRadius: '6px',
-                                  fontWeight: 500,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                允许
-                              </button>
-                              <button
-                                onClick={() => setPendingJoinRequests(prev => prev.filter(r => r.id !== req.id))}
-                                className="secondary"
-                                style={{
-                                  flex: 1,
-                                  padding: '8px',
-                                  borderRadius: '6px',
-                                  fontWeight: 500,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                忽略
-                              </button>
-                            </div>
-                            <div style={{
-                              height: '3px',
-                              background: '#e5e7eb',
-                              marginTop: '12px',
-                              borderRadius: '2px',
-                              overflow: 'hidden'
-                            }}>
-                              <div style={{
-                                height: '100%',
-                                background: 'var(--color-primary)',
-                                width: '100%',
-                                animation: 'shrink 10s linear forwards'
-                              }}></div>
-                              <style>{`
-                              @keyframes shrink {
-                                from { width: 100%; }
-                                to { width: 0%; }
-                              }
-                            `}</style>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
                       <h2 style={{ margin: 0 }}>{isOwner ? '房主控制' : '房间信息'}</h2>
                       {isOwner && (
@@ -763,8 +764,7 @@ const Room: React.FC = () => {
                           </div>
                         )}
                       </>
-                    )}
-                  </div>
+                    </div>
                 </LobbyContainer>
               )}
 
