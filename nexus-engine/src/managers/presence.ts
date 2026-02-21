@@ -154,8 +154,14 @@ export class PresenceManager extends BaseManager {
                     gameId: this.room.gameConfig.gameId,
                     maxPlayers: this.room.gameConfig.maxPlayers,
                     roleIds: this.room.gameConfig.roleIds,
+                    auto_save_mode: this.room.gameConfig.auto_save_mode,
                 }
                 : null,
+            stateHistory: isAuthorized ? this.room.stateHistory.map(({ index, name, timestamp }) => ({
+                index,
+                name,
+                timestamp,
+            })) : [],
             you: {
                 userId,
                 isOwner: userId === this.room.ownerId,

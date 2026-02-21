@@ -57,6 +57,7 @@ const Room: React.FC = () => {
     resumeGame: engineResumeGame,
     requestJoin: engineRequestJoin,
     approveJoin: engineApproveJoin,
+    backtrackState: engineBacktrackState,
     isOwner: isOwnerEngine,
     myRole: myRoleEngine,
     myUserId: myUserIdEngine,
@@ -671,19 +672,20 @@ const Room: React.FC = () => {
         overflow: isOpen ? 'auto' : 'hidden',
         overflowY: isOpen ? 'auto' : 'hidden', /* 明确禁用上下滚动 */
         display: isOpen ? 'block' : 'flex',
-        flexDirection: isOpen ? undefined : 'column',
+        flexDirection: isOpen ? undefined : 'row',
         paddingTop: isOpen && shouldShowControlBar ? 0 : baseContentPadding,
         paddingRight: isOpen && shouldShowControlBar ? 0 : baseContentPadding,
         paddingBottom: isOpen && shouldShowControlBar ? '10px' : contentPaddingBottom, /* 为底部状态栏留出空间 */
         paddingLeft: isOpen && shouldShowControlBar ? 0 : baseContentPadding,
         minHeight: 0
       }}>
-        <div className={isOpen ? "" : ""} style={isOpen ? {} : {
+        {/* Main Content Area */}
+        <div style={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
-          width: '100%'
+          overflow: 'hidden'
         }}>
           {/* Header - 只在开放状态显示，游戏中的头像已在控制栏 */}
           {engineError && <div className="error-message">{engineError}</div>}
@@ -873,6 +875,61 @@ const Room: React.FC = () => {
             )}
           </React.Fragment>
         </div>
+
+        {/* ========== STATE HISTORY PANEL (Paused + Owner) ========== */}
+        {isOwner && isPaused && engineState.stateHistory && engineState.stateHistory.length > 0 && (
+          <div style={{
+            width: '300px',
+            background: 'rgba(255, 255, 255, 0.7)',
+            backdropFilter: 'blur(10px)',
+            borderLeft: '1px solid rgba(0, 0, 0, 0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: 'var(--spacing-md)',
+            overflowY: 'auto',
+            animation: 'slideInRight 0.3s ease-out'
+          }}>
+            <style>{`
+                @keyframes slideInRight {
+                  from { transform: translateX(100%); }
+                  to { transform: translateX(0); }
+                }
+              `}</style>
+            <h3 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-primary)' }}>状态回溯</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+              {engineState.stateHistory.map((item) => (
+                <div
+                  key={item.index}
+                  onClick={() => engineBacktrackState(item.index)}
+                  style={{
+                    padding: 'var(--spacing-sm)',
+                    borderRadius: '8px',
+                    background: 'white',
+                    border: '1px solid #e5e7eb',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-primary)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#e5e7eb';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                    State {item.index}: {item.name}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
+                    {new Date(item.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Role Mapping Modal */}

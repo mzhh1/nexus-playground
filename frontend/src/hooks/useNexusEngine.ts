@@ -32,7 +32,13 @@ export interface ClientEngineState {
         gameId: string;
         maxPlayers: number;
         roleIds: string[];
+        auto_save_mode?: 'enabled' | 'disabled';
     } | null;
+    stateHistory: {
+        index: number;
+        name: string;
+        timestamp: number;
+    }[];
     you: {
         userId: string;
         isOwner: boolean;
@@ -237,6 +243,10 @@ export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
         send('ADMIN_RESUME_GAME');
     }, [send]);
 
+    const backtrackState = useCallback((index: number) => {
+        send('ADMIN_BACKTRACK_STATE', { index });
+    }, [send]);
+
     // ─── Game Actions ────────────────────────────────────
 
     const sendAction = useCallback((action_id: string, params?: Record<string, any>) => {
@@ -278,6 +288,7 @@ export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
         restartGame,
         pauseGame,
         resumeGame,
+        backtrackState,
 
         // Game actions
         sendAction,

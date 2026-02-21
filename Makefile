@@ -1,4 +1,4 @@
-.PHONY: help build-games d1-migrate deploy-engine deploy-backend deploy-game typecheck set-engine-secret set-backend-secret
+.PHONY: help build-engine build-backend build-frontend build-game d1-migrate deploy-engine deploy-backend deploy-game typecheck set-engine-secret set-backend-secret
 
 .DEFAULT_GOAL := help
 
@@ -14,9 +14,25 @@ help: ## 显示帮助信息
 	@awk 'BEGIN {FS = ":.*##"; printf "使用方法: make $(GREEN)<target>$(NC)\n\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BLUE)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ 构建与检查
-build-games: ## 构建 Gomoku 游戏逻辑
-	@echo "$(BLUE)🔨 构建游戏资产...$(NC)"
-	cd games/gomoku && npm run build:logic
+build-engine: ## 构建 nexus-engine
+	@echo "$(BLUE)🔨 构建 nexus-engine...$(NC)"
+	cd nexus-engine && pnpm run build
+
+build-backend: ## 构建 hono_backend
+	@echo "$(BLUE)🔨 构建 hono-backend...$(NC)"
+	pnpm --filter ./hono_backend run build
+
+build-frontend: ## 构建 frontend
+	@echo "$(BLUE)🔨 构建 frontend...$(NC)"
+	pnpm --filter ./frontend run build
+
+build-game: ## 构建指定游戏 (用法: make build-game G=<game_dir>)
+	@if [ -z "$(G)" ]; then \
+		echo "$(YELLOW)⚠️ 请指定游戏目录名，例如: make build-game G=gomoku$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)🔨 正在构建游戏: $(G)...$(NC)"
+	cd games/$(G) && pnpm run build
 
 typecheck: ## 运行核心项目类型检查
 	@echo "$(BLUE)🧪 Typecheck frontend...$(NC)"
@@ -41,8 +57,8 @@ deploy-game: ## 部署指定游戏 (用法: make deploy-game G=<game_dir>)
 		exit 1; \
 	fi
 	@echo "$(BLUE)🚀 正在构建并部署游戏: $(G)...$(NC)"
-	cd games/$(G) && npm run build
-	cd games/$(G)/worker && npm run deploy
+	cd games/$(G) && pnpm run build
+	cd games/$(G)/worker && pnpm run deploy
 
 set-engine-secret: ## 手动设置 nexus-engine 的 CF Worker 环境变量（secret）
 	@echo "$(BLUE)🔐 设置 nexus-engine Secret$(NC)"

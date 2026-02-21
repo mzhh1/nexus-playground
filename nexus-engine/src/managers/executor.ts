@@ -51,6 +51,12 @@ export class GameExecutor extends BaseManager {
 
             this.room.gameState = await initRes.json();
             this.room.history = [];
+            this.room.stateHistory = [{
+                index: 0,
+                name: "Initial State",
+                state: this.room.gameState,
+                timestamp: Date.now(),
+            }];
             this.room.phase = "playing";
 
             await this.room.persistAll();
@@ -73,8 +79,9 @@ export class GameExecutor extends BaseManager {
         this.room.phase = "lobby";
         this.room.gameState = null;
         this.room.history = [];
+        this.room.stateHistory = [];
 
-        await this.room.persist("phase", "gameState", "history");
+        await this.room.persist("phase", "gameState", "history", "stateHistory");
         this.room.broadcastSyncState();
     }
 
@@ -111,6 +118,12 @@ export class GameExecutor extends BaseManager {
 
             this.room.gameState = await initRes.json();
             this.room.history = [];
+            this.room.stateHistory = [{
+                index: 0,
+                name: "Initial State",
+                state: this.room.gameState,
+                timestamp: Date.now(),
+            }];
             this.room.phase = "playing";
 
             await this.room.persistAll();
@@ -196,7 +209,39 @@ export class GameExecutor extends BaseManager {
             timestamp: Date.now(),
         });
 
-        await this.room.persist("gameState", "history");
+        // ─── Command Processing & Auto-save ──────────────────
+        let explicitSave = false;
+        if (result.commands && Array.isArray(result.commands)) {
+            for (const cmd of result.commands) {
+                if (cmd.type === "SAVE_STATE") {
+                    this.room.stateHistory.push({
+                        index: this.room.history.length,
+                        name: cmd.name,
+                        state: this.room.gameState,
+                        timestamp: Date.now(),
+                    });
+                    explicitSave = true;
+                } else if (cmd.type === "CLEAR_HISTORY") {
+                    this.room.stateHistory = [{
+                        index: 0,
+                        name: "Reset Base",
+                        state: this.room.gameState,
+                        timestamp: Date.now(),
+                    }];
+                }
+            }
+        }
+
+        if (!explicitSave && this.room.gameConfig?.auto_save_mode === "enabled") {
+            this.room.stateHistory.push({
+                index: this.room.history.length,
+                name: `${roleId}:${payload.action_id}`,
+                state: this.room.gameState,
+                timestamp: Date.now(),
+            });
+        }
+
+        await this.room.persist("gameState", "history", "stateHistory");
         this.room.broadcastSyncState();
 
         console.log(`[GameExecutor] Action processed for ${userId} (${roleId}), checking next turn...`);

@@ -77,6 +77,7 @@ export class GameDO extends DurableObject implements IRoomContext {
     public roleMapping: Record<string, string> = {};
     public gameState: any | null = null;
     public history: HistoryEvent[] = [];
+    public stateHistory: StateHistoryEntry[] = [];
     public llmWebhookUrl: string | null = null;
 
     // ─── In-memory connection tracking ──────────────────────
@@ -115,6 +116,7 @@ export class GameDO extends DurableObject implements IRoomContext {
         this.roleMapping = (await s.get("roleMapping")) || {};
         this.gameState = (await s.get("gameState")) || null;
         this.history = (await s.get("history")) || [];
+        this.stateHistory = (await s.get("stateHistory")) || [];
         this.llmWebhookUrl = this.bindings.LLM_WEBHOOK_URL || (await s.get("llmWebhookUrl")) || null;
     }
 
@@ -129,6 +131,7 @@ export class GameDO extends DurableObject implements IRoomContext {
             roleMapping: this.roleMapping,
             gameState: this.gameState,
             history: this.history,
+            stateHistory: this.stateHistory,
             llmWebhookUrl: this.llmWebhookUrl,
         });
     }
@@ -172,6 +175,7 @@ export class GameDO extends DurableObject implements IRoomContext {
             this.roleMapping = {};
             this.gameState = null;
             this.history = [];
+            this.stateHistory = [];
             this.llmWebhookUrl = this.bindings.LLM_WEBHOOK_URL || null;
 
             if (body.gameWorkerUrl) {
@@ -287,6 +291,26 @@ export class GameDO extends DurableObject implements IRoomContext {
                 await this.persist("phase");
                 this.presence.broadcastSyncState();
                 this.ctx.waitUntil(this.checkAndTriggerNextTurn());
+                break;
+            case "ADMIN_BACKTRACK_STATE":
+                if (!this.requireOwner(userId)) return;
+                if (this.phase !== "paused") {
+                    return this.sendErrorToUser(userId, "Game must be paused to backtrack");
+                }
+                const historyIdx = msg.payload.index;
+                const targetState = this.stateHistory.find(h => h.index === historyIdx);
+                if (!targetState) {
+                    return this.sendErrorToUser(userId, "Invalid state index");
+                }
+                this.gameState = targetState.state;
+                // history events should also be reverted?
+                // logic: if we backtrack to state X, we should keep history up to that point.
+                // However, state history entries are added AFTER actions.
+                // So index 0 is initState. index 1 is after action 0.
+                // So we keep history up to index - 1.
+                this.history = this.history.slice(0, targetState.index);
+                await this.persist("gameState", "history");
+                this.presence.broadcastSyncState();
                 break;
             case "ACT":
                 await this.executor.handleAction(userId, msg.payload);

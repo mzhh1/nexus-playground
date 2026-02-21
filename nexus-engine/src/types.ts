@@ -21,7 +21,15 @@ export interface GameConfig {
     maxPlayers: number;
     roleIds: string[];
     enable_llm_memory?: boolean;
+    auto_save_mode?: 'enabled' | 'disabled';
     [key: string]: any;
+}
+
+export interface StateHistoryEntry {
+    index: number;
+    name: string;
+    state: any;
+    timestamp: number;
 }
 
 /** LLM-specific configuration for a bot player */
@@ -61,6 +69,7 @@ export interface EngineRoomState {
     roleMapping: Record<string, string>; // roleId → userId
     gameState: any | null;
     history: HistoryEvent[];
+    stateHistory: StateHistoryEntry[];
     llmWebhookUrl: string | null;
 }
 
@@ -87,7 +96,9 @@ export interface ClientEngineState {
         gameId: string;
         maxPlayers: number;
         roleIds: string[];
+        auto_save_mode?: 'enabled' | 'disabled';
     } | null;
+    stateHistory: Omit<StateHistoryEntry, 'state'>[];
     you: {
         userId: string;
         isOwner: boolean;
@@ -122,6 +133,7 @@ export type ClientMessage =
     | { type: 'ADMIN_RESTART_GAME' }
     | { type: 'ADMIN_PAUSE_GAME' }
     | { type: 'ADMIN_RESUME_GAME' }
+    | { type: 'ADMIN_BACKTRACK_STATE'; payload: { index: number } }
     // Game action
     | { type: 'ACT'; payload: { action_id: string; params?: Record<string, any> } };
 
@@ -243,6 +255,7 @@ export interface GameWorkerMetadata {
     maxPlayers?: number;
     minPlayers?: number;
     enable_llm_memory?: boolean;
+    auto_save_mode?: 'enabled' | 'disabled';
     [key: string]: any;
 }
 
@@ -268,6 +281,7 @@ export interface GameWorkerActionResponse {
     nextState?: any;
     error?: string;
     errorCode?: string;
+    commands?: { type: 'SAVE_STATE'; name: string } | { type: 'CLEAR_HISTORY' }[];
 }
 
 /** Request to Game Worker POST /perspective */

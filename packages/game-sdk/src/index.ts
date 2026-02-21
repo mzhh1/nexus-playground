@@ -11,6 +11,7 @@ export interface GameMetadata {
     maxPlayers: number;
     roleIds?: string[] | Record<number, string[]>;
     enable_llm_memory?: boolean;
+    auto_save_mode?: 'enabled' | 'disabled';
     getStatusText?: (perspective: RolePerspective) => string;
     ui?: {
         mode: 'url';
@@ -44,8 +45,12 @@ export interface ActionDefinition {
     params_schema?: any; // JSON Schema
 }
 
+export type GameCommand =
+    | { type: 'SAVE_STATE'; name: string }
+    | { type: 'CLEAR_HISTORY' };
+
 export type ActionResult<TState extends GameState = GameState> =
-    | { success: true; nextState: TState; events?: HistoryEvent[] }
+    | { success: true; nextState: TState; events?: HistoryEvent[]; commands?: GameCommand[] }
     | { success: false; error: string; errorCode?: string };
 
 export interface HistoryEvent {
