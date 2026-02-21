@@ -59,7 +59,6 @@ const Room: React.FC = () => {
     isOwner: isOwnerEngine,
     myRole: myRoleEngine,
     myUserId: myUserIdEngine,
-    engineState,
   } = useNexusEngine({
     roomId,
     onJoinRequest: (userId, displayName) => {
