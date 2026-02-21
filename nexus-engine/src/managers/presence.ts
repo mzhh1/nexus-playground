@@ -15,7 +15,10 @@ export class PresenceManager extends BaseManager {
         const isAlreadyMember = !!this.room.players[userId];
         if (isAlreadyMember) {
             this.room.players[userId].connected = true;
-            this.room.players[userId].displayName = displayName;
+            // If the user already has a name in the engine, don't let the JWT name (which might be a placeholder) overwrite it.
+            if (!this.room.players[userId].displayName) {
+                this.room.players[userId].displayName = displayName;
+            }
         } else if (isOwner) {
             // Register owner if not already there
             this.room.players[userId] = {

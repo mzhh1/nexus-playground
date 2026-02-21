@@ -99,8 +99,11 @@ const Room: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    if (accountDisplayName && !visitorDisplayName) {
+    if (accountDisplayName) {
       setVisitorDisplayName(accountDisplayName);
+    } else {
+      const savedName = localStorage.getItem('nexus_preferred_name');
+      if (savedName) setVisitorDisplayName(savedName);
     }
   }, [accountDisplayName]);
 
@@ -285,7 +288,11 @@ const Room: React.FC = () => {
     }
     if (joinCooldown > 0) return;
 
-    engineRequestJoin(visitorDisplayName.trim());
+    const name = visitorDisplayName.trim();
+    engineRequestJoin(name);
+    if (!accountDisplayName) {
+      localStorage.setItem('nexus_preferred_name', name);
+    }
 
     // 启动 10 秒冷却
     setJoinCooldown(10);

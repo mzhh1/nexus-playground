@@ -29,7 +29,7 @@ app.use('/api/*', async (c, next) => {
       return allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
     },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'x-client-id'],
+    allowHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'x-client-id', 'x-guest-id'],
     maxAge: 86400,
   });
 
