@@ -31,7 +31,6 @@ export function registerAuthMiddleware(app: Hono<AppEnv>) {
     const chain = authMiddlewareChain({
       authConfig,
       clientId: {},
-      enforce: { requiredScopes: [] },
     });
     return chain(c as unknown as Context<HonoAuthEnv>, next);
   });

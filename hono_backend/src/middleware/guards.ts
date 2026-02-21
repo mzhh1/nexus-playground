@@ -18,6 +18,22 @@ export function ensureAuthenticated(c: Context<AppEnv>): { userId: string; displ
   };
 }
 
+export function getUserOrGuest(c: Context<AppEnv>): { userId: string; displayName: string } {
+  const user = ensureAuthenticated(c);
+  if (user) {
+    return user;
+  }
+
+  // Generate a random guest ID and name
+  const guestId = `guest_${Math.random().toString(36).substring(2, 10)}`;
+  const guestName = `Guest ${guestId.substring(6, 10)}`;
+
+  return {
+    userId: guestId,
+    displayName: guestName,
+  };
+}
+
 export function validateClientId(c: Context<AppEnv>): Response | null {
   if (requestClientIdRequired(c.env) && !c.get('clientId')) {
     return c.json({ message: 'client_id is required' }, 401);

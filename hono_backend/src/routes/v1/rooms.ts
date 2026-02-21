@@ -3,17 +3,14 @@ import type { AppEnv } from '../../middleware/auth.js';
 import { createRoomsRepo } from '../../db/rooms-repo.js';
 import { createNexusEngineClient } from '../../runtime/nexus-engine-client.js';
 import { isValidRoomId } from '../../utils/room-id.js';
-import { validateClientId, ensureAuthenticated } from '../../middleware/guards.js';
+import { validateClientId, getUserOrGuest } from '../../middleware/guards.js';
 
 export function registerV1RoomsRoute(app: Hono<AppEnv>) {
   app.get('/api/v1/rooms/:roomId/engine-connection', async (c) => {
     const clientErr = validateClientId(c);
     if (clientErr) return clientErr;
 
-    const user = ensureAuthenticated(c);
-    if (!user) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+    const user = getUserOrGuest(c);
 
     const roomId = c.req.param('roomId');
     if (!isValidRoomId(roomId)) {
