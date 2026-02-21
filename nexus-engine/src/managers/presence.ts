@@ -41,11 +41,13 @@ export class PresenceManager extends BaseManager {
 
         await this.room.persist("players");
 
-        // Send current state to this client
+        // Send current state ONLY to the connecting client
         this.sendSyncState(ws, userId);
 
-        // Broadcast updated lobby to everyone else
-        this.broadcastSyncState();
+        // Broadcast to OTHER clients only if this user is a member (state changed for them)
+        if (isAlreadyMember || isOwner) {
+            this.broadcastSyncStateExcept(userId);
+        }
 
         // Message handler
         ws.addEventListener("message", async (event) => {
@@ -72,6 +74,7 @@ export class PresenceManager extends BaseManager {
                 await this.room.persist("players");
             }
 
+            // Only broadcast to remaining clients
             this.broadcastSyncState();
         });
 
@@ -87,6 +90,15 @@ export class PresenceManager extends BaseManager {
     public broadcastSyncState(): void {
         for (const [ws, userId] of this.room.connections.entries()) {
             this.sendSyncState(ws, userId);
+        }
+    }
+
+    /** Broadcast to all connected clients EXCEPT the specified user */
+    public broadcastSyncStateExcept(excludeUserId: string): void {
+        for (const [ws, userId] of this.room.connections.entries()) {
+            if (userId !== excludeUserId) {
+                this.sendSyncState(ws, userId);
+            }
         }
     }
 
