@@ -764,7 +764,8 @@ const Room: React.FC = () => {
                           </div>
                         )}
                       </>
-                    </div>
+                    )}
+                  </div>
                 </LobbyContainer>
               )}
 
