@@ -765,8 +765,7 @@ const Room: React.FC = () => {
                       </>
                     )}
                   </div>
-                  )}
-                </div>
+                </LobbyContainer>
               )}
 
               {/* ========== PLAYING/PAUSED/FINISHED PHASE ========== */}
