@@ -34,6 +34,7 @@ const Room: React.FC = () => {
   const [isCopied, setIsCopied] = useState(false);
   const [visitorDisplayName, setVisitorDisplayName] = useState('');
   const [pendingJoinRequests, setPendingJoinRequests] = useState<{ userId: string, displayName: string, id: string }[]>([]);
+  const [joinCooldown, setJoinCooldown] = useState(0); // 冷却倒计时（秒）
 
   // Hooks
   const { games: AVAILABLE_GAMES, loading: metadataLoading } = useGamesMetadata();
@@ -282,8 +283,21 @@ const Room: React.FC = () => {
       alert('请输入显示名称');
       return;
     }
+    if (joinCooldown > 0) return;
+
     engineRequestJoin(visitorDisplayName.trim());
-    alert('申请已发送，等待房主批准...');
+
+    // 启动 10 秒冷却
+    setJoinCooldown(10);
+    const timer = setInterval(() => {
+      setJoinCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   const handleCopyRoomLink = async () => {
@@ -453,12 +467,9 @@ const Room: React.FC = () => {
             <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem', fontSize: '0.925rem' }}>
               <strong>房间 ID:</strong> <code style={{ background: '#eee', padding: '2px 6px', borderRadius: '4px' }}>{roomId}</code>
             </p>
-            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-md)' }}>
-              您当前作为访客查看。请输入您的显示名称并申请加入。
-            </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
-                <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>显示名称</label>
+                <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>房间昵称</label>
                 <input
                   type="text"
                   value={visitorDisplayName}
@@ -469,16 +480,39 @@ const Room: React.FC = () => {
               </div>
               <button
                 onClick={handleJoin}
-                className="primary"
+                className={joinCooldown > 0 ? "" : "primary"}
+                disabled={joinCooldown > 0}
                 style={{
                   width: '100%',
                   padding: '0.875rem',
                   fontSize: '1rem',
                   fontWeight: 600,
-                  transition: 'transform 0.1s ease'
+                  transition: 'all 0.2s ease',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  cursor: joinCooldown > 0 ? 'not-allowed' : 'pointer',
+                  backgroundColor: joinCooldown > 0 ? '#e5e7eb' : undefined,
+                  color: joinCooldown > 0 ? '#9ca3af' : 'white',
+                  border: 'none',
+                  borderRadius: '8px'
                 }}
               >
-                发送申请入场
+                {/* 倒流进度条背景 */}
+                {joinCooldown > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    height: '100%',
+                    background: '#d1d5db',
+                    width: `${(joinCooldown / 10) * 100}%`,
+                    transition: 'width 1s linear',
+                    zIndex: 0
+                  }} />
+                )}
+                <span style={{ position: 'relative', zIndex: 1 }}>
+                  {joinCooldown > 0 ? `已发送 (${joinCooldown}s)` : '发送申请入场'}
+                </span>
               </button>
             </div>
             {engineState.phase === 'playing' && (
