@@ -70,6 +70,7 @@ export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
     const reconnectAttemptRef = useRef(0);
     const isConnectingRef = useRef(false);
     const actionThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastActionRef = useRef<{ action_id: string; params?: any } | null>(null);
     const onJoinRequestRef = useRef(onJoinRequest);
     const gameApi = useGameAPI();
 
@@ -338,15 +339,25 @@ export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
 
     const sendAction = useCallback((action_id: string, params?: Record<string, any>, throttle?: boolean) => {
         if (throttle && actionThrottleTimerRef.current) {
-            console.log("[NexusEngine] Action throttled, ignoring duplicate submission");
-            return;
+            const isMatch = lastActionRef.current?.action_id === action_id &&
+                JSON.stringify(lastActionRef.current?.params) === JSON.stringify(params);
+
+            if (isMatch) {
+                console.log("[NexusEngine] Duplicate action throttled:", action_id);
+                return;
+            }
         }
+
         send('ACT', { action_id, params });
+        lastActionRef.current = { action_id, params };
+
         if (throttle) {
+            if (actionThrottleTimerRef.current) clearTimeout(actionThrottleTimerRef.current);
             setActionThrottled(true);
             actionThrottleTimerRef.current = setTimeout(() => {
                 actionThrottleTimerRef.current = null;
                 setActionThrottled(false);
+                lastActionRef.current = null;
             }, 300);
         }
     }, [send]);

@@ -81,12 +81,12 @@ export async function applySuccessfulAction(opts: {
         ...persistExtraKeys,
     ]);
 
-    await room.persist(...Array.from(persistKeys));
+    // Broadcast immediately so the user sees their move reflected
     room.broadcastSyncState();
 
-    if (triggerMode === "waitUntil") {
-        room.waitUntil(room.checkAndTriggerNextTurn());
-    } else {
+    // Background persistence and next turn triggering
+    room.waitUntil((async () => {
+        await room.persist(...Array.from(persistKeys));
         await room.checkAndTriggerNextTurn();
-    }
+    })());
 }

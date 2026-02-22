@@ -199,18 +199,18 @@ export class GameExecutor extends BaseManager {
         };
 
         if (!result.success) {
-            await insertMonitorLog(this.room.bindings.DB, {
+            this.room.waitUntil(insertMonitorLog(this.room.bindings.DB, {
                 ...baseHumanLog,
                 status: "rejected",
                 errorMessage: result.error || "Action rejected",
-            });
+            }));
             return this.room.sendErrorToUser(userId, result.error || "Action rejected");
         }
 
-        await insertMonitorLog(this.room.bindings.DB, {
+        this.room.waitUntil(insertMonitorLog(this.room.bindings.DB, {
             ...baseHumanLog,
             status: "success",
-        });
+        }));
 
         await applySuccessfulAction({
             room: this.room,
