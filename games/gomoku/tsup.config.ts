@@ -9,7 +9,7 @@ export default defineConfig({
     outDir: 'dist',
     target: 'node18',
     noExternal: [], // Bundle everything else EXCEPT external
-    outExtension({ format }) {
+    outExtension() {
         return {
             js: '.mjs',
         };

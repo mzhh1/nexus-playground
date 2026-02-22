@@ -1,6 +1,8 @@
 import { BaseManager } from "./base";
 import { getRoleForUser } from "../game-do";
 import { insertMonitorLog } from "../monitor-store";
+import { applySuccessfulAction } from "./action-processor";
+import { resolveGameWorkerClient } from "../runtime/game-worker-client";
 
 export class GameExecutor extends BaseManager {
     public async handleAdminStartGame(userId: string): Promise<void> {
@@ -32,8 +34,13 @@ export class GameExecutor extends BaseManager {
             }
 
             // Initialize game state via Game Worker
-            const baseUrl = this.room.gameConfig.gameWorkerUrl.replace(/\/$/, "");
-            const initRes = await fetch(`${baseUrl}/init`, {
+            const client = resolveGameWorkerClient(
+                this.room.gameConfig.gameId,
+                this.room.gameConfig.gameWorkerUrl,
+                this.room.bindings
+            );
+
+            const initRes = await client.fetch("/init", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -103,8 +110,12 @@ export class GameExecutor extends BaseManager {
             }
 
             // Re-initialize game state
-            const baseUrl = this.room.gameConfig.gameWorkerUrl.replace(/\/$/, "");
-            const initRes = await fetch(`${baseUrl}/init`, {
+            const client = resolveGameWorkerClient(
+                this.room.gameConfig.gameId,
+                this.room.gameConfig.gameWorkerUrl,
+                this.room.bindings
+            );
+            const initRes = await client.fetch("/init", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -201,50 +212,15 @@ export class GameExecutor extends BaseManager {
             status: "success",
         });
 
-        this.room.gameState = result.nextState;
-        this.room.history.push({
-            turn: this.room.history.length,
+        await applySuccessfulAction({
+            room: this.room,
             roleId,
             action: { action_id: payload.action_id, params: payload.params || {} },
-            timestamp: Date.now(),
+            nextState: result.nextState,
+            commands: result.commands,
+            triggerMode: "await",
         });
 
-        // ─── Command Processing & Auto-save ──────────────────
-        let explicitSave = false;
-        if (result.commands && Array.isArray(result.commands)) {
-            for (const cmd of result.commands) {
-                if (cmd.type === "SAVE_STATE") {
-                    this.room.stateHistory.push({
-                        index: this.room.history.length,
-                        name: cmd.name,
-                        state: this.room.gameState,
-                        timestamp: Date.now(),
-                    });
-                    explicitSave = true;
-                } else if (cmd.type === "CLEAR_HISTORY") {
-                    this.room.stateHistory = [{
-                        index: 0,
-                        name: "Reset Base",
-                        state: this.room.gameState,
-                        timestamp: Date.now(),
-                    }];
-                }
-            }
-        }
-
-        if (!explicitSave && this.room.gameConfig?.auto_save_mode === "enabled") {
-            this.room.stateHistory.push({
-                index: this.room.history.length,
-                name: `${roleId}:${payload.action_id}`,
-                state: this.room.gameState,
-                timestamp: Date.now(),
-            });
-        }
-
-        await this.room.persist("gameState", "history", "stateHistory");
-        this.room.broadcastSyncState();
-
         console.log(`[GameExecutor] Action processed for ${userId} (${roleId}), checking next turn...`);
-        await this.room.checkAndTriggerNextTurn();
     }
 }

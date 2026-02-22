@@ -20,6 +20,7 @@ export interface GameConfig {
     gameId: string;
     maxPlayers: number;
     roleIds: string[];
+    selectedPlayerCount?: number;
     enable_llm_memory?: boolean;
     auto_save_mode?: 'enabled' | 'disabled';
     [key: string]: any;
@@ -123,7 +124,10 @@ export type ClientMessage =
     | { type: 'LOBBY_LEAVE' }
     | { type: 'LOBBY_JOIN_REQUEST'; payload: { displayName: string } }
     // Admin (owner only)
-    | { type: 'ADMIN_SET_GAME'; payload: { gameId: string; gameWorkerUrl: string } }
+    | {
+        type: 'ADMIN_SET_GAME';
+        payload: { gameId: string; gameWorkerUrl: string; selectedPlayerCount?: number };
+    }
     | { type: 'ADMIN_ADD_BOT'; payload: { displayName: string; modelName: string; systemPrompt?: string; temperature?: number } }
     | { type: 'ADMIN_REMOVE_PLAYER'; payload: { userId: string } }
     | { type: 'ADMIN_APPROVE_JOIN'; payload: { userId: string; displayName: string } }
@@ -312,4 +316,6 @@ export interface Env {
     JWT_SECRET: string;
     LLM_WEBHOOK_URL?: string;
     LLM_WEBHOOK_SECRET?: string;
+    /** Game Service Bindings (e.g. GAME_GOMOKU) */
+    [key: string]: any;
 }

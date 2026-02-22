@@ -10,6 +10,7 @@ export interface GameMetadata {
     minPlayers: number;
     maxPlayers: number;
     roleIds?: string[] | Record<number, string[]>;
+    playerCountLabels?: Record<number, string>;
     enable_llm_memory?: boolean;
     auto_save_mode?: 'enabled' | 'disabled';
     getStatusText?: (perspective: RolePerspective) => string;

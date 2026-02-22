@@ -11,6 +11,7 @@
  */
 
 import { useOAuth } from '@autolabz/oauth-sdk';
+import { useMemo } from 'react';
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
 import type { RoomInfo, EngineConnectionResponse } from './types';
@@ -56,62 +57,73 @@ export class GameAPI {
  * Hook: Get game API client
  */
 export function useGameAPI() {
-  const { apiClient, getAccessToken } = useOAuth();
+  const { apiClient, getAccessToken, isAuthenticated } = useOAuth();
+  let AuthenticatedState = isAuthenticated;
+  const gameAxios = useMemo(() => {
+    const instance = axios.create({
+      baseURL: import.meta.env.VITE_BACKEND_BASE_URL,
+      timeout: 3000,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-  const gameAxios = axios.create({
-    baseURL: import.meta.env.VITE_BACKEND_BASE_URL,
-    timeout: 30000,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  // Request interceptor: Add authorization
-  gameAxios.interceptors.request.use(
-    async (config) => {
-      const token = await getAccessToken();
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      } else {
-        // For guests, send a stable ID from localStorage
-        const guestId = getOrCreateGuestId();
-        config.headers['X-Guest-Id'] = guestId;
-      }
-
-      const clientId = import.meta.env.VITE_OAUTH_CLIENT_ID;
-      if (clientId) {
-        config.headers['X-Client-Id'] = clientId;
-      }
-
-      return config;
-    },
-    (error) => Promise.reject(error)
-  );
-
-  // Response interceptor: Handle 401 by refreshing token
-  gameAxios.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-      const originalRequest = error.config;
-
-      if (error.response?.status === 401 && !originalRequest._retry) {
-        originalRequest._retry = true;
-
-        try {
-          await apiClient.refreshAccessToken();
-          const newToken = await getAccessToken();
-          if (newToken) {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          }
-          return gameAxios(originalRequest);
-        } catch (refreshError) {
-          return Promise.reject(refreshError);
+    // Request interceptor: Add authorization
+    instance.interceptors.request.use(
+      async (config) => {
+        const token = await getAccessToken();
+        console.log('isAuthenticated:', isAuthenticated, AuthenticatedState, config.url);
+        if (AuthenticatedState && token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        } else {
+          // For guests, send a stable ID from localStorage
+          const guestId = getOrCreateGuestId();
+          config.headers['X-Guest-Id'] = guestId;
         }
+
+        const clientId = import.meta.env.VITE_OAUTH_CLIENT_ID;
+        if (clientId) {
+          config.headers['X-Client-Id'] = clientId;
+        }
+
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor: Handle 401 by refreshing token
+    instance.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
+        console.log('error.response?.status:', error.response?.status, originalRequest._retry);
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          AuthenticatedState = false;
+          originalRequest._retry = true;
+
+          try {
+            await apiClient.refreshAccessToken();
+            const newToken = await getAccessToken();
+            if (newToken) {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            }
+            return instance(originalRequest);
+          } catch (refreshError) {
+            console.error('Refresh token failed:', refreshError);
+            delete originalRequest.headers.Authorization;
+            const guestId = getOrCreateGuestId();
+            originalRequest.headers['X-Guest-Id'] = guestId;
+            return instance(originalRequest);
+          }
+        }
+
+        console.error('API request error:', error);
+        return Promise.reject(error);
       }
+    );
 
-      return Promise.reject(error);
-    }
-  );
+    return instance;
+  }, [getAccessToken, isAuthenticated, apiClient]);
 
-  return new GameAPI(gameAxios);
+  return useMemo(() => new GameAPI(gameAxios), [gameAxios]);
 }

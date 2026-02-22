@@ -1,0 +1,374 @@
+.container {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  background: radial-gradient(circle at 50% 30%, #1e293b, #020617);
+  color: #e5e7eb;
+  font-family: Inter, system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 1rem;
+}
+
+/* Opponents Area */
+.opponentsRow {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 0.5rem;
+  flex-wrap: wrap;
+  z-index: 2;
+}
+
+.playerAvatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+.playerAvatar.active {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.4);
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+  transform: translateY(-2px);
+}
+
+.playerName {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.playerHandCount {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+/* Center Table */
+.tableCenter {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.tableStatus {
+  position: absolute;
+  top: 5%;
+  font-size: 1.2rem;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  z-index: 2;
+}
+
+.currentColorIndicator {
+  position: absolute;
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.25;
+  z-index: 0;
+  transition: background 0.5s ease;
+}
+
+.piles {
+  display: flex;
+  gap: 2.5rem;
+  z-index: 1;
+  align-items: center;
+}
+
+.pileWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pileLabel {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+/* Card Design */
+.card {
+  width: 90px;
+  height: 135px;
+  background: white;
+  border-radius: 8px;
+  padding: 5px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+  position: relative;
+  cursor: default;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.cardInner {
+  width: 100%;
+  height: 100%;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.cardOval {
+  position: absolute;
+  width: 85%;
+  height: 55%;
+  background: white;
+  border-radius: 50% / 50%;
+  transform: rotate(-25deg);
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.15);
+}
+
+.cardText {
+  position: relative;
+  z-index: 2;
+  font-size: 2.8rem;
+  font-weight: 900;
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.15), -1px -1px 0 rgba(0,0,0,0.1), 1px -1px 0 rgba(0,0,0,0.1), -1px 1px 0 rgba(0,0,0,0.1);
+}
+
+.cardCorner {
+  position: absolute;
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: white;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.4);
+  z-index: 3;
+}
+.cardCorner.topLeft {
+  top: 4px;
+  left: 6px;
+}
+.cardCorner.bottomRight {
+  bottom: 4px;
+  right: 6px;
+  transform: rotate(180deg);
+}
+
+/* Colors */
+.bg_red { background-color: #ef4444; }
+.bg_yellow { background-color: #facc15; }
+.bg_green { background-color: #22c55e; }
+.bg_blue { background-color: #3b82f6; }
+.bg_wild { background: conic-gradient(from 45deg, #ef4444 0deg 90deg, #facc15 90deg 180deg, #22c55e 180deg 270deg, #3b82f6 270deg 360deg); }
+
+.text_red { color: #ef4444; }
+.text_yellow { color: #facc15; }
+.text_green { color: #22c55e; }
+.text_blue { color: #3b82f6; }
+.text_wild { color: #0f172a; text-shadow: none; }
+
+.cardBack {
+  background: #1e293b;
+}
+.cardBack .cardInner {
+  background: #0f172a;
+  border: 2px solid #ef4444;
+}
+.cardBack .cardOval {
+  background: #ef4444;
+  box-shadow: none;
+}
+.cardBack .cardText {
+  color: #facc15;
+  text-shadow: 2px 2px 0px #000;
+  font-size: 2rem;
+  transform: rotate(-25deg);
+}
+
+/* Card States */
+.cardPlayable {
+  cursor: pointer;
+}
+.cardPlayable:hover {
+  transform: translateY(-20px) scale(1.05);
+  box-shadow: 0 15px 25px rgba(0, 0, 0, 0.6);
+}
+.cardDisabled {
+  filter: grayscale(0.5) brightness(0.5);
+}
+
+/* My Hand Area */
+.myHandSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 0.5rem;
+  z-index: 5;
+}
+
+.handCards {
+  display: flex;
+  justify-content: center;
+  padding-top: 2rem;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 2rem;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+.handCards .card {
+  width: 104px;
+  height: 156px;
+}
+
+.handCardWrapper {
+  margin-left: -54px;
+  position: relative;
+  transition: transform 0.2s;
+}
+.handCardWrapper:first-child {
+  margin-left: 0;
+}
+.handCardWrapper:hover {
+  z-index: 100 !important;
+}
+
+/* Action Panel */
+.actionsPanel {
+  position: absolute;
+  bottom: 2rem;
+  right: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1.25rem;
+  border-radius: 1.25rem;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  z-index: 20;
+}
+
+@media (max-width: 768px) {
+  .actionsPanel {
+    position: static;
+    flex-direction: row;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: 1rem;
+    z-index: 10;
+  }
+}
+
+.actionBtn {
+  border: none;
+  padding: 0.85rem 1.5rem;
+  border-radius: 0.75rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.actionBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+.actionBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+}
+
+.drawBtn { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+.playDrawnBtn { background: linear-gradient(135deg, #22c55e, #16a34a); }
+.passBtn { background: linear-gradient(135deg, #f59e0b, #d97706); }
+
+/* Color Modal */
+.modalMask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.modal {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 2.5rem;
+  border-radius: 1.5rem;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.6);
+  text-align: center;
+}
+
+.modalTitle {
+  font-size: 1.35rem;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+  color: white;
+}
+
+.colorGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.colorPickerBtn {
+  width: 90px;
+  height: 90px;
+  border-radius: 1rem;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+}
+
+.colorPickerBtn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.cancelBtn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  padding: 0.6rem 2.5rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.cancelBtn:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.6);
+}

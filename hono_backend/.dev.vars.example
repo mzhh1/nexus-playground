@@ -13,7 +13,9 @@ CORS_ALLOW_ORIGINS=http://localhost:3000,https://nexus.mzhh.xyz,https://np.mzhh.
 NEXUS_ENGINE_URL=https://your-engine.example.workers.dev
 NEXUS_ENGINE_ADMIN_SECRET=replace-with-engine-admin-secret
 NEXUS_ENGINE_JWT_SECRET=replace-with-engine-jwt-secret
-GOMOKU_WORKER_URL=
+# 本地联调示例（多个 worker 用逗号分隔）:
+# WORKER_URL=http://127.0.0.1:8787,http://127.0.0.1:8788
+WORKER_URL=
 LLM_WEBHOOK_SECRET=
 OPENAI_API_BASE=https://api.openai.com/v1
 OPENAI_API_KEY=

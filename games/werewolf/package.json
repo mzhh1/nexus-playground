@@ -1,0 +1,25 @@
+{
+    "name": "@nexusgame/game-werewolf",
+    "version": "1.0.0",
+    "type": "module",
+    "main": "./dist/logic.mjs",
+    "scripts": {
+        "build": "npm run build:logic && npm run build:ui",
+        "build:logic": "tsup",
+        "build:ui": "vite build -c vite.config.ui.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@nexus/game-sdk": "workspace:*"
+    },
+    "devDependencies": {
+        "@types/react": "^18.2.0",
+        "@types/react-dom": "^18.2.0",
+        "@vitejs/plugin-react": "^4.2.0",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "tsup": "^8.0.1",
+        "typescript": "^5.3.3",
+        "vite": "^5.0.12"
+    }
+}

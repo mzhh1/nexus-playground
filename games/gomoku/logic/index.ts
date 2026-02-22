@@ -14,8 +14,6 @@ import {
   HistoryEvent,
   RolePerspective,
   isSpectator as isSpectatorRole,
-  BaseGameLogic,
-  z,
 } from '@nexus/game-sdk';
 
 // ============ Gomoku State ============
@@ -59,7 +57,6 @@ export class GomokuLogic implements GameLogic {
       maxPlayers: 2,
       roleIds: ['player_black', 'player_white'], // Define the roles required for this game
       enable_llm_memory: false, // Perfect information game, no memory needed
-      auto_save_mode: 'enabled',
       getStatusText: (perspective: RolePerspective) => {
         const state = perspective.current_state;
 
@@ -353,7 +350,7 @@ export class GomokuLogic implements GameLogic {
 
     // Format history (last 5 moves is enough context usually, but whole history is fine too)
     const historyText = whole_history.slice(-10).map(h =>
-      `Turn ${h.turn}: ${h.roleId} placed at (${h.action.params.row}, ${h.action.params.col})`
+      `Turn ${h.turn}: ${h.role_id} placed at (${h.action.params.row}, ${h.action.params.col})`
     ).join('\n');
 
     return `# 游戏规则

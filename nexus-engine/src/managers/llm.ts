@@ -3,6 +3,7 @@ import { generateLlmUserId } from "../game-do";
 import { LlmWebhookRequest, LlmWebhookResponse, InteractionStatus } from "../types";
 import { insertMonitorLog } from "../monitor-store";
 import { TASK_PROMPT_NO_MEMORY, TASK_PROMPT_WITH_MEMORY, NO_TASK_PROMPT_WITH_MEMORY } from "./task-prompts";
+import { applySuccessfulAction } from "./action-processor";
 
 export class LlmManager extends BaseManager {
     public async handleAdminAddBot(
@@ -169,8 +170,9 @@ export class LlmManager extends BaseManager {
 
             // Apply action
             let duration = Date.now() - startTs;
+            let actionResult: any = null;
             if (hasActions) {
-                const actionResult = await this.room.submitActionToGameWorker(roleId, result.action);
+                actionResult = await this.room.submitActionToGameWorker(roleId, result.action);
                 duration = Date.now() - startTs;
 
                 if (!actionResult.success) {
@@ -192,13 +194,6 @@ export class LlmManager extends BaseManager {
                     return;
                 }
 
-                this.room.gameState = actionResult.nextState;
-                this.room.history.push({
-                    turn: this.room.history.length,
-                    roleId,
-                    action: result.action,
-                    timestamp: Date.now(),
-                });
             }
 
             // Update memory
@@ -225,13 +220,26 @@ export class LlmManager extends BaseManager {
                 retryCount + 1
             );
 
-            await this.room.persist("players", "gameState", "history");
-            this.room.broadcastSyncState();
+            const persistPlayers = !!result.memoryUpdate;
+            if (hasActions && actionResult?.success) {
+                await applySuccessfulAction({
+                    room: this.room,
+                    roleId,
+                    action: result.action,
+                    nextState: actionResult.nextState,
+                    commands: actionResult.commands,
+                    persistExtraKeys: persistPlayers ? ["players"] : [],
+                    triggerMode: "waitUntil",
+                });
+            } else {
+                if (persistPlayers) {
+                    await this.room.persist("players");
+                }
+                this.room.broadcastSyncState();
+                this.room.waitUntil(this.room.checkAndTriggerNextTurn());
+            }
 
             console.log(`[LlmManager] Successfully processed LLM turn for ${roleId}${hasActions ? " (action applied)" : " (memory only)"}`);
-
-            // Trigger next turn if applicable
-            this.room.waitUntil(this.room.checkAndTriggerNextTurn());
         } catch (e: any) {
             console.error(`[LlmManager] LLM turn failed for ${roleId}:`, e);
 

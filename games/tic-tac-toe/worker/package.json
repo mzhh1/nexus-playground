@@ -1,0 +1,19 @@
+{
+  "name": "tic-tac-toe-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev --ip 0.0.0.0",
+    "start": "wrangler dev"
+  },
+  "dependencies": {
+    "@nexus/game-sdk": "workspace:*",
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "typescript": "^5.0.0",
+    "wrangler": "^4.65.0"
+  }
+}

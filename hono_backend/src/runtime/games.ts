@@ -10,23 +10,29 @@ interface GameMetadata {
   [key: string]: unknown;
 }
 
-export function getGomokuWorkerUrl(env: Env): string | undefined {
-  return env.GOMOKU_WORKER_URL?.replace(/\/$/, '');
+export function getWorkerUrls(env: Env): string[] {
+  if (!env.WORKER_URL) return [];
+  return env.WORKER_URL.split(',')
+    .map(url => url.trim().replace(/\/$/, ''))
+    .filter(Boolean);
 }
 
 export async function listGames(env: Env): Promise<GameMetadata[]> {
-  const games: GameMetadata[] = [];
-  const gomokuWorkerUrl = getGomokuWorkerUrl(env);
+  const workerUrls = getWorkerUrls(env);
 
-  if (gomokuWorkerUrl) {
+  const fetchPromises = workerUrls.map(async (url): Promise<GameMetadata | null> => {
     try {
-      const response = await fetch(`${gomokuWorkerUrl}/metadata`);
+      const response = await fetch(`${url}/metadata`);
       if (response.ok) {
         const metadata = await response.json<GameMetadata>();
-        games.push({ ...metadata, workerUrl: gomokuWorkerUrl });
+        return { ...metadata, workerUrl: url };
       }
-    } catch {}
-  }
+    } catch (e) {
+      console.error(`Failed to fetch metadata from ${url}:`, e);
+    }
+    return null;
+  });
 
-  return games;
+  const results = await Promise.all(fetchPromises);
+  return results.filter((game): game is GameMetadata => game !== null);
 }

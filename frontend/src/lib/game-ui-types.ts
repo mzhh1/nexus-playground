@@ -3,7 +3,7 @@
  * Types for iframe sandbox communication protocol
  */
 
-import type { RolePerspective, Action } from './types';
+import type { RolePerspective } from './types';
 
 // ============ iframe Communication Messages ============
 
@@ -36,7 +36,11 @@ export interface ActMessage {
   };
 }
 
+export interface IframeReadyMessage {
+  type: 'IFRAME_READY';
+}
+
 /**
  * Union type for all iframe messages
  */
-export type GameIframeMessage = SyncStateMessage | ActMessage;
+export type GameIframeMessage = SyncStateMessage | ActMessage | IframeReadyMessage;

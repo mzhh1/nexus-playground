@@ -2,6 +2,8 @@ import { BaseManager } from "./base";
 import { ClientEngineState, ClientPlayerInfo, ServerMessage, ClientMessage } from "../types";
 import { getRoleForUser } from "../game-do";
 
+const SPECTATOR_ROLE_ID = "nexus_reserved_specator";
+
 export class PresenceManager extends BaseManager {
     public async handleSession(
         ws: WebSocket,
@@ -111,7 +113,7 @@ export class PresenceManager extends BaseManager {
         // Get game perspective for this user's role
         let gamePerspective: any | null = null;
         if (this.room.phase === "playing" || this.room.phase === "finished" || this.room.phase === "paused") {
-            const roleId = getRoleForUser(this.room.roleMapping, userId) || "spectator";
+            const roleId = getRoleForUser(this.room.roleMapping, userId) || SPECTATOR_ROLE_ID;
             gamePerspective = await this.room.fetchPerspective(roleId);
         }
 

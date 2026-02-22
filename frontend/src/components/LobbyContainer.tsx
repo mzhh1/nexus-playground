@@ -9,11 +9,12 @@ import '../styles/lobby-container.css';
 
 interface LobbyContainerProps {
   children: React.ReactNode;
+  style?: React.CSSProperties;
 }
 
-export const LobbyContainer: React.FC<LobbyContainerProps> = ({ children }) => {
+export const LobbyContainer: React.FC<LobbyContainerProps> = ({ children, style }) => {
   return (
-    <div className="lobby-container">
+    <div className="lobby-container" style={style}>
       {children}
     </div>
   );

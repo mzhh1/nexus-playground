@@ -21,6 +21,7 @@ import type {
     LlmConfig,
     StateHistoryEntry,
 } from "./types";
+import { resolveGameWorkerClient } from "./runtime/game-worker-client";
 import { insertMonitorLog, updateMonitorLog } from "./monitor-store";
 import { IRoomContext } from "./managers/types";
 import { PresenceManager } from "./managers/presence";
@@ -351,10 +352,20 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
         return this.gameConfig?.gameWorkerUrl.replace(/\/$/, "") || "";
     }
 
+    public getGameWorkerClient() {
+        if (!this.gameConfig) throw new Error("Game config missing");
+        return resolveGameWorkerClient(
+            this.gameConfig.gameId,
+            this.gameConfig.gameWorkerUrl,
+            this.bindings
+        );
+    }
+
     public async getCurrentRole(): Promise<string | null> {
         if (!this.gameConfig || !this.gameState) return null;
         try {
-            const res = await fetch(`${this.getGameWorkerBaseUrl()}/current-role`, {
+            const client = this.getGameWorkerClient();
+            const res = await client.fetch("/current-role", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ state: this.gameState }),
@@ -376,7 +387,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
     public async isTerminal(): Promise<boolean> {
         if (!this.gameConfig || !this.gameState) return true;
         try {
-            const res = await fetch(`${this.getGameWorkerBaseUrl()}/is-terminal`, {
+            const client = this.getGameWorkerClient();
+            const res = await client.fetch("/is-terminal", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ state: this.gameState }),
@@ -393,7 +405,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
     public async fetchPerspective(roleId: string): Promise<any | null> {
         if (!this.gameConfig || !this.gameState) return null;
         try {
-            const res = await fetch(`${this.getGameWorkerBaseUrl()}/perspective`, {
+            const client = this.getGameWorkerClient();
+            const res = await client.fetch("/perspective", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -417,7 +430,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
     ): Promise<{ success: boolean; nextState?: any; error?: string }> {
         if (!this.gameConfig || !this.gameState) return { success: false, error: "Game not initialized" };
         try {
-            const res = await fetch(`${this.getGameWorkerBaseUrl()}/action`, {
+            const client = this.getGameWorkerClient();
+            const res = await client.fetch("/action", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -437,7 +451,7 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
             };
         } catch (e) {
             console.error("[GameDO] Worker action failed:", e);
-            return { success: false, error: "Worker communication failed" };
+            return { success: false, error: "Worker communication failed" + e };
         }
     }
 

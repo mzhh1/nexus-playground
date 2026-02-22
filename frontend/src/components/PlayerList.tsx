@@ -5,11 +5,11 @@
 
 import React from 'react';
 import { PlayerCard } from './PlayerCard';
-import type { Player } from '../lib/types';
+import type { ClientPlayerInfo } from '../hooks/useNexusEngine';
 import styles from './PlayerList.module.css';
 
 interface PlayerListProps {
-  players: Record<string, Player>;
+  players: Record<string, ClientPlayerInfo>;
   canRemove?: boolean;
   onRemove?: (playerId: string) => void;
   emptyMessage?: string;

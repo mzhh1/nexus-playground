@@ -1,5 +1,6 @@
 import { BaseManager } from "./base";
 import { GameWorkerMetadata } from "../types";
+import { resolveGameWorkerClient } from "../runtime/game-worker-client";
 
 const WORKER_VERIFY_PATH = "/__nexus_worker_verify";
 const WORKER_VERIFY_SIGNATURE = "NEXUS_GAME_WORKER_VERIFIED_V1";
@@ -61,7 +62,7 @@ export class RoomManager extends BaseManager {
 
     public async handleAdminSetGame(
         userId: string,
-        payload: { gameId: string; gameWorkerUrl: string },
+        payload: { gameId: string; gameWorkerUrl: string; selectedPlayerCount?: number },
     ): Promise<void> {
         if (!this.room.requireOwner(userId)) return;
         if (this.room.phase !== "lobby") {
@@ -70,7 +71,9 @@ export class RoomManager extends BaseManager {
 
         try {
             const baseUrl = payload.gameWorkerUrl.replace(/\/$/, "");
-            const verifyRes = await fetch(`${baseUrl}${WORKER_VERIFY_PATH}`);
+            const client = resolveGameWorkerClient(payload.gameId, baseUrl, this.room.bindings);
+
+            const verifyRes = await client.fetch(WORKER_VERIFY_PATH);
             if (!verifyRes.ok) {
                 return this.room.sendErrorToUser(userId, "Game worker verification failed");
             }
@@ -80,7 +83,7 @@ export class RoomManager extends BaseManager {
             }
 
             // Fetch metadata from Game Worker
-            const metaRes = await fetch(`${baseUrl}/metadata`);
+            const metaRes = await client.fetch("/metadata");
             if (!metaRes.ok) {
                 return this.room.sendErrorToUser(userId, "Failed to fetch game metadata");
             }
@@ -88,19 +91,27 @@ export class RoomManager extends BaseManager {
 
             // Resolve roleIds
             let roleIds: string[];
+            let resolvedPlayerCount: number | undefined;
             if (Array.isArray(metadata.roleIds)) {
                 roleIds = metadata.roleIds;
+                resolvedPlayerCount = roleIds.length;
             } else {
-                // Multi-player-count config — use first available
+                // Multi-player-count config — prefer selectedPlayerCount, fallback to first available
                 const counts = Object.keys(metadata.roleIds).map(Number).sort((a, b) => a - b);
-                roleIds = metadata.roleIds[counts[0]] || [];
+                const selectedCount = payload.selectedPlayerCount;
+                const effectiveCount = selectedCount && metadata.roleIds[selectedCount]
+                    ? selectedCount
+                    : counts[0];
+                roleIds = metadata.roleIds[effectiveCount] || [];
+                resolvedPlayerCount = effectiveCount;
             }
 
             this.room.gameConfig = {
                 gameWorkerUrl: baseUrl,
                 gameId: payload.gameId || metadata.id,
-                maxPlayers: metadata.maxPlayers || roleIds.length,
+                maxPlayers: roleIds.length,
                 roleIds,
+                selectedPlayerCount: resolvedPlayerCount,
                 enable_llm_memory: metadata.enable_llm_memory,
                 auto_save_mode: metadata.auto_save_mode,
             };

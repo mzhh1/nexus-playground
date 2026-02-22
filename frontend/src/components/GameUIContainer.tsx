@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { RolePerspective, Action } from '../lib/types';
-import type { SyncStateMessage, ActMessage } from '../lib/game-ui-types';
+import type { SyncStateMessage, ActMessage, IframeReadyMessage } from '../lib/game-ui-types';
 
 interface GameUIContainerProps {
   gameId: string;
@@ -60,7 +60,7 @@ export const GameUIContainer: React.FC<GameUIContainerProps> = ({
       // We still validate message structure.
       if (!event.data || typeof event.data !== 'object') return;
 
-      const msg = event.data as ActMessage;
+      const msg = event.data as ActMessage | IframeReadyMessage;
 
       if (msg.type === 'ACT' && msg.payload) {
         const { action_id, role_id, params } = msg.payload;

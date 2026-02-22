@@ -8,15 +8,14 @@ import { useOAuth } from '@autolabz/oauth-sdk';
 import '@autolabz/oauth-sdk/dist/style.css';
 import { useNexusEngine } from '../../hooks/useNexusEngine';
 import { useGamesMetadata, getGameName } from '../../hooks/useGamesMetadata';
-import type { RoleMapping, LLMPlayerTemplate } from '../../lib/types';
+import type { RoleMapping } from '../../lib/types';
 import { NexusControlBar } from '../../components/NexusControlBar';
 import { PlayerList } from '../../components/PlayerList';
 import { RoleTemplateSelector } from '../../components/PlayerCountSelector';
 import { RoleMappingGraph } from '../../components/RoleMappingGraph';
 import { RoleMappingModal } from '../../components/RoleMappingModal';
-import { LLMPlayerTemplateModal } from '../../components/LLMPlayerTemplateModal';
-import { LobbyStatusBar } from '../../components/LobbyStatusBar';
-import { GameMessageBar } from '../../components/GameMessageBar';
+import { LLMPlayerTemplateModal, type LLMPlayerTemplate } from '../../components/LLMPlayerTemplateModal';
+import { NexusStatusBar } from '../../components/NexusStatusBar';
 import { LobbyContainer } from '../../components/LobbyContainer';
 import { GameUIContainer } from '../../components/GameUIContainer';
 import { isMultiPlayerCountConfig, getAvailablePlayerCounts, getRoleIdsForPlayerCount } from '../../lib/types';
@@ -38,7 +37,7 @@ const Room: React.FC = () => {
   const [selectedBacktrackIndex, setSelectedBacktrackIndex] = useState<number | null>(null);
 
   // Hooks
-  const { games: AVAILABLE_GAMES, loading: metadataLoading } = useGamesMetadata();
+  const { games: AVAILABLE_GAMES } = useGamesMetadata();
 
   // Nexus Engine WebSocket connection (handles both lobby and game state)
   const {
@@ -62,6 +61,9 @@ const Room: React.FC = () => {
     isOwner: isOwnerEngine,
     myRole: myRoleEngine,
     myUserId: myUserIdEngine,
+    isConnecting,
+    isRetrying,
+    retry: handleRetryEngine,
   } = useNexusEngine({
     roomId,
     onJoinRequest: (userId, displayName) => {
@@ -79,7 +81,7 @@ const Room: React.FC = () => {
 
   const submitAction = async (action: any) => {
     if (isEngineConnected) {
-      sendEngineAction(action.action_id, action.params);
+      sendEngineAction(action.action_id, action.params, true);
       return { success: true };
     } else {
       console.error("Engine not connected");
@@ -179,7 +181,15 @@ const Room: React.FC = () => {
     }
 
     try {
-      setGame(selectedGameId, meta.workerUrl);
+      let countToSend: number | undefined = selectedPlayerCount ?? undefined;
+      if (isMultiPlayerCountConfig(meta.roleIds)) {
+        const availableCounts = getAvailablePlayerCounts(meta.roleIds);
+        if (!countToSend || !availableCounts.includes(countToSend)) {
+          countToSend = availableCounts[0];
+        }
+      }
+
+      setGame(selectedGameId, meta.workerUrl, countToSend);
     } catch (err) {
       console.error('Failed to select game:', err);
     }
@@ -216,8 +226,6 @@ const Room: React.FC = () => {
   };
 
   const handleRemovePlayer = async (userId: string) => {
-    if (!confirm('Remove this player?')) return;
-
     try {
       engineRemovePlayer(userId);
     } catch (err) {
@@ -243,10 +251,18 @@ const Room: React.FC = () => {
   };
 
   const handlePlayerCountChange = async (count: number) => {
-    // In new engine, player count is often part of the game config or handled by the DO logic
-    // We'll update mapping to empty and rely on DO sync
     setSelectedPlayerCount(count);
     setRoleMapping({});
+
+    if (!isOwnerEngine) return;
+
+    const gameId = engineState?.gameConfig?.gameId || selectedGameId;
+    if (!gameId) return;
+
+    const meta = AVAILABLE_GAMES.find(g => g.id === gameId);
+    if (!meta?.workerUrl) return;
+
+    setGame(gameId, meta.workerUrl, count);
   };
 
   const handleRoleMappingChange = async (newMapping: RoleMapping) => {
@@ -351,7 +367,6 @@ const Room: React.FC = () => {
   // ========== Computed Values (ALL HOOKS MUST BE BEFORE ANY RETURN) ==========
 
   // Determine current role and player ID from Engine State
-  const currentUserId = user?.id || null;
   const isOwner = isOwnerEngine;
   const isInRoom = !!engineState;
 
@@ -360,8 +375,6 @@ const Room: React.FC = () => {
   const isPaused = engineState?.phase === 'paused';
   const isFinished = engineState?.phase === 'finished';
   const isAuthorized = engineState?.you.isAuthorized ?? false;
-  const canRequestJoin = !isAuthorized && !isOwner;
-
   // 在开放阶段也显示控制栏（当有游戏选择时）
   const shouldShowControlBar = engineState
     ? isPlaying || isPaused || isFinished || (engineState.gameConfig && (isOwner || isInRoom))
@@ -437,13 +450,16 @@ const Room: React.FC = () => {
     );
   }
 
-  if (engineError) {
+  // NOTE: Persistent errors are now displayed in the bottom status bar, 
+  // keeping the main UI accessible.
+
+  if (!engineState && engineError) {
     return (
       <div className="container" style={{ paddingTop: 'var(--spacing-xl)' }}>
         <div className="error-message">
           <h2>Connection Error</h2>
           <p>{engineError}</p>
-          <button onClick={() => window.location.reload()}>Retry</button>
+          <button onClick={handleRetryEngine}>Retry</button>
         </div>
       </div>
     );
@@ -996,17 +1012,17 @@ const Room: React.FC = () => {
       />
 
       {/* Status Bar - 固定在页面底部 */}
-      {/* 开放阶段显示 LobbyStatusBar，游戏阶段显示 GameMessageBar */}
-      {isOpen && shouldShowControlBar && (
-        <LobbyStatusBar
-          isOwner={isOwner}
-          statusText="等待开始"
-          isMappingComplete={isMappingComplete}
-        />
-      )}
-      {!isOpen && engineState.gameConfig?.gameId && perspective && currentRoleId && (
-        <GameMessageBar perspective={perspective} />
-      )}
+      {/* Bottom Status Bar (Unified) */}
+      <NexusStatusBar
+        isOwner={isOwner}
+        phase={engineState.phase}
+        perspective={perspective}
+        engineError={engineError}
+        isConnecting={isConnecting}
+        isRetrying={isRetrying}
+        onRetry={handleRetryEngine}
+        isMappingComplete={isMappingComplete}
+      />
     </div>
   );
 };

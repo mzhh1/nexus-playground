@@ -1,0 +1,119 @@
+/**
+ * Nexus Status Bar Styles
+ * 统一的状态栏样式，支持大厅和游戏阶段
+ */
+
+.nexus-status-bar {
+    width: 100%;
+    padding: 12px 24px;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+    font-size: 15px;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.3s ease;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 99;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    min-height: 56px;
+}
+
+.status-indicator-left {
+    position: absolute;
+    left: 24px;
+    padding: 4px 12px;
+    background: #f3f4f6;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #6b7280;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.status-message-content {
+    display: inline-block;
+    flex: 0 1 auto;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.status-actions-right {
+    position: absolute;
+    right: 24px;
+    display: flex;
+    align-items: center;
+}
+
+.retry-button {
+    padding: 6px 16px;
+    background: var(--color-primary, #3b82f6);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.retry-button:hover {
+    filter: brightness(1.1);
+}
+
+.nexus-status-bar.error-state {
+    border-top: 1px solid #fee2e2;
+    background: #fffcfc;
+}
+
+.nexus-status-bar.error-state .status-message-content {
+    color: #dc2626;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .nexus-status-bar {
+        background: #1f2937;
+        color: #e5e7eb;
+        border-color: #374151;
+    }
+
+    .status-indicator-left {
+        background: #374151;
+        color: #9ca3af;
+    }
+
+    .nexus-status-bar.error-state {
+        background: #2d1a1a;
+        border-color: #7f1d1d;
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .nexus-status-bar {
+        padding: 8px 16px;
+        font-size: 13px;
+        min-height: 48px;
+    }
+
+    .status-indicator-left {
+        left: 12px;
+        padding: 2px 8px;
+        font-size: 11px;
+    }
+
+    .status-actions-right {
+        right: 12px;
+    }
+}

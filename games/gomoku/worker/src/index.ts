@@ -3,8 +3,10 @@ import { cors } from 'hono/cors';
 import { GameState, Action, InitContext } from '@nexus/game-sdk';
 import logic from '../../logic/index';
 
+type AssetFetcher = { fetch: (request: Request) => Promise<Response> };
+
 type Bindings = {
-    ASSETS: Fetcher;
+    ASSETS: AssetFetcher;
     UI_BASE_URL?: string;
 };
 

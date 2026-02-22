@@ -20,6 +20,27 @@ new_sqlite_classes = ["GameDO"]
 tag = "v2"
 new_sqlite_classes = ["MonitorDO"]
 
+# Service Bindings for internal game workers
+[[services]]
+binding = "GAME_GOMOKU"
+service = "gomoku-worker"
+
+[[services]]
+binding = "GAME_TIC_TAC_TOE"
+service = "tic-tac-toe-worker"
+
+[[services]]
+binding = "GAME_UNO"
+service = "uno-worker"
+
+[[services]]
+binding = "GAME_WEREWOLF"
+service = "werewolf-worker"
+
+[[services]]
+binding = "GAME_XIANGQI"
+service = "xiangqi-worker"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "np-engine-monitor-db"

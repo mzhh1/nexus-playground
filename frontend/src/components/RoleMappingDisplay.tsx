@@ -4,12 +4,13 @@
  */
 
 import React from 'react';
-import type { PlayerList, RoleMapping } from '../lib/types';
+import type { RoleMapping } from '../lib/types';
+import type { ClientPlayerInfo } from '../hooks/useNexusEngine';
 import { RoleMappingGraph } from './RoleMappingGraph';
 import '../styles/role-mapping.module.css';
 
 interface RoleMappingDisplayProps {
-  playerList: PlayerList;
+  playerList: Record<string, ClientPlayerInfo>;
   roleIds: string[];
   mapping: RoleMapping;
   onEdit?: () => void;

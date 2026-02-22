@@ -6,7 +6,7 @@
  * are now handled by useNexusEngine via WebSocket.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useGameAPI } from '../lib/api-client';
 
 export interface RoomBasicInfo {

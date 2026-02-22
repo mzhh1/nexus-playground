@@ -4,14 +4,11 @@
  */
 
 import { useState, useCallback } from 'react';
-import { useGameAPI } from '../lib/api-client';
 import type { Action } from '../lib/types';
 
 export function useAction(roomId: string | null) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const apiClient = useGameAPI();
 
   /**
    * Submit an action
@@ -25,10 +22,14 @@ export function useAction(roomId: string | null) {
     setError(null);
 
     try {
-      await apiClient.submitAction(roomId, action);
-      console.log('Action submitted successfully:', action);
+      // Legacy hook kept for compatibility. Action submission is now handled
+      // through useNexusEngine WebSocket flow in Room page.
+      console.warn('useAction is deprecated. Use useNexusEngine.sendAction instead.', {
+        roomId,
+        action,
+      });
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || 'Failed to submit action';
+      const errorMessage = err?.response?.data?.error || 'Failed to submit action';
       setError(errorMessage);
       console.error('Failed to submit action:', err);
       throw new Error(errorMessage);

@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { OAuthProvider, useOAuth, AuthAvatar } from '@autolabz/oauth-sdk';
+import { OAuthProvider } from '@autolabz/oauth-sdk';
 import '../../styles/global.css';
 import Room from './Room.tsx';
 

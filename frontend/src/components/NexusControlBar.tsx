@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { AuthAvatar } from '@autolabz/oauth-sdk';
-import type { RoomInfo, RoleMapping } from '../lib/types';
+import type { RoleMapping } from '../lib/types';
 import '../styles/control-bar.css';
 
 interface NexusControlBarProps {
