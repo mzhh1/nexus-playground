@@ -164,6 +164,8 @@ export class PresenceManager extends BaseManager {
                 name,
                 timestamp,
             })) : [],
+            runtimeId: this.room.runtimeId,
+            stateIndex: this.room.stateIndex,
             you: {
                 userId,
                 isOwner: userId === this.room.ownerId,

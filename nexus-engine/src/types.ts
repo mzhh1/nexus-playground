@@ -71,6 +71,8 @@ export interface EngineRoomState {
     gameState: any | null;
     history: HistoryEvent[];
     stateHistory: StateHistoryEntry[];
+    runtimeId: string;
+    stateIndex: number;
     llmWebhookUrl: string | null;
 }
 
@@ -100,6 +102,8 @@ export interface ClientEngineState {
         auto_save_mode?: 'enabled' | 'disabled';
     } | null;
     stateHistory: Omit<StateHistoryEntry, 'state'>[];
+    runtimeId: string;
+    stateIndex: number;
     you: {
         userId: string;
         isOwner: boolean;

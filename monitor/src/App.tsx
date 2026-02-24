@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AuthConfig,
   connectLogStream,
   DEFAULT_PAGE_SIZE,
   fetchInteractionGroup,
   fetchInteractions,
+  getAuthConfig,
+  setAuthConfig,
 } from './api';
 import {
   InteractionStatus,
@@ -103,7 +106,13 @@ function App() {
   });
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [config, setConfigState] = useState<AuthConfig | null>(getAuthConfig());
   const [streamStatus, setStreamStatus] = useState<'idle' | 'connected' | 'disconnected'>('idle');
+
+  const handleLogout = () => {
+    setAuthConfig(null);
+    setConfigState(null);
+  };
 
   const selectedInteraction = useMemo(() => {
     if (!selectedId) return null;
@@ -234,120 +243,170 @@ function App() {
     return lastUpdated.toLocaleString('zh-CN', { hour12: false });
   }, [lastUpdated]);
 
+  if (!config) {
+    return (
+      <div className="auth-overlay">
+        <form
+          className="auth-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const baseUrl = formData.get('baseUrl') as string;
+            const adminSecret = formData.get('adminSecret') as string;
+            if (baseUrl && adminSecret) {
+              const newConfig = { baseUrl, adminSecret };
+              setAuthConfig(newConfig);
+              setConfigState(newConfig);
+            }
+          }}
+        >
+          <h2>LLM Monitor</h2>
+          <p>请输入 Nexus Engine 配置信息</p>
+          <div className="auth-field">
+            <label>Engine URL</label>
+            <input
+              name="baseUrl"
+              type="url"
+              placeholder="https://nexus-engine.xxx.workers.dev"
+              required
+              defaultValue={import.meta.env.VITE_MONITOR_API_BASE_URL || ''}
+            />
+          </div>
+          <div className="auth-field">
+            <label>Admin Secret</label>
+            <input
+              name="adminSecret"
+              type="password"
+              placeholder="输入 ADMIN_SECRET"
+              required
+            />
+          </div>
+          <button type="submit" className="button">
+            进入面板
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="monitor-app">
       <header className="toolbar">
         <div>
           <h1>LLM 监控面板</h1>
           <p className="toolbar__subtitle">
-            观察 Nexus Playground 中 LLM 与 Human 玩家动作日志
+            观察 Nexus Playground 中 LLM 与 Human 玩家动作日志 ({new URL(config.baseUrl).hostname})
           </p>
         </div>
 
-        <div className="toolbar__filters">
-          <div className="filter-row">
-            <label>
-              状态
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value as '' | InteractionStatus)}
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value || 'all'} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button onClick={handleLogout} className="button logout-button">
+            退出登录
+          </button>
+          <div className="toolbar__filters">
+            <div className="filter-row">
+              <label>
+                状态
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as '' | InteractionStatus)}
+                >
+                  {STATUS_OPTIONS.map((option) => (
+                    <option key={option.value || 'all'} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <label>
-              类型
-              <select
-                value={playerTypeFilter}
-                onChange={(event) => setPlayerTypeFilter(event.target.value as '' | PlayerType)}
-              >
-                {PLAYER_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value || 'all'} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <label>
+                类型
+                <select
+                  value={playerTypeFilter}
+                  onChange={(event) => setPlayerTypeFilter(event.target.value as '' | PlayerType)}
+                >
+                  {PLAYER_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value || 'all'} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <label>
-              房间 ID
-              <input
-                type="text"
-                value={roomFilter}
-                onChange={(event) => setRoomFilter(event.target.value)}
-                placeholder="按房间过滤"
-              />
-            </label>
+              <label>
+                房间 ID
+                <input
+                  type="text"
+                  value={roomFilter}
+                  onChange={(event) => setRoomFilter(event.target.value)}
+                  placeholder="按房间过滤"
+                />
+              </label>
 
-            <label>
-              角色 ID
-              <input
-                type="text"
-                value={roleFilter}
-                onChange={(event) => setRoleFilter(event.target.value)}
-                placeholder="按角色过滤"
-              />
-            </label>
+              <label>
+                角色 ID
+                <input
+                  type="text"
+                  value={roleFilter}
+                  onChange={(event) => setRoleFilter(event.target.value)}
+                  placeholder="按角色过滤"
+                />
+              </label>
 
-            <label>
-              游戏 ID
-              <input
-                type="text"
-                value={gameFilter}
-                onChange={(event) => setGameFilter(event.target.value)}
-                placeholder="按游戏过滤"
-              />
-            </label>
+              <label>
+                游戏 ID
+                <input
+                  type="text"
+                  value={gameFilter}
+                  onChange={(event) => setGameFilter(event.target.value)}
+                  placeholder="按游戏过滤"
+                />
+              </label>
 
-            <label>
-              开始时间
-              <input
-                type="datetime-local"
-                value={startDateFilter}
-                onChange={(event) => setStartDateFilter(event.target.value)}
-              />
-            </label>
+              <label>
+                开始时间
+                <input
+                  type="datetime-local"
+                  value={startDateFilter}
+                  onChange={(event) => setStartDateFilter(event.target.value)}
+                />
+              </label>
 
-            <label>
-              结束时间
-              <input
-                type="datetime-local"
-                value={endDateFilter}
-                onChange={(event) => setEndDateFilter(event.target.value)}
-              />
-            </label>
+              <label>
+                结束时间
+                <input
+                  type="datetime-local"
+                  value={endDateFilter}
+                  onChange={(event) => setEndDateFilter(event.target.value)}
+                />
+              </label>
 
-            <label>
-              排序
-              <select value={order} onChange={(event) => setOrder(event.target.value as 'desc' | 'asc')}>
-                <option value="desc">最新优先</option>
-                <option value="asc">最早优先</option>
-              </select>
-            </label>
+              <label>
+                排序
+                <select value={order} onChange={(event) => setOrder(event.target.value as 'desc' | 'asc')}>
+                  <option value="desc">最新优先</option>
+                  <option value="asc">最早优先</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="filter-row">
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(event) => setAutoRefresh(event.target.checked)}
+                />
+                <span>实时流（SSE）</span>
+              </label>
+              <button type="button" className="button" onClick={loadInteractions} disabled={isLoading}>
+                {isLoading ? '刷新中…' : '手动刷新'}
+              </button>
+              <span className="last-updated">最近刷新：{lastUpdatedText}</span>
+              <span className="last-updated">流状态：{streamStatus}</span>
+              <span className="summary">当前显示 {interactions.length}/{PAGE_SIZE}</span>
+            </div>
           </div>
-
-          <div className="filter-row">
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(event) => setAutoRefresh(event.target.checked)}
-              />
-              <span>实时流（SSE）</span>
-            </label>
-            <button type="button" className="button" onClick={loadInteractions} disabled={isLoading}>
-              {isLoading ? '刷新中…' : '手动刷新'}
-            </button>
-            <span className="last-updated">最近刷新：{lastUpdatedText}</span>
-            <span className="last-updated">流状态：{streamStatus}</span>
-            <span className="summary">当前显示 {interactions.length}/{PAGE_SIZE}</span>
-          </div>
-        </div>
       </header>
 
       {error ? (

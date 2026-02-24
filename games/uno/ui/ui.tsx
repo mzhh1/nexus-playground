@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import styles from './ui.module.css';
 
 type UnoColor = 'red' | 'yellow' | 'green' | 'blue';
@@ -85,7 +85,7 @@ const UnoUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonl
     () => new Set((action_space_definition.actions ?? []).map((a) => a.action_id)),
     [action_space_definition.actions]
   );
-  
+
   const canPlayCard = actionIds.has('play_card');
   const canDrawFromSpec = actionIds.has('draw_card');
   const canPassFromSpec = actionIds.has('pass_turn');
@@ -100,7 +100,7 @@ const UnoUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonl
 
   const isPlayableCard = (card: UnoCard): boolean => {
     if (!isMyTurn || readonly) return false;
-    
+
     if (turnStage === 'must_resolve_drawn') {
       return canPlayDrawn && card.id === drawnCardId;
     }
@@ -114,6 +114,50 @@ const UnoUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonl
   };
 
   const submit = (action: Action) => onAction(action);
+
+  // Auto Action Timer & State Tracking
+  const autoActionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastHandledKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const stateKey = `${turn}_${turnStage}`;
+
+    // 1. Auto Pass: After drawing, if still no playable cards, pass immediately
+    if (isMyTurn && !readonly && !winner && turnStage === 'must_resolve_drawn' && !canPlayDrawn && canPass) {
+      if (lastHandledKeyRef.current !== stateKey) {
+        lastHandledKeyRef.current = stateKey;
+        submit({ action_id: 'pass_turn', role_id: roleId, params: {} });
+      }
+      return; // Skip drawing logic if we're in must_resolve_drawn
+    }
+
+    // 2. Auto Draw: If no playable cards, wait 3s then draw
+    const shouldDraw = isMyTurn && !readonly && !winner && canDraw && actionIds.has('draw_card');
+
+    if (shouldDraw) {
+      // Only start timer if state changed or timer is not already running
+      if (lastHandledKeyRef.current !== stateKey) {
+        if (autoActionTimerRef.current) clearTimeout(autoActionTimerRef.current);
+
+        autoActionTimerRef.current = setTimeout(() => {
+          lastHandledKeyRef.current = stateKey;
+          submit({ action_id: 'draw_card', role_id: roleId, params: {} });
+        }, 800);
+      }
+    } else {
+      // Clear timer if conditions no longer met
+      if (autoActionTimerRef.current) {
+        clearTimeout(autoActionTimerRef.current);
+        autoActionTimerRef.current = null;
+      }
+    }
+
+    return () => {
+      // In a real app, we might want to keep the timer across renders if stateKey is same
+      // But in React strict mode or dependency changes, we need to be careful.
+      // Here we trust the stateKey check above to prevent reset unless state actually changes.
+    };
+  }, [isMyTurn, readonly, winner, canDraw, canPass, canPlayDrawn, turnStage, roleId, actionIds, turn]);
 
   const playCard = (index: number, declaredColor?: UnoColor) => {
     submit({
@@ -173,24 +217,24 @@ const UnoUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonl
   };
 
   const renderCard = (
-    card: UnoCard, 
-    playable: boolean, 
+    card: UnoCard,
+    playable: boolean,
     onClick?: () => void
   ) => {
     const label = formatCardLabel(card);
     const colorClass = card.color ? styles[`bg_${card.color}`] : styles.bg_wild;
     const textClass = card.color ? styles[`text_${card.color}`] : styles.text_wild;
-    
+
     return (
-      <div 
+      <div
         className={`${styles.card} ${playable ? styles.cardPlayable : styles.cardDisabled}`}
         onClick={playable ? onClick : undefined}
       >
         <div className={`${styles.cardInner} ${colorClass}`}>
-           <div className={styles.cardOval}></div>
-           <div className={`${styles.cardCorner} ${styles.topLeft}`}>{label}</div>
-           <div className={`${styles.cardText} ${textClass}`}>{label}</div>
-           <div className={`${styles.cardCorner} ${styles.bottomRight}`}>{label}</div>
+          <div className={styles.cardOval}></div>
+          <div className={`${styles.cardCorner} ${styles.topLeft}`}>{label}</div>
+          <div className={`${styles.cardText} ${textClass}`}>{label}</div>
+          <div className={`${styles.cardCorner} ${styles.bottomRight}`}>{label}</div>
         </div>
       </div>
     );
@@ -225,8 +269,8 @@ const UnoUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonl
       {/* Center Table Area */}
       <div className={styles.tableCenter}>
         {/* Glow effect for current color */}
-        <div 
-          className={styles.currentColorIndicator} 
+        <div
+          className={styles.currentColorIndicator}
           style={{ background: COLOR_MAP[currentColor] }}
         ></div>
 
@@ -273,8 +317,8 @@ const UnoUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonl
           {yourHand.map((card, index) => (
             <div key={card.id} className={styles.handCardWrapper} style={{ zIndex: index }}>
               {renderCard(
-                card, 
-                isPlayableCard(card), 
+                card,
+                isPlayableCard(card),
                 () => handleCardClick(card, index)
               )}
             </div>

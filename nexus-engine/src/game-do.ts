@@ -80,6 +80,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
     public gameState: any | null = null;
     public history: HistoryEvent[] = [];
     public stateHistory: StateHistoryEntry[] = [];
+    public runtimeId: string = "";
+    public stateIndex: number = 0;
     public llmWebhookUrl: string | null = null;
 
     // ─── In-memory connection tracking ──────────────────────
@@ -119,6 +121,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
         this.gameState = (await s.get("gameState")) || null;
         this.history = (await s.get("history")) || [];
         this.stateHistory = (await s.get("stateHistory")) || [];
+        this.runtimeId = (await s.get("runtimeId")) || "";
+        this.stateIndex = (await s.get("stateIndex")) || 0;
         this.llmWebhookUrl = this.bindings.LLM_WEBHOOK_URL || (await s.get("llmWebhookUrl")) || null;
     }
 
@@ -134,6 +138,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
             gameState: this.gameState,
             history: this.history,
             stateHistory: this.stateHistory,
+            runtimeId: this.runtimeId,
+            stateIndex: this.stateIndex,
             llmWebhookUrl: this.llmWebhookUrl,
         });
     }
@@ -175,6 +181,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
             this.gameState = null;
             this.history = [];
             this.stateHistory = [];
+            this.runtimeId = "";
+            this.stateIndex = 0;
             this.llmWebhookUrl = this.bindings.LLM_WEBHOOK_URL || null;
             this.gameConfig = null;
 
@@ -213,6 +221,29 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
                 hasGameState: this.gameState != null,
                 historyLength: this.history.length,
             });
+        });
+
+        this.app.get("/state", async (c) => {
+            return c.json({
+                roomId: this.roomId,
+                ownerId: this.ownerId,
+                ownerDisplayName: this.ownerDisplayName,
+                phase: this.phase,
+                players: this.players,
+                gameConfig: this.gameConfig,
+                roleMapping: this.roleMapping,
+                gameState: this.gameState,
+                history: this.history,
+                stateHistory: this.stateHistory,
+                runtimeId: this.runtimeId,
+                stateIndex: this.stateIndex,
+                llmWebhookUrl: this.llmWebhookUrl,
+                // Meta info
+                metadata: {
+                    connectedCount: this.connections.size,
+                    storageUsage: await this.ctx.storage.getAlarm() !== null ? "has_alarm" : "no_alarm",
+                }
+            } as EngineRoomState & { metadata: any });
         });
     }
 
@@ -291,13 +322,14 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
                     return this.sendErrorToUser(userId, "Invalid state index");
                 }
                 this.gameState = targetState.state;
+                this.stateIndex = targetState.index;
                 // history events should also be reverted?
                 // logic: if we backtrack to state X, we should keep history up to that point.
                 // However, state history entries are added AFTER actions.
                 // So index 0 is initState. index 1 is after action 0.
                 // So we keep history up to index - 1.
                 this.history = this.history.slice(0, targetState.index);
-                await this.persist("gameState", "history");
+                await this.persist("gameState", "history", "stateIndex");
                 this.presence.broadcastSyncState();
                 break;
             case "ACT":

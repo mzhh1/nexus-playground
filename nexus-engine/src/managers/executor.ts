@@ -58,6 +58,8 @@ export class GameExecutor extends BaseManager {
 
             this.room.gameState = await initRes.json();
             this.room.history = [];
+            this.room.runtimeId = crypto.randomUUID();
+            this.room.stateIndex = 0;
             this.room.stateHistory = [{
                 index: 0,
                 name: "Initial State",
@@ -129,6 +131,8 @@ export class GameExecutor extends BaseManager {
 
             this.room.gameState = await initRes.json();
             this.room.history = [];
+            this.room.runtimeId = crypto.randomUUID();
+            this.room.stateIndex = 0;
             this.room.stateHistory = [{
                 index: 0,
                 name: "Initial State",

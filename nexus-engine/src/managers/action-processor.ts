@@ -42,13 +42,14 @@ export async function applySuccessfulAction(opts: {
         },
         timestamp: Date.now(),
     });
+    room.stateIndex++;
 
     let explicitSave = false;
     if (commands && Array.isArray(commands)) {
         for (const cmd of commands) {
             if (cmd.type === "SAVE_STATE") {
                 room.stateHistory.push({
-                    index: room.history.length,
+                    index: room.stateIndex,
                     name: cmd.name || `${roleId}:${action.action_id}`,
                     state: room.gameState,
                     timestamp: Date.now(),
@@ -61,13 +62,14 @@ export async function applySuccessfulAction(opts: {
                     state: room.gameState,
                     timestamp: Date.now(),
                 }];
+                room.stateIndex = 0;
             }
         }
     }
 
     if (!explicitSave && room.gameConfig?.auto_save_mode === "enabled") {
         room.stateHistory.push({
-            index: room.history.length,
+            index: room.stateIndex,
             name: `${roleId}:${action.action_id}`,
             state: room.gameState,
             timestamp: Date.now(),
@@ -78,6 +80,7 @@ export async function applySuccessfulAction(opts: {
         "gameState",
         "history",
         "stateHistory",
+        "stateIndex",
         ...persistExtraKeys,
     ]);
 

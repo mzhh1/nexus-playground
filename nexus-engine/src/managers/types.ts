@@ -11,6 +11,8 @@ export interface IRoomContext {
     gameState: any | null;
     history: HistoryEvent[];
     stateHistory: StateHistoryEntry[];
+    runtimeId: string;
+    stateIndex: number;
     llmWebhookUrl: string | null;
     bindings: Env;
 

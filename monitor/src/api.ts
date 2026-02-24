@@ -7,9 +7,30 @@ import {
   LLMInteraction,
 } from './types';
 
-const API_BASE_URL =
-  import.meta.env.VITE_MONITOR_API_BASE_URL?.replace(/\/$/, '') || '/api/monitor';
-const MONITOR_TOKEN = import.meta.env.VITE_MONITOR_TOKEN?.trim() || '';
+export interface AuthConfig {
+  baseUrl: string;
+  adminSecret: string;
+}
+
+const STORAGE_KEY = 'llm_monitor_auth';
+
+export function getAuthConfig(): AuthConfig | null {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (!stored) return null;
+  try {
+    return JSON.parse(stored);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthConfig(config: AuthConfig | null) {
+  if (config) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  } else {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+}
 
 export const DEFAULT_PAGE_SIZE = Number.parseInt(
   import.meta.env.VITE_MONITOR_PAGE_SIZE || '50',
@@ -36,12 +57,13 @@ export interface FetchInteractionsParams {
 }
 
 function withAuth(init?: RequestInit): RequestInit {
-  if (!MONITOR_TOKEN) return init || {};
+  const config = getAuthConfig();
+  if (!config?.adminSecret) return init || {};
   return {
     ...init,
     headers: {
       ...(init?.headers || {}),
-      Authorization: `Bearer ${MONITOR_TOKEN}`,
+      Authorization: `Bearer ${config.adminSecret}`,
     },
   };
 }
@@ -103,21 +125,27 @@ export async function fetchInteractions(
     searchParams.set('interactionGroupId', interactionGroupId);
   }
 
-  const url = `${API_BASE_URL}/logs?${searchParams.toString()}`;
+  const config = getAuthConfig();
+  const baseUrl = config?.baseUrl?.replace(/\/$/, '') || '/api/monitor';
+  const url = `${baseUrl}/logs?${searchParams.toString()}`;
   return request<InteractionListResponse>(url);
 }
 
 export async function fetchInteractionGroup(
   groupId: string
 ): Promise<InteractionGroupResponse> {
-  const url = `${API_BASE_URL}/logs/groups/${groupId}`;
+  const config = getAuthConfig();
+  const baseUrl = config?.baseUrl?.replace(/\/$/, '') || '/api/monitor';
+  const url = `${baseUrl}/logs/groups/${groupId}`;
   return request<InteractionGroupResponse>(url);
 }
 
 export async function fetchInteractionDetail(
   interactionId: string
 ): Promise<InteractionDetailResponse> {
-  const url = `${API_BASE_URL}/logs/${interactionId}`;
+  const config = getAuthConfig();
+  const baseUrl = config?.baseUrl?.replace(/\/$/, '') || '/api/monitor';
+  const url = `${baseUrl}/logs/${interactionId}`;
   return request<InteractionDetailResponse>(url);
 }
 
@@ -144,9 +172,11 @@ export function connectLogStream(
   if (params.gameId) searchParams.set('gameId', params.gameId);
   if (params.startDate) searchParams.set('startDate', params.startDate);
   if (params.endDate) searchParams.set('endDate', params.endDate);
-  if (MONITOR_TOKEN) searchParams.set('token', MONITOR_TOKEN);
+  const config = getAuthConfig();
+  const baseUrl = config?.baseUrl?.replace(/\/$/, '') || '/api/monitor';
+  if (config?.adminSecret) searchParams.set('token', config.adminSecret);
 
-  const eventSource = new EventSource(`${API_BASE_URL}/logs/stream?${searchParams.toString()}`);
+  const eventSource = new EventSource(`${baseUrl}/logs/stream?${searchParams.toString()}`);
   eventSource.addEventListener('log', (event) => {
     const payload = JSON.parse((event as MessageEvent).data) as {
       kind: 'upsert';

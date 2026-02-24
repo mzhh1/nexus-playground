@@ -108,65 +108,31 @@ app.get('/connect/:roomId', async (c) => {
     return stub.fetch(new Request(url, c.req.raw));
 });
 
-function getTokenFromRequest(req: Request): string | null {
-    const authHeader = req.headers.get('Authorization') || '';
-    if (authHeader.startsWith('Bearer ')) {
-        return authHeader.slice('Bearer '.length).trim();
-    }
-    const url = new URL(req.url);
-    const queryToken = url.searchParams.get('token');
-    return queryToken?.trim() || null;
-}
-
-interface MonitorAccess {
-    roomId: string;
-    authBypassed: boolean;
-}
-
-async function requireMonitorRoom(c: Context<{ Bindings: Env }>): Promise<MonitorAccess | Response> {
-    const requestedRoomId = c.req.query('roomId') || '';
-    const token = getTokenFromRequest(c.req.raw);
-    if (!token) {
-        // Temporary bypass for monitor endpoints: allow access without token.
-        return { roomId: requestedRoomId, authBypassed: true };
-    }
-
-    let payload;
-    try {
-        payload = await verifyJwt(token, c.env.JWT_SECRET);
-    } catch (e: any) {
-        return c.json({ error: `Authentication failed: ${e.message}` }, 401);
-    }
-
-    if (requestedRoomId && requestedRoomId !== payload.roomId) {
-        return c.json({ error: 'Forbidden room' }, 403);
-    }
-
-    return { roomId: requestedRoomId || payload.roomId, authBypassed: false };
+function verifyAdmin(c: Context<{ Bindings: Env }>): boolean {
+    const authHeader = c.req.header('Authorization');
+    return authHeader === `Bearer ${c.env.ADMIN_SECRET}`;
 }
 
 // ==========================================
 // 3. Monitor APIs (D1 + SSE)
 // ==========================================
 app.get('/api/monitor/logs', async (c) => {
-    const roomResult = await requireMonitorRoom(c);
-    if (roomResult instanceof Response) return roomResult;
+    if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
 
     const url = new URL(c.req.url);
     const params = parseListParams(url.searchParams);
-    params.roomId = roomResult.roomId;
     const result = await listMonitorLogs(c.env.DB, params);
     return c.json(result);
 });
 
 app.get('/api/monitor/logs/stream', async (c) => {
-    const roomResult = await requireMonitorRoom(c);
-    if (roomResult instanceof Response) return roomResult;
+    if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
 
+    const roomId = c.req.query('roomId') || '';
     const id = c.env.MONITOR_DO.idFromName('global');
     const stub = c.env.MONITOR_DO.get(id);
     const doUrl = new URL('http://do/stream');
-    doUrl.searchParams.set('roomId', roomResult.roomId);
+    doUrl.searchParams.set('roomId', roomId);
 
     const passthroughKeys = ['playerType', 'status', 'roleId', 'gameId', 'startDate', 'endDate'];
     for (const key of passthroughKeys) {
@@ -184,27 +150,66 @@ app.get('/api/monitor/logs/stream', async (c) => {
 });
 
 app.get('/api/monitor/logs/groups/:groupId', async (c) => {
-    const access = await requireMonitorRoom(c);
-    if (access instanceof Response) return access;
+    if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
 
     const groupId = c.req.param('groupId');
     const data = await getMonitorLogsByGroup(c.env.DB, groupId);
     if (data.length === 0) {
         return c.json({ interaction_group_id: groupId, data: [] });
     }
-    if (!access.authBypassed && data[0].room_id !== access.roomId) return c.json({ error: 'Forbidden room' }, 403);
     return c.json({ interaction_group_id: groupId, data });
 });
 
 app.get('/api/monitor/logs/:interactionId', async (c) => {
-    const access = await requireMonitorRoom(c);
-    if (access instanceof Response) return access;
+    if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
 
     const interactionId = c.req.param('interactionId');
     const data = await getMonitorLogById(c.env.DB, interactionId);
     if (!data) return c.json({ error: 'Not found' }, 404);
-    if (!access.authBypassed && data.room_id !== access.roomId) return c.json({ error: 'Forbidden room' }, 403);
     return c.json({ data });
+});
+
+app.get('/api/monitor/room/list', async (c) => {
+    if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+    const limit = parseInt(c.req.query('limit') || '100');
+    const cursor = c.req.query('cursor');
+
+    // @ts-ignore - list() is available on namespace but might not be in older types
+    const result = await c.env.GAME_DO.list({ limit, cursor });
+
+    return c.json({
+        data: result.objects.map((obj: any) => ({
+            id: obj.id.toString(),
+            name: obj.name || '',
+        })),
+        cursor: result.cursor,
+    });
+});
+
+app.get('/api/monitor/room/:id', async (c) => {
+    if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+    const idParam = c.req.param('id');
+    let id: any;
+    try {
+        if (idParam.length === 64) {
+            id = c.env.GAME_DO.idFromString(idParam);
+        } else {
+            id = c.env.GAME_DO.idFromName(idParam);
+        }
+    } catch (e) {
+        return c.json({ error: 'Invalid ID format' }, 400);
+    }
+
+    const stub = c.env.GAME_DO.get(id);
+    const res = await stub.fetch('http://do/state');
+    if (!res.ok) {
+        return c.json({ error: 'Failed to fetch room state' }, res.status as any);
+    }
+
+    const state = await res.json();
+    return c.json({ data: state });
 });
 
 // ==========================================
