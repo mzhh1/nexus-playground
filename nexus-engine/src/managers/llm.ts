@@ -62,6 +62,8 @@ export class LlmManager extends BaseManager {
                 throw new Error("Failed to fetch perspective from game worker");
             }
 
+            const statePrompt = await this.room.fetchStatePrompt(perspective);
+
             const hasActions = perspective.action_space_definition?.actions?.length > 0;
             const memoryEnabled = !!player.llmConfig.memory || player.llmConfig.memory === "";
 
@@ -74,7 +76,7 @@ export class LlmManager extends BaseManager {
                 console.log(`[LlmManager] No actions available, but memory enabled. Calling LLM for memory-only update.`);
             }
 
-            const userPrompt = this.buildUserPrompt(roleId, perspective, player.llmConfig);
+            const userPrompt = this.buildUserPrompt(roleId, perspective, player.llmConfig, statePrompt || undefined);
 
             const reqBody: LlmWebhookRequest = {
                 roomId: this.room.roomId,
@@ -271,10 +273,15 @@ export class LlmManager extends BaseManager {
         }
     }
 
-    private buildUserPrompt(roleId: string, perspective: any, llmConfig: any): string {
+    private buildUserPrompt(roleId: string, perspective: any, llmConfig: any, workerStatePrompt?: string): string {
         // 1. state_prompt (from game logic)
-        let statePrompt = perspective.message ? `# 环境信息\n${perspective.message}\n\n` : '';
-        statePrompt += `# 当前游戏状态\n${JSON.stringify(perspective.current_state, null, 2)}`;
+        let statePrompt = "";
+        if (workerStatePrompt) {
+            statePrompt = workerStatePrompt;
+        } else {
+            statePrompt = perspective.message ? `# 环境信息\n${perspective.message}\n\n` : '';
+            statePrompt += `# 当前游戏状态\n${JSON.stringify(perspective.current_state, null, 2)}`;
+        }
 
         // 2. memory (from system)
         const memoryEnabled = (llmConfig.memory !== undefined && llmConfig.memory !== null) && (this.room.gameConfig?.enable_llm_memory !== false);

@@ -34,6 +34,8 @@ app.post('/api/engine/create', async (c) => {
     const body = await c.req.json<{
         roomId: string;
         ownerId: string;
+        ownerDisplayName?: string;
+        roomMetaHookUrl?: string;
     }>();
 
     const roomId = body.roomId;
@@ -51,6 +53,8 @@ app.post('/api/engine/create', async (c) => {
         body: JSON.stringify({
             roomId: body.roomId,
             ownerId: body.ownerId,
+            ownerDisplayName: body.ownerDisplayName,
+            roomMetaHookUrl: body.roomMetaHookUrl,
         })
     });
 
@@ -63,6 +67,35 @@ app.post('/api/engine/create', async (c) => {
         roomId,
         connectUrl: `${new URL(c.req.url).origin}/connect/${roomId}`
     });
+});
+
+/**
+ * DELETE /api/engine/room/:roomId
+ * Delete a room DO.
+ */
+app.delete('/api/engine/room/:roomId', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    if (authHeader !== `Bearer ${c.env.ADMIN_SECRET}`) {
+        return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const roomId = c.req.param('roomId');
+    if (!roomId) {
+        return c.json({ error: 'roomId is required' }, 400);
+    }
+
+    const id = c.env.GAME_DO.idFromName(roomId);
+    const stub = c.env.GAME_DO.get(id);
+
+    const res = await stub.fetch('http://do/delete', {
+        method: 'POST',
+    });
+
+    if (!res.ok) {
+        return c.json({ error: 'Failed to delete room DO' }, 500);
+    }
+
+    return c.json({ success: true, deleted: true });
 });
 
 // ==========================================
@@ -118,6 +151,7 @@ function verifyAdmin(c: Context<{ Bindings: Env }>): boolean {
 // ==========================================
 app.get('/api/monitor/logs', async (c) => {
     if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+    if (!c.env.DB) return c.json({ error: 'Monitor logging is disabled' }, 404);
 
     const url = new URL(c.req.url);
     const params = parseListParams(url.searchParams);
@@ -127,6 +161,7 @@ app.get('/api/monitor/logs', async (c) => {
 
 app.get('/api/monitor/logs/stream', async (c) => {
     if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+    if (!c.env.MONITOR_DO) return c.json({ error: 'Monitor streaming is disabled' }, 404);
 
     const roomId = c.req.query('roomId') || '';
     const id = c.env.MONITOR_DO.idFromName('global');
@@ -151,6 +186,7 @@ app.get('/api/monitor/logs/stream', async (c) => {
 
 app.get('/api/monitor/logs/groups/:groupId', async (c) => {
     if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+    if (!c.env.DB) return c.json({ error: 'Monitor logging is disabled' }, 404);
 
     const groupId = c.req.param('groupId');
     const data = await getMonitorLogsByGroup(c.env.DB, groupId);
@@ -162,29 +198,12 @@ app.get('/api/monitor/logs/groups/:groupId', async (c) => {
 
 app.get('/api/monitor/logs/:interactionId', async (c) => {
     if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+    if (!c.env.DB) return c.json({ error: 'Monitor logging is disabled' }, 404);
 
     const interactionId = c.req.param('interactionId');
     const data = await getMonitorLogById(c.env.DB, interactionId);
     if (!data) return c.json({ error: 'Not found' }, 404);
     return c.json({ data });
-});
-
-app.get('/api/monitor/room/list', async (c) => {
-    if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
-
-    const limit = parseInt(c.req.query('limit') || '100');
-    const cursor = c.req.query('cursor');
-
-    // @ts-ignore - list() is available on namespace but might not be in older types
-    const result = await c.env.GAME_DO.list({ limit, cursor });
-
-    return c.json({
-        data: result.objects.map((obj: any) => ({
-            id: obj.id.toString(),
-            name: obj.name || '',
-        })),
-        cursor: result.cursor,
-    });
 });
 
 app.get('/api/monitor/room/:id', async (c) => {
@@ -211,6 +230,66 @@ app.get('/api/monitor/room/:id', async (c) => {
     const state = await res.json();
     return c.json({ data: state });
 });
+
+app.get('/api/monitor/room/:id/perspective', async (c) => {
+    if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+    const roomId = c.req.param('id');
+    const roleId = c.req.query('roleId');
+    if (!roleId) return c.json({ error: 'roleId is required' }, 400);
+
+    const id = c.env.GAME_DO.idFromName(roomId); // Assuming name for simplicity as we do elsewhere
+    const stub = c.env.GAME_DO.get(id);
+    const res = await stub.fetch(`http://do/perspective?roleId=${encodeURIComponent(roleId)}`);
+    if (!res.ok) {
+        return c.json({ error: 'Failed to fetch perspective' }, res.status as any);
+    }
+    return c.json(await res.json());
+});
+
+app.post('/api/monitor/room/:id/action', async (c) => {
+    if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+    const roomId = c.req.param('id');
+    const body = await c.req.json();
+
+    const id = c.env.GAME_DO.idFromName(roomId);
+    const stub = c.env.GAME_DO.get(id);
+    const res = await stub.fetch('http://do/role-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+        return c.json({ error: 'Failed to submit action' }, res.status as any);
+    }
+    return c.json(await res.json());
+});
+
+// ==========================================
+// 3b. Game Lifecycle (Admin-only, forwarded to GameDO)
+// ==========================================
+const gameLifecycleEndpoints = ['set-game', 'start-game', 'stop-game', 'restart-game'] as const;
+for (const endpoint of gameLifecycleEndpoints) {
+    app.post(`/api/monitor/room/:id/${endpoint}`, async (c) => {
+        if (!verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+        const roomId = c.req.param('id');
+        const id = c.env.GAME_DO.idFromName(roomId);
+        const stub = c.env.GAME_DO.get(id);
+
+        const body = endpoint === 'set-game' ? await c.req.json() : {};
+        const res = await stub.fetch(`http://do/${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+            return c.json(await res.json(), res.status as any);
+        }
+        return c.json(await res.json());
+    });
+}
 
 // ==========================================
 // 4. Debug API

@@ -2,7 +2,7 @@ packages:
   - 'packages/*'
   - 'hono_backend'
   - 'frontend'
-  - 'llm-monitor'
+  - 'monitor'
   - 'games/*'
   - 'games/*/worker'
   - 'nexus-engine'

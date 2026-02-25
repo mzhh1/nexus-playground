@@ -5,6 +5,7 @@ interface CreateRoomParams {
   roomId: string;
   ownerId: string;
   ownerDisplayName?: string;
+  roomMetaHookUrl?: string;
 }
 
 interface CreateRoomResponse {

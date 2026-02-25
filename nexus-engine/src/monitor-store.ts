@@ -181,9 +181,10 @@ function buildWhereClause(params: ListMonitorLogParams): { whereSql: string; bin
 }
 
 export async function listMonitorLogs(
-    db: D1Database,
-    params: ListMonitorLogParams,
-): Promise<MonitorListResponse> {
+    db?: D1Database,
+    params?: ListMonitorLogParams,
+): Promise<MonitorListResponse | null> {
+    if (!db || !params) return null;
     const { whereSql, binds } = buildWhereClause(params);
     const orderSql = params.order === "asc" ? "ASC" : "DESC";
 
@@ -227,9 +228,10 @@ export async function listMonitorLogs(
 }
 
 export async function getMonitorLogById(
-    db: D1Database,
-    interactionId: string,
+    db?: D1Database,
+    interactionId?: string,
 ): Promise<MonitorLogRecord | null> {
+    if (!db || !interactionId) return null;
     const sql = `
       SELECT
         interaction_id, interaction_group_id, room_id, game_id, game_name, role_id, user_id,
@@ -245,9 +247,10 @@ export async function getMonitorLogById(
 }
 
 export async function getMonitorLogsByGroup(
-    db: D1Database,
-    groupId: string,
+    db?: D1Database,
+    groupId?: string,
 ): Promise<MonitorLogRecord[]> {
+    if (!db || !groupId) return [];
     const sql = `
       SELECT
         interaction_id, interaction_group_id, room_id, game_id, game_name, role_id, user_id,
@@ -263,9 +266,10 @@ export async function getMonitorLogsByGroup(
 }
 
 export async function insertMonitorLog(
-    db: D1Database,
-    input: InsertMonitorLogInput,
+    db?: D1Database,
+    input?: InsertMonitorLogInput,
 ): Promise<MonitorLogRecord | null> {
+    if (!db || !input) return null;
     const sql = `
       INSERT INTO player_action_logs (
         interaction_id, interaction_group_id, room_id, game_id, game_name, role_id, user_id,
@@ -307,10 +311,11 @@ export async function insertMonitorLog(
 }
 
 export async function updateMonitorLog(
-    db: D1Database,
-    interactionId: string,
-    patch: UpdateMonitorLogInput,
+    db?: D1Database,
+    interactionId?: string,
+    patch?: UpdateMonitorLogInput,
 ): Promise<MonitorLogRecord | null> {
+    if (!db || !interactionId || !patch) return null;
     const setClauses: string[] = ["updated_at = datetime('now')"];
     const binds: unknown[] = [];
 

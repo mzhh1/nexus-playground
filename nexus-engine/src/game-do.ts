@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { Hono } from "hono";
+import { sign } from "hono/jwt";
 import type {
     Env,
     EngineRoomState,
@@ -73,6 +74,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
     public roomId: string = "";
     public ownerId: string = "";
     public ownerDisplayName: string = "";
+    public name: string = "";
+    public isPublic: boolean = true;
     public phase: RoomPhase = "lobby";
     public players: Record<string, PlayerInfo> = {};
     public gameConfig: GameConfig | null = null;
@@ -83,6 +86,7 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
     public runtimeId: string = "";
     public stateIndex: number = 0;
     public llmWebhookUrl: string | null = null;
+    public roomMetaHookUrl: string | null = null;
 
     // ─── In-memory connection tracking ──────────────────────
     public connections: Map<WebSocket, string> = new Map(); // ws → userId
@@ -114,6 +118,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
         this.roomId = (await s.get("roomId")) || "";
         this.ownerId = (await s.get("ownerId")) || "";
         this.ownerDisplayName = (await s.get("ownerDisplayName")) || "";
+        this.name = (await s.get("name")) || "";
+        this.isPublic = (await s.get("isPublic")) ?? true;
         this.phase = (await s.get("phase")) || "lobby";
         this.players = (await s.get("players")) || {};
         this.gameConfig = (await s.get("gameConfig")) || null;
@@ -124,6 +130,7 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
         this.runtimeId = (await s.get("runtimeId")) || "";
         this.stateIndex = (await s.get("stateIndex")) || 0;
         this.llmWebhookUrl = this.bindings.LLM_WEBHOOK_URL || (await s.get("llmWebhookUrl")) || null;
+        this.roomMetaHookUrl = (await s.get("roomMetaHookUrl")) || null;
     }
 
     public async persistAll(): Promise<void> {
@@ -131,6 +138,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
             roomId: this.roomId,
             ownerId: this.ownerId,
             ownerDisplayName: this.ownerDisplayName,
+            name: this.name,
+            isPublic: this.isPublic,
             phase: this.phase,
             players: this.players,
             gameConfig: this.gameConfig,
@@ -141,6 +150,7 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
             runtimeId: this.runtimeId,
             stateIndex: this.stateIndex,
             llmWebhookUrl: this.llmWebhookUrl,
+            roomMetaHookUrl: this.roomMetaHookUrl,
         });
     }
 
@@ -157,6 +167,11 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
     // ═════════════════════════════════════════════════════════
 
     private setupRoutes(): void {
+        this.app.post("/delete", async (c) => {
+            await this.ctx.storage.deleteAll();
+            return c.json({ success: true, deleted: true });
+        });
+
         this.app.post("/init", async (c) => {
             const body = await c.req.json<{
                 roomId?: string;
@@ -175,6 +190,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
             this.roomId = body.roomId || "";
             this.ownerId = body.ownerId;
             this.ownerDisplayName = body.ownerDisplayName || body.ownerId;
+            this.name = `${this.ownerDisplayName}的房间`;
+            this.isPublic = true;
             this.phase = "lobby";
             this.players = {};
             this.roleMapping = {};
@@ -185,8 +202,10 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
             this.stateIndex = 0;
             this.llmWebhookUrl = this.bindings.LLM_WEBHOOK_URL || null;
             this.gameConfig = null;
+            this.roomMetaHookUrl = (body as any).roomMetaHookUrl || null;
 
             await this.persistAll();
+            this.ctx.waitUntil(this.syncRoomMeta());
             return c.json({ success: true });
         });
 
@@ -228,6 +247,8 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
                 roomId: this.roomId,
                 ownerId: this.ownerId,
                 ownerDisplayName: this.ownerDisplayName,
+                name: this.name,
+                isPublic: this.isPublic,
                 phase: this.phase,
                 players: this.players,
                 gameConfig: this.gameConfig,
@@ -238,12 +259,237 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
                 runtimeId: this.runtimeId,
                 stateIndex: this.stateIndex,
                 llmWebhookUrl: this.llmWebhookUrl,
+                roomMetaHookUrl: this.roomMetaHookUrl,
                 // Meta info
                 metadata: {
                     connectedCount: this.connections.size,
                     storageUsage: await this.ctx.storage.getAlarm() !== null ? "has_alarm" : "no_alarm",
                 }
             } as EngineRoomState & { metadata: any });
+        });
+
+        this.app.get("/perspective", async (c) => {
+            const roleId = c.req.query("roleId");
+            if (!roleId) return c.json({ error: "roleId required" }, 400);
+            const perspective = await this.fetchPerspective(roleId);
+            return c.json({ data: perspective });
+        });
+
+        this.app.post("/role-action", async (c) => {
+            const body = await c.req.json<{
+                roleId: string;
+                action: { action_id: string; params: any };
+            }>();
+            if (!body.roleId || !body.action) return c.json({ error: "roleId and action required" }, 400);
+            const res = await this.submitActionToGameWorker(body.roleId, body.action);
+            if (res.success && res.nextState) {
+                this.history.push({
+                    turn: (this.history[this.history.length - 1]?.turn || 0) + 1,
+                    roleId: body.roleId,
+                    action: body.action,
+                    timestamp: Date.now(),
+                    stateIndex: this.stateIndex,
+                });
+                this.gameState = res.nextState;
+                this.stateIndex++;
+                await this.persist("gameState", "history", "stateIndex");
+                this.presence.broadcastSyncState();
+            }
+            return c.json(res);
+        });
+
+        // ─── Admin HTTP Endpoints (no WebSocket, bypasses requireOwner) ───
+
+        this.app.post("/set-game", async (c) => {
+            const body = await c.req.json<{ gameWorkerUrl: string; gameId?: string; selectedPlayerCount?: number }>();
+            if (!body.gameWorkerUrl) return c.json({ error: "gameWorkerUrl is required" }, 400);
+
+            if (this.phase !== "lobby" && this.phase !== "finished") {
+                return c.json({ error: "Can only set game in lobby/finished phase" }, 400);
+            }
+
+            try {
+                const baseUrl = body.gameWorkerUrl.replace(/\/$/, "");
+                const client = resolveGameWorkerClient(body.gameId || "", baseUrl, this.bindings);
+
+                const metaRes = await client.fetch("/metadata");
+                if (!metaRes.ok) {
+                    const errText = await metaRes.text();
+                    console.error("[GameDO] Metadata fetch failed. Status:", metaRes.status, "Body:", errText);
+                    return c.json({ error: "Failed to fetch game metadata" }, 502);
+                }
+                const metadata = await metaRes.json() as GameWorkerMetadata;
+
+                let roleIds: string[];
+                let resolvedPlayerCount: number | undefined;
+                if (Array.isArray(metadata.roleIds)) {
+                    roleIds = metadata.roleIds;
+                    resolvedPlayerCount = roleIds.length;
+                } else if (metadata.roleIds) {
+                    const counts = Object.keys(metadata.roleIds).map(Number).sort((a, b) => a - b);
+                    const selectedCount = body.selectedPlayerCount;
+                    const effectiveCount = selectedCount && metadata.roleIds[selectedCount]
+                        ? selectedCount : counts[0];
+                    roleIds = metadata.roleIds[effectiveCount] || [];
+                    resolvedPlayerCount = effectiveCount;
+                } else {
+                    roleIds = [];
+                }
+
+                this.gameConfig = {
+                    gameWorkerUrl: baseUrl,
+                    gameId: body.gameId || metadata.id,
+                    maxPlayers: roleIds.length,
+                    roleIds,
+                    selectedPlayerCount: resolvedPlayerCount,
+                    enable_llm_memory: metadata.enable_llm_memory,
+                    auto_save_mode: metadata.auto_save_mode,
+                };
+                this.roleMapping = {};
+
+                await this.persist("gameConfig", "roleMapping");
+                this.presence.broadcastSyncState();
+                this.ctx.waitUntil(this.syncRoomMeta());
+                return c.json({ success: true, gameId: this.gameConfig.gameId, roleIds });
+            } catch (e: any) {
+                console.error("[GameDO] /set-game failed:", e);
+                return c.json({ error: e.message || "Failed to set game" }, 500);
+            }
+        });
+
+        this.app.post("/start-game", async (c) => {
+            if (this.phase !== "lobby" && this.phase !== "finished") {
+                return c.json({ error: "Game cannot be started in current phase" }, 400);
+            }
+            if (!this.gameConfig) {
+                return c.json({ error: "No game selected" }, 400);
+            }
+
+            // Auto-create virtual dev players for unassigned roles
+            for (const roleId of this.gameConfig.roleIds) {
+                if (!this.roleMapping[roleId]) {
+                    const devUserId = `dev:${roleId}`;
+                    this.players[devUserId] = {
+                        displayName: roleId,
+                        connected: false,
+                        isOwner: false,
+                        type: "human",
+                    };
+                    this.roleMapping[roleId] = devUserId;
+                }
+            }
+
+            try {
+                for (const player of Object.values(this.players)) {
+                    if (player.type === "llm" && player.llmConfig) {
+                        player.llmConfig.memory = "";
+                    }
+                }
+
+                const client = resolveGameWorkerClient(
+                    this.gameConfig.gameId,
+                    this.gameConfig.gameWorkerUrl,
+                    this.bindings,
+                );
+                const initRes = await client.fetch("/init", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ players: this.gameConfig.roleIds }),
+                });
+                if (!initRes.ok) {
+                    const errText = await initRes.text();
+                    return c.json({ error: `Game Worker init failed: ${errText}` }, 502);
+                }
+
+                this.gameState = await initRes.json();
+                this.history = [];
+                this.runtimeId = crypto.randomUUID();
+                this.stateIndex = 0;
+                this.stateHistory = [{
+                    index: 0,
+                    name: "Initial State",
+                    state: this.gameState,
+                    timestamp: Date.now(),
+                }];
+                this.phase = "playing";
+
+                await this.persistAll();
+                this.presence.broadcastSyncState();
+                await this.checkAndTriggerNextTurn();
+                this.ctx.waitUntil(this.syncRoomMeta());
+                return c.json({ success: true, phase: this.phase });
+            } catch (e: any) {
+                console.error("[GameDO] /start-game failed:", e);
+                return c.json({ error: e.message || "Failed to start game" }, 500);
+            }
+        });
+
+        this.app.post("/stop-game", async (c) => {
+            if (this.phase === "lobby") {
+                return c.json({ error: "Game has not started" }, 400);
+            }
+
+            this.phase = "lobby";
+            this.gameState = null;
+            this.history = [];
+            this.stateHistory = [];
+
+            await this.persist("phase", "gameState", "history", "stateHistory");
+            this.presence.broadcastSyncState();
+            this.ctx.waitUntil(this.syncRoomMeta());
+            return c.json({ success: true, phase: this.phase });
+        });
+
+        this.app.post("/restart-game", async (c) => {
+            if (this.phase !== "playing" && this.phase !== "paused" && this.phase !== "finished") {
+                return c.json({ error: "Nothing to restart" }, 400);
+            }
+            if (!this.gameConfig) {
+                return c.json({ error: "No game selected" }, 400);
+            }
+
+            try {
+                for (const player of Object.values(this.players)) {
+                    if (player.type === "llm" && player.llmConfig) {
+                        player.llmConfig.memory = "";
+                    }
+                }
+
+                const client = resolveGameWorkerClient(
+                    this.gameConfig.gameId,
+                    this.gameConfig.gameWorkerUrl,
+                    this.bindings,
+                );
+                const initRes = await client.fetch("/init", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ players: Object.keys(this.roleMapping) }),
+                });
+                if (!initRes.ok) {
+                    return c.json({ error: "Game Worker init failed on restart" }, 502);
+                }
+
+                this.gameState = await initRes.json();
+                this.history = [];
+                this.runtimeId = crypto.randomUUID();
+                this.stateIndex = 0;
+                this.stateHistory = [{
+                    index: 0,
+                    name: "Initial State",
+                    state: this.gameState,
+                    timestamp: Date.now(),
+                }];
+                this.phase = "playing";
+
+                await this.persistAll();
+                this.presence.broadcastSyncState();
+                await this.checkAndTriggerNextTurn();
+                this.ctx.waitUntil(this.syncRoomMeta());
+                return c.json({ success: true, phase: this.phase });
+            } catch (e: any) {
+                console.error("[GameDO] /restart-game failed:", e);
+                return c.json({ error: e.message || "Failed to restart game" }, 500);
+            }
         });
     }
 
@@ -303,12 +549,14 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
                 this.phase = "paused";
                 await this.persist("phase");
                 this.presence.broadcastSyncState();
+                this.ctx.waitUntil(this.syncRoomMeta());
                 break;
             case "ADMIN_RESUME_GAME":
                 if (!this.requireOwner(userId)) return;
                 this.phase = "playing";
                 await this.persist("phase");
                 this.presence.broadcastSyncState();
+                this.ctx.waitUntil(this.syncRoomMeta());
                 this.ctx.waitUntil(this.checkAndTriggerNextTurn());
                 break;
             case "ADMIN_BACKTRACK_STATE":
@@ -325,12 +573,17 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
                 this.stateIndex = targetState.index;
                 // history events should also be reverted?
                 // logic: if we backtrack to state X, we should keep history up to that point.
-                // However, state history entries are added AFTER actions.
-                // So index 0 is initState. index 1 is after action 0.
-                // So we keep history up to index - 1.
-                this.history = this.history.slice(0, targetState.index);
+                this.history = this.history.filter(h => h.stateIndex <= targetState.index);
                 await this.persist("gameState", "history", "stateIndex");
                 this.presence.broadcastSyncState();
+                break;
+            case "ADMIN_UPDATE_ROOM_META":
+                if (!this.requireOwner(userId)) return;
+                this.name = msg.payload.name;
+                this.isPublic = msg.payload.isPublic;
+                await this.persist("name", "isPublic");
+                this.presence.broadcastSyncState();
+                this.ctx.waitUntil(this.syncRoomMeta());
                 break;
             case "ACT":
                 await this.executor.handleAction(userId, msg.payload);
@@ -359,6 +612,31 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
             this.ctx.waitUntil(this.llm.callLlmWebhook(roleId));
         } else {
             console.log(`[GameDO] Next turn is for human player or player not found. Standing by.`);
+        }
+    }
+
+    public async syncRoomMeta(): Promise<void> {
+        if (!this.roomMetaHookUrl) return;
+        try {
+            const token = await sign({ roomId: this.roomId, exp: Math.floor(Date.now() / 1000) + 60 }, this.bindings.JWT_SECRET);
+            const res = await fetch(this.roomMetaHookUrl, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    name: this.name,
+                    gameId: this.gameConfig?.gameId || null,
+                    isPublic: this.isPublic,
+                    phase: this.phase,
+                })
+            });
+            if (!res.ok) {
+                console.warn(`[GameDO] Failed to sync room meta: ${res.status} ${await res.text()}`);
+            }
+        } catch (e) {
+            console.error("[GameDO] Error syncing room meta:", e);
         }
     }
 
@@ -452,6 +730,27 @@ export class GameDO extends DurableObject<Env> implements IRoomContext {
             return await res.json();
         } catch (e) {
             console.error("[GameDO] Failed to fetch perspective:", e);
+            return null;
+        }
+    }
+
+    public async fetchStatePrompt(perspective: any): Promise<string | null> {
+        if (!this.gameConfig) return null;
+        try {
+            const client = this.getGameWorkerClient();
+            const res = await client.fetch("/state-prompt", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ perspective }),
+            });
+            if (!res.ok) {
+                console.warn(`[GameDO] fetchStatePrompt: worker returned ${res.status}, falling back to JSON`);
+                return null;
+            }
+            const data = await res.json() as { statePrompt?: string };
+            return data.statePrompt || null;
+        } catch (e) {
+            console.error("[GameDO] Failed to fetch state prompt:", e);
             return null;
         }
     }

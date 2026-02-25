@@ -20,6 +20,8 @@ interface GameUIContainerProps {
     roomId: string;
     roleId: string;
     playerId?: string;
+    /** Role-to-display-name mapping, provided by the platform */
+    roleDisplayMapping?: Record<string, { name: string }>;
   };
   uiUrl?: string; // Full URL to the game-ui.html page on the game worker
 }

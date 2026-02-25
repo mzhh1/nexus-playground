@@ -1,31 +1,6 @@
 import React from 'react';
 import styles from './ui.module.css';
-
-interface Action {
-  action_id: string;
-  role_id: string;
-  params?: any;
-}
-
-interface GameUIProps {
-  perspective: {
-    current_state: {
-      board: (string | null)[][];
-      winner: string | null;
-      isDraw: boolean;
-    };
-    your_role: {
-      identity: string;
-    };
-    action_space_definition: {
-      actions: { action_id: string; description: string; params_schema?: any }[];
-    };
-  };
-  onAction: (action: Action) => void;
-  isMyTurn: boolean;
-  readonly: boolean;
-  metadata?: any;
-}
+import type { GameUIProps, Action } from '@nexus/game-sdk';
 
 const TicTacToeUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonly }) => {
   const { current_state, your_role, action_space_definition } = perspective;
@@ -66,9 +41,8 @@ const TicTacToeUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, r
               return (
                 <button
                   key={`${rowIndex}-${colIndex}`}
-                  className={`${styles.cell} ${clickable ? styles.clickable : ''} ${
-                    symbol === 'X' ? styles.x : symbol === 'O' ? styles.o : ''
-                  }`}
+                  className={`${styles.cell} ${clickable ? styles.clickable : ''} ${symbol === 'X' ? styles.x : symbol === 'O' ? styles.o : ''
+                    }`}
                   onClick={() => handleCellClick(rowIndex, colIndex)}
                   disabled={!clickable}
                   aria-label={`Cell ${rowIndex}-${colIndex}`}

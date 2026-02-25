@@ -7,6 +7,7 @@
     "build": "npm run build:logic && npm run build:ui",
     "build:logic": "tsup",
     "build:ui": "vite build -c vite.config.ui.ts",
+    "deploy": "cd worker && wrangler deploy",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

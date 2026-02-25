@@ -1,0 +1,28 @@
+{
+  "name": "@nexusgame/my-test-game",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm build:logic && pnpm build:ui",
+    "build:logic": "tsup",
+    "build:ui": "vite build -c vite.config.ui.ts",
+    "dev": "wrangler dev",
+    "deploy": "cd worker && wrangler deploy"
+  },
+  "dependencies": {
+    "hono": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@nexus/game-sdk": "workspace:*",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12",
+    "wrangler": "^3.30.1"
+  }
+}

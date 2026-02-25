@@ -149,6 +149,8 @@ export class PresenceManager extends BaseManager {
             roomId: this.room.roomId,
             ownerId: isAuthorized ? this.room.ownerId : "",
             ownerDisplayName: isAuthorized ? this.room.ownerDisplayName : "Room Owner",
+            name: isAuthorized ? this.room.name : "",
+            isPublic: isAuthorized ? this.room.isPublic : true,
             phase: isAuthorized ? this.room.phase : ("authorized_check" as any),
             players: clientPlayers,
             gameConfig: isAuthorized && this.room.gameConfig

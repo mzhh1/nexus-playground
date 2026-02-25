@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game UI Debugger</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            background: #f5f5f7;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            gap: 20px;
+            min-height: 0;
+        }
+
+        .editor-side {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .preview-side {
+            flex: 2;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        textarea {
+            flex: 1;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 14px;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            border-color: #0066cc;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #0052a3;
+        }
+
+        button.secondary {
+            background: #86868b;
+        }
+
+        button.secondary:hover {
+            background: #6e6e73;
+        }
+
+        iframe {
+            flex: 1;
+            border: none;
+            width: 100%;
+        }
+
+        .header {
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #1d1d1f;
+        }
+
+        .toolbar {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            background: #fafafa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Game UI 调试工具</h1>
+    </div>
+    <div class="container">
+        <div class="editor-side">
+            <textarea id="stateInput" placeholder="在此粘贴 Perspective JSON..."></textarea>
+            <div class="button-group">
+                <button onclick="renderState()">渲染状态</button>
+                <button class="secondary" onclick="generateLink()">生成预览链接</button>
+            </div>
+        </div>
+        <div class="preview-side">
+            <div class="toolbar">
+                <span id="status">等待 Iframe 就绪...</span>
+                <small>game-ui.html 预览</small>
+            </div>
+            <iframe id="gameFrame" src="game-ui.html"></iframe>
+        </div>
+    </div>
+    <div id="toast">链接已复制到剪贴板</div>
+
+    <script>
+        const stateInput = document.getElementById('stateInput');
+        const gameFrame = document.getElementById('gameFrame');
+        const status = document.getElementById('status');
+        const toast = document.getElementById('toast');
+
+        // 默认示例数据 (五子棋)
+        const defaultState = {
+            "perspective": {
+                "global_rules": "这是一个五子棋游戏。",
+                "whole_history": [],
+                "diff_history": [],
+                "current_state": {
+                    "board": Array(15).fill(0).map(() => Array(15).fill(0)),
+                    "currentRole": "player_black",
+                    "turn": 1,
+                    "winner": null,
+                    "isDraw": false,
+                    "lastMove": null
+                },
+                "your_role": {
+                    "identity": "Player Black",
+                    "goal": "尝试将五个棋子连成一线以获胜。",
+                    "is_current": true
+                },
+                "action_space_definition": {
+                    "actions": [{ "action_id": "place", "description": "落子" }]
+                }
+            },
+            "isMyTurn": true,
+            "readonly": false
+        };
+
+        // 填充一点棋子
+        defaultState.perspective.current_state.board[7][7] = 1;
+        defaultState.perspective.current_state.board[7][8] = 2;
+
+        // 初始化
+        function init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const stateParam = urlParams.get('state');
+
+            if (stateParam) {
+                try {
+                    const parsed = JSON.parse(decodeURIComponent(stateParam));
+                    stateInput.value = JSON.stringify(parsed, null, 2);
+                    console.log("从 URL 加载了状态");
+                } catch (e) {
+                    console.error("解析 URL 中的 state 参数失败", e);
+                    stateInput.value = JSON.stringify(defaultState, null, 2);
+                }
+            } else {
+                stateInput.value = JSON.stringify(defaultState, null, 2);
+            }
+        }
+
+        function renderState() {
+            try {
+                const state = JSON.parse(stateInput.value);
+                status.innerText = "正在渲染...";
+
+                gameFrame.contentWindow.postMessage({
+                    type: 'SYNC_STATE',
+                    payload: state
+                }, '*');
+
+                status.innerText = "已发送 SYNC_STATE";
+            } catch (e) {
+                alert("JSON 解析错误: " + e.message);
+                status.innerText = "错误";
+            }
+        }
+
+        function generateLink() {
+            try {
+                const state = JSON.parse(stateInput.value);
+                const encoded = encodeURIComponent(JSON.stringify(state));
+                const url = new URL(window.location.href);
+                url.searchParams.set('state', JSON.stringify(state));
+
+                // 写入剪贴板
+                navigator.clipboard.writeText(url.toString()).then(() => {
+                    showToast();
+                });
+            } catch (e) {
+                alert("生成链接失败: " + e.message);
+            }
+        }
+
+        function showToast() {
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+            }, 2000);
+        }
+
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'IFRAME_READY') {
+                status.innerText = "Iframe 已就绪";
+                // 如果是从 URL 加载的，或者初始化后自动渲染一次
+                renderState();
+            }
+        });
+
+        init();
+    </script>
+</body>
+
+</html>

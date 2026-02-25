@@ -104,7 +104,10 @@ app.post('/legal-actions', async (c) => {
 app.post('/action', async (c) => {
     const body = await c.req.json<{ state: GameState; action: Action }>();
     try {
-        const result = logic.applyAction(body.state, body.action);
+        // Use validateAndApply for automatic Zod schema validation when actionSchemas defined
+        const result = ('validateAndApply' in logic)
+            ? (logic as any).validateAndApply(body.state, body.action)
+            : logic.applyAction(body.state, body.action);
         return c.json(result);
     } catch (error: any) {
         return c.json({ error: error.message }, 400);
@@ -139,13 +142,21 @@ app.post('/perspective', async (c) => {
             body.diffHistory || []
         );
 
-        // Enhance with state prompt if available
+        return c.json(perspective);
+    } catch (error: any) {
+        return c.json({ error: error.message }, 400);
+    }
+});
+
+// 7. State Prompt Endpoint
+app.post('/state-prompt', async (c) => {
+    const body = await c.req.json<{ perspective: any }>();
+    try {
         let statePrompt: string | undefined;
         if (typeof logic.generateStatePrompt === 'function') {
-            statePrompt = logic.generateStatePrompt(perspective);
+            statePrompt = logic.generateStatePrompt(body.perspective);
         }
-
-        return c.json({ ...perspective, statePrompt });
+        return c.json({ statePrompt });
     } catch (error: any) {
         return c.json({ error: error.message }, 400);
     }

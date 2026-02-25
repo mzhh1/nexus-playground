@@ -1,19 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import type { Action } from '../../../frontend/src/lib/types';
+import type { GameUIProps, Action } from '@nexus/game-sdk';
 import styles from './ui.module.css';
 
 type GenericRecord = Record<string, any>;
-interface GameUIProps {
-  perspective: any;
-  onAction: (action: Action) => void;
-  isMyTurn: boolean;
-  readonly: boolean;
-  metadata?: {
-    roomId: string;
-    roleId: string;
-    playerId?: string;
-  };
-}
 
 const WerewolfUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonly }) => {
   const { current_state, your_role, action_space_definition } = perspective;

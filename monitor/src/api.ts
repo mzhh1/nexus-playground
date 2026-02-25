@@ -5,11 +5,13 @@ import {
   PlayerType,
   InteractionStatus,
   LLMInteraction,
+  RoomStateResponse,
 } from './types';
 
 export interface AuthConfig {
   baseUrl: string;
   adminSecret: string;
+  backendUrl?: string; // Optional for backward compatibility, required for advanced backend monitoring
 }
 
 const STORAGE_KEY = 'llm_monitor_auth';
@@ -159,6 +161,33 @@ export interface ConnectLogStreamParams {
   endDate?: string;
 }
 
+export async function fetchRoomState(roomId: string): Promise<RoomStateResponse> {
+  const config = getAuthConfig();
+  const baseUrl = config?.baseUrl?.replace(/\/$/, '') || '/api/monitor';
+  const url = `${baseUrl}/room/${roomId}`;
+  return request<RoomStateResponse>(url);
+}
+
+export async function fetchRoomPerspective(roomId: string, roleId: string): Promise<{ data: any }> {
+  const config = getAuthConfig();
+  const baseUrl = config?.baseUrl?.replace(/\/$/, '') || '/api/monitor';
+  const url = `${baseUrl}/room/${roomId}/perspective?roleId=${encodeURIComponent(roleId)}`;
+  return request<{ data: any }>(url);
+}
+
+export async function submitRoomAction(roomId: string, roleId: string, actionId: string, params: any): Promise<any> {
+  const config = getAuthConfig();
+  const baseUrl = config?.baseUrl?.replace(/\/$/, '') || '/api/monitor';
+  const url = `${baseUrl}/room/${roomId}/action`;
+  return request<any>(url, {
+    method: 'POST',
+    body: JSON.stringify({
+      roleId,
+      action: { action_id: actionId, params },
+    }),
+  });
+}
+
 export function connectLogStream(
   params: ConnectLogStreamParams,
   onMessage: (log: LLMInteraction) => void,
@@ -198,4 +227,19 @@ export function connectLogStream(
 
 
 
+export async function fetchBackendRooms(limit: number = 50, offset: number = 0): Promise<{ data: any[], total: number }> {
+  const config = getAuthConfig();
+  // Fallback to baseUrl if backendUrl is not explicitly set, though typically they differ
+  const backendBaseUrl = config?.backendUrl?.replace(/\/$/, '') || (config?.baseUrl?.replace(/\/$/, '') || '/api');
+  const url = `${backendBaseUrl}/monitor/backendroom?limit=${limit}&offset=${offset}`;
 
+  // Since we also protect Backend monitoring with ADMIN_SECRET, we reuse the withAuth logic natively here.
+  return request<{ data: any[], total: number }>(url);
+}
+
+export async function deleteBackendRoom(roomId: string): Promise<{ success: boolean }> {
+  const config = getAuthConfig();
+  const backendBaseUrl = config?.backendUrl?.replace(/\/$/, '') || (config?.baseUrl?.replace(/\/$/, '') || '/api');
+  const url = `${backendBaseUrl}/monitor/backendroom/${roomId}`;
+  return request<{ success: boolean }>(url, { method: 'DELETE' });
+}

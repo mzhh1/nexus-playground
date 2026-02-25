@@ -66,78 +66,88 @@ export const RoleMappingGraph: React.FC<RoleMappingGraphProps> = ({
   const playerIds = Object.keys(playerList);
 
   // Update card positions when layout changes
+  const updatePositions = useCallback(() => {
+    const svgRect = svgRef.current?.getBoundingClientRect();
+    if (!svgRect || svgRect.width === 0 || svgRect.height === 0) return;
+
+    const roles = new Map<string, DOMRect>();
+    const players = new Map<string, DOMRect>();
+
+    roleCardRefs.current.forEach((element, roleId) => {
+      if (element) {
+        const rect = element.getBoundingClientRect();
+        roles.set(roleId, new DOMRect(
+          rect.left - svgRect.left,
+          rect.top - svgRect.top,
+          rect.width,
+          rect.height
+        ));
+      }
+    });
+
+    playerCardRefs.current.forEach((element, playerId) => {
+      if (element) {
+        const rect = element.getBoundingClientRect();
+        players.set(playerId, new DOMRect(
+          rect.left - svgRect.left,
+          rect.top - svgRect.top,
+          rect.width,
+          rect.height
+        ));
+      }
+    });
+
+    setCardPositions(prev => {
+      const rolesChanged = prev.roles.size !== roles.size ||
+        Array.from(roles.entries()).some(([id, rect]) => {
+          const prevRect = prev.roles.get(id);
+          return !prevRect ||
+            prevRect.left !== rect.left ||
+            prevRect.top !== rect.top ||
+            prevRect.width !== rect.width ||
+            prevRect.height !== rect.height;
+        });
+
+      const playersChanged = prev.players.size !== players.size ||
+        Array.from(players.entries()).some(([id, rect]) => {
+          const prevRect = prev.players.get(id);
+          return !prevRect ||
+            prevRect.left !== rect.left ||
+            prevRect.top !== rect.top ||
+            prevRect.width !== rect.width ||
+            prevRect.height !== rect.height;
+        });
+
+      if (rolesChanged || playersChanged) {
+        return { roles, players };
+      }
+      return prev;
+    });
+  }, []);
+
   useEffect(() => {
-    const updatePositions = () => {
-      const svgRect = svgRef.current?.getBoundingClientRect();
-      if (!svgRect) return;
-
-      const roles = new Map<string, DOMRect>();
-      const players = new Map<string, DOMRect>();
-
-      roleCardRefs.current.forEach((element, roleId) => {
-        if (element) {
-          const rect = element.getBoundingClientRect();
-          // Convert to SVG coordinates
-          roles.set(roleId, new DOMRect(
-            rect.left - svgRect.left,
-            rect.top - svgRect.top,
-            rect.width,
-            rect.height
-          ));
-        }
-      });
-
-      playerCardRefs.current.forEach((element, playerId) => {
-        if (element) {
-          const rect = element.getBoundingClientRect();
-          // Convert to SVG coordinates
-          players.set(playerId, new DOMRect(
-            rect.left - svgRect.left,
-            rect.top - svgRect.top,
-            rect.width,
-            rect.height
-          ));
-        }
-      });
-
-      setCardPositions(prev => {
-        // Only update if positions actually changed
-        const rolesChanged = prev.roles.size !== roles.size ||
-          Array.from(roles.entries()).some(([id, rect]) => {
-            const prevRect = prev.roles.get(id);
-            return !prevRect ||
-              prevRect.left !== rect.left ||
-              prevRect.top !== rect.top ||
-              prevRect.width !== rect.width ||
-              prevRect.height !== rect.height;
-          });
-
-        const playersChanged = prev.players.size !== players.size ||
-          Array.from(players.entries()).some(([id, rect]) => {
-            const prevRect = prev.players.get(id);
-            return !prevRect ||
-              prevRect.left !== rect.left ||
-              prevRect.top !== rect.top ||
-              prevRect.width !== rect.width ||
-              prevRect.height !== rect.height;
-          });
-
-        if (rolesChanged || playersChanged) {
-          return { roles, players };
-        }
-        return prev;
-      });
-    };
-
-    // Use requestAnimationFrame to ensure DOM is ready
+    // Initial update
     const rafId = requestAnimationFrame(updatePositions);
+
+    // Set up ResizeObserver to watch for container size changes 
+    // (useful when component becomes visible or parent resizes)
+    let resizeObserver: ResizeObserver | null = null;
+    if (svgRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        requestAnimationFrame(updatePositions);
+      });
+      resizeObserver.observe(svgRef.current);
+    }
 
     window.addEventListener('resize', updatePositions);
     return () => {
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', updatePositions);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
     };
-  }, [roleIds.length, playerIds.length]);
+  }, [updatePositions, roleIds.length, playerIds.length, mapping]);
 
   // Get connection points for a role and player
   const getConnectionPoints = (roleId: string, playerId: string): { start: Point; end: Point } | null => {

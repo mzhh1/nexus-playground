@@ -40,6 +40,10 @@ export function registerAuthMiddleware(app: Hono<AppEnv>) {
       c.set('guestId', xGuestId);
     }
 
+    if (c.req.path.endsWith('/hook')) {
+      return next();
+    }
+
     const authHeader = c.req.header('Authorization');
     if (!authHeader) {
       // Guest access: skip the strict auth chain to avoid 401

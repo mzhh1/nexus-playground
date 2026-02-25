@@ -76,6 +76,11 @@ export class MonitorDO extends DurableObject<Env> {
 
     private async pollD1(): Promise<void> {
         while (this.subscribers.size > 0) {
+            if (!this.env.DB) {
+                console.warn("[MonitorDO] DB binding is missing, skipping poll");
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                continue;
+            }
             try {
                 // Query D1 for new logs since lastProcessedTs
                 const sql = `

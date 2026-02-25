@@ -26,6 +26,8 @@ export interface ClientEngineState {
     roomId: string;
     ownerId: string;
     ownerDisplayName: string;
+    name: string;
+    isPublic: boolean;
     phase: 'lobby' | 'playing' | 'paused' | 'finished';
     players: Record<string, ClientPlayerInfo>;
     gameConfig: {
@@ -335,6 +337,10 @@ export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
         send('ADMIN_BACKTRACK_STATE', { index });
     }, [send]);
 
+    const updateRoomMeta = useCallback((name: string, isPublic: boolean) => {
+        send('ADMIN_UPDATE_ROOM_META', { name, isPublic });
+    }, [send]);
+
     // ─── Game Actions ────────────────────────────────────
 
     const sendAction = useCallback((action_id: string, params?: Record<string, any>, throttle?: boolean) => {
@@ -381,6 +387,8 @@ export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
         phase: (engineState || lastEngineStateRef.current)?.phase ?? null,
         ownerId: (engineState || lastEngineStateRef.current)?.ownerId ?? null,
         ownerDisplayName: (engineState || lastEngineStateRef.current)?.ownerDisplayName ?? null,
+        roomName: (engineState || lastEngineStateRef.current)?.name ?? null,
+        isPublic: (engineState || lastEngineStateRef.current)?.isPublic ?? true,
         isOwner: (engineState || lastEngineStateRef.current)?.you.isOwner ?? false,
         myRole: (engineState || lastEngineStateRef.current)?.you.role ?? null,
         myUserId: (engineState || lastEngineStateRef.current)?.you.userId ?? null,
@@ -402,6 +410,7 @@ export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
         pauseGame,
         resumeGame,
         backtrackState,
+        updateRoomMeta,
 
         // Game actions
         sendAction,

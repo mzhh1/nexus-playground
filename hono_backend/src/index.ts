@@ -8,6 +8,7 @@ import { registerV1GamesRoute } from './routes/v1/games.js';
 import { registerV1MyNexusRoute } from './routes/v1/my-nexus.js';
 import { registerV1RoomsRoute } from './routes/v1/rooms.js';
 import { registerV1LLMWebhookRoute } from './routes/v1/llm-webhook.js';
+import { registerMonitorBackendRoomRoute } from './routes/monitor/backendroom.js';
 
 const app = new Hono<AppEnv>();
 
@@ -19,12 +20,15 @@ app.use('/api/*', async (c, next) => {
     return next();
   }
 
-  if (origin && !allowedOrigins.includes(origin)) {
+  const isMonitorApi = c.req.path.startsWith('/api/monitor');
+
+  if (!isMonitorApi && origin && !allowedOrigins.includes(origin)) {
     return c.json({ error: 'CORS origin not allowed' }, 403);
   }
 
   const corsMiddleware = cors({
     origin: (requestOrigin) => {
+      if (isMonitorApi && requestOrigin) return requestOrigin;
       if (!requestOrigin) return allowedOrigins[0];
       return allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
     },
@@ -42,6 +46,7 @@ registerV1GamesRoute(app);
 registerV1MyNexusRoute(app);
 registerV1RoomsRoute(app);
 registerV1LLMWebhookRoute(app);
+registerMonitorBackendRoomRoute(app);
 
 export default {
   fetch: app.fetch,

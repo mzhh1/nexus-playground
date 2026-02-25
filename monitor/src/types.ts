@@ -64,3 +64,7 @@ export interface InteractionDetailResponse {
   data: LLMInteraction;
 }
 
+export interface RoomStateResponse {
+  data: any; // EngineRoomState
+}
+

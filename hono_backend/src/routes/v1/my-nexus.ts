@@ -15,16 +15,19 @@ export function registerV1MyNexusRoute(app: Hono<AppEnv>) {
     }
 
     const roomsRepo = createRoomsRepo(c.env);
-    const room = await roomsRepo.getOrCreate(user.userId);
+    const room = await roomsRepo.getOrCreate(user.userId, user.displayName);
 
     const engine = createNexusEngineClient(c.env);
+    const roomMetaHookUrl = `${new URL(c.req.url).origin}/api/v1/rooms/${room.room_id}/hook`;
     try {
       await engine.createRoom({
         roomId: room.room_id,
         ownerId: user.userId,
         ownerDisplayName: user.displayName,
+        roomMetaHookUrl,
       });
-    } catch {
+    } catch (e) {
+      console.error('Failed to create room in Engine DO:', e);
       // Engine DO create endpoint is idempotent in current architecture.
       // Swallow errors here to preserve historical behavior of best-effort init.
     }

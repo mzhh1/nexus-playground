@@ -121,6 +121,7 @@ export class RoomManager extends BaseManager {
 
             await this.room.persist("gameConfig", "roleMapping");
             this.room.broadcastSyncState();
+            this.room.waitUntil(this.room.syncRoomMeta());
         } catch (e) {
             console.error("[RoomManager] Failed to set game:", e);
             this.room.sendErrorToUser(userId, "Failed to set game");

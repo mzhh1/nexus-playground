@@ -10,6 +10,9 @@ import '../styles/control-bar.css';
 
 interface NexusControlBarProps {
   roomId: string;
+  roomName?: string;
+  isPublic?: boolean;
+  onUpdateRoomMeta?: (name: string, isPublic: boolean) => void;
   players: Record<string, any>;
   isOwner: boolean;
   gameName?: string;
@@ -25,6 +28,9 @@ interface NexusControlBarProps {
 
 export const NexusControlBar: React.FC<NexusControlBarProps> = ({
   roomId,
+  roomName,
+  isPublic,
+  onUpdateRoomMeta,
   players,
   isOwner,
   gameName,
@@ -40,6 +46,15 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
   const [showPlayerList, setShowPlayerList] = useState(false);
   const [showRoleMapping, setShowRoleMapping] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showRoomMetaModal, setShowRoomMetaModal] = useState(false);
+  const [editRoomName, setEditRoomName] = useState(roomName || roomId);
+  const [editIsPublic, setEditIsPublic] = useState(isPublic ?? true);
+
+  // Sync state when props change
+  React.useEffect(() => {
+    setEditRoomName(roomName || roomId);
+    setEditIsPublic(isPublic ?? true);
+  }, [roomName, isPublic, roomId]);
 
   // Use Engine phase as primary source of truth
   const isPlaying = enginePhase === 'playing';
@@ -216,8 +231,15 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
           )}
 
           {/* Room ID 显示（桌面显示） */}
-          <div className="room-id-display room-id-desktop" title={`房间ID: ${roomId}`}>
-            房间: {roomId}
+          <div
+            className="room-id-display room-id-desktop"
+            title={`房间名称: ${roomName || roomId}`}
+            onClick={() => setShowRoomMetaModal(true)}
+            style={{ cursor: 'pointer', transition: 'background-color 0.2s' }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#d1d5db'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = ''}
+          >
+            房间:{roomId}
           </div>
 
           {/* 头像组件 */}
@@ -240,10 +262,98 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
             </span>
           )}
         </div>
-        <div className="room-id-display room-id-mobile" title={`房间ID: ${roomId}`}>
+        <div
+          className="room-id-display room-id-mobile"
+          title={`房间名称: ${roomName || roomId}`}
+          onClick={() => setShowRoomMetaModal(true)}
+          style={{ cursor: 'pointer' }}
+        >
           {roomId}
         </div>
       </div>
+
+      {/* Room Meta Modal */}
+      {showRoomMetaModal && (
+        <div className="modal-overlay" onClick={() => setShowRoomMetaModal(false)} style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', justifyContent: 'center', alignItems: 'center'
+        }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{
+            background: 'white', padding: '24px', borderRadius: '12px',
+            width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+          }}>
+            <h2 style={{ marginTop: 0, marginBottom: '20px', fontSize: '1.25rem' }}>房间信息</h2>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>房间 ID</label>
+              <div style={{ padding: '8px 12px', background: '#f3f4f6', borderRadius: '6px', color: '#6b7280', fontFamily: 'monospace' }}>
+                {roomId}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>房间名称</label>
+              {isOwner ? (
+                <input
+                  type="text"
+                  value={editRoomName}
+                  onChange={e => setEditRoomName(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
+                />
+              ) : (
+                <div style={{ padding: '8px 12px', background: '#f3f4f6', borderRadius: '6px', color: '#111827' }}>
+                  {roomName || roomId}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: isOwner ? 'pointer' : 'default' }}>
+                <input
+                  type="checkbox"
+                  checked={editIsPublic}
+                  onChange={e => setEditIsPublic(e.target.checked)}
+                  disabled={!isOwner}
+                  style={{ marginRight: '8px', width: '16px', height: '16px' }}
+                />
+                <span style={{ fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>公开房间</span>
+              </label>
+              <p style={{ margin: '4px 0 0 24px', fontSize: '0.75rem', color: '#6b7280' }}>
+                公开房间将显示在游戏大厅中（暂未实现）
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button
+                onClick={() => {
+                  setShowRoomMetaModal(false);
+                  setEditRoomName(roomName || roomId);
+                  setEditIsPublic(isPublic ?? true);
+                }}
+                style={{
+                  padding: '8px 16px', borderRadius: '6px', background: '#f3f4f6', border: 'none', color: '#374151', cursor: 'pointer', fontWeight: 500
+                }}
+              >
+                关闭
+              </button>
+              {isOwner && (
+                <button
+                  onClick={() => {
+                    onUpdateRoomMeta?.(editRoomName, editIsPublic);
+                    setShowRoomMetaModal(false);
+                  }}
+                  style={{
+                    padding: '8px 16px', borderRadius: '6px', background: 'var(--color-primary, #3b82f6)', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 500
+                  }}
+                >
+                  保存
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

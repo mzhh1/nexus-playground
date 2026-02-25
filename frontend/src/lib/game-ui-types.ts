@@ -20,6 +20,8 @@ export interface SyncStateMessage {
       roomId: string;
       roleId: string;
       playerId?: string;
+      /** Role-to-display-name mapping, provided by the platform */
+      roleDisplayMapping?: Record<string, { name: string }>;
     };
   };
 }

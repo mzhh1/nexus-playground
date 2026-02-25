@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import styles from './ui.module.css';
+import type { GameUIProps, Action } from '@nexus/game-sdk';
 
 type UnoColor = 'red' | 'yellow' | 'green' | 'blue';
 type UnoCardType = 'number' | 'skip' | 'reverse' | 'draw2' | 'wild' | 'wild_draw4';
@@ -9,46 +10,6 @@ interface UnoCard {
   type: UnoCardType;
   color: UnoColor | null;
   value?: number;
-}
-
-interface Action {
-  action_id: string;
-  role_id: string;
-  params?: any;
-}
-
-interface GameUIProps {
-  perspective: {
-    current_state: {
-      players: string[];
-      currentRole: string;
-      direction: 1 | -1;
-      turn: number;
-      winner: string | null;
-      currentColor: UnoColor;
-      topCard?: UnoCard;
-      drawPileCount: number;
-      discardPileCount: number;
-      handCounts: Record<string, number>;
-      yourHand: UnoCard[];
-      turnStage: 'play_or_draw' | 'must_resolve_drawn';
-      drawnCardId: string | null;
-    };
-    your_role: {
-      identity: string;
-      is_current: boolean;
-    };
-    action_space_definition: {
-      actions: { action_id: string }[];
-    };
-    message?: string;
-  };
-  onAction: (action: Action) => void;
-  isMyTurn: boolean;
-  readonly: boolean;
-  metadata?: {
-    roleId?: string;
-  };
 }
 
 const COLOR_MAP: Record<UnoColor, string> = {
@@ -81,6 +42,15 @@ const UnoUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonl
   } | null>(null);
 
   const roleId = metadata?.roleId ?? perspective.your_role.identity;
+
+  // Helper to get display name from metadata.players
+  const getDisplayName = (pid: string) => {
+    if (metadata?.roleDisplayMapping && metadata.roleDisplayMapping[pid]) {
+      return metadata.roleDisplayMapping[pid].name;
+    }
+    return pid;
+  };
+
   const actionIds = useMemo(
     () => new Set((action_space_definition.actions ?? []).map((a) => a.action_id)),
     [action_space_definition.actions]
@@ -257,7 +227,7 @@ const UnoUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonl
           const isActive = pid === currentRole;
           return (
             <div key={pid} className={`${styles.playerAvatar} ${isActive ? styles.active : ''}`}>
-              <div className={styles.playerName}>{pid === roleId ? '你' : pid}</div>
+              <div className={styles.playerName}>{getDisplayName(pid)}</div>
               <div className={styles.playerHandCount}>
                 <span style={{ fontSize: '1.2rem' }}>🃏</span> x {handCounts[pid] ?? 0}
               </div>
@@ -275,7 +245,7 @@ const UnoUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonl
         ></div>
 
         <div className={styles.tableStatus}>
-          {winner ? `WINNER: ${winner}` : `TURN ${turn} | ${direction === 1 ? '↻' : '↺'}`}
+          {winner ? `WINNER: ${getDisplayName(winner)}` : `TURN ${turn} | ${direction === 1 ? '↻' : '↺'}`}
         </div>
 
         <div className={styles.piles}>

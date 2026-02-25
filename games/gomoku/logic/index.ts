@@ -14,6 +14,7 @@ import {
   HistoryEvent,
   RolePerspective,
   isSpectator as isSpectatorRole,
+  z,
 } from '@nexus/game-sdk';
 
 // ============ Gomoku State ============
@@ -26,7 +27,7 @@ import {
  */
 type CellValue = 0 | 1 | 2;
 
-interface GomokuState extends GameState {
+export interface GomokuState extends GameState {
   board: CellValue[][]; // 15x15 board with numeric encoding
   currentRole: string; // "player_black" or "player_white"
   turn: number;
@@ -35,11 +36,25 @@ interface GomokuState extends GameState {
   lastMove: { row: number; col: number } | null; // Track last move for win checking optimization
 }
 
+// ============ Action Schemas (Zod) ============
+
+const BOARD_SIZE = 15;
+
+const actionSchemas = {
+  place: z.object({
+    row: z.number().int().min(0).max(BOARD_SIZE - 1),
+    col: z.number().int().min(0).max(BOARD_SIZE - 1),
+  }),
+};
+
+export type GomokuActionSchemas = typeof actionSchemas;
+
 // ============ Game Logic Implementation ============
 
 export class GomokuLogic implements GameLogic {
-  private readonly BOARD_SIZE = 15;
+  private readonly BOARD_SIZE = BOARD_SIZE;
   private readonly WIN_LENGTH = 5;
+  actionSchemas = actionSchemas;
 
   getMetadata(): GameMetadata {
     return {
@@ -168,7 +183,9 @@ export class GomokuLogic implements GameLogic {
     }
 
     // Validate parameters exist
-    if (!action.params || typeof action.params.row !== 'number' || typeof action.params.col !== 'number') {
+    // Note: format validation (type, range) is now handled by Zod actionSchemas.
+    // Only business logic validation remains here.
+    if (!action.params || action.params.row === undefined || action.params.col === undefined) {
       return {
         success: false,
         error: '缺少必需的参数 row 和 col',
@@ -178,15 +195,6 @@ export class GomokuLogic implements GameLogic {
 
     const row = action.params.row;
     const col = action.params.col;
-
-    // Validate position
-    if (row < 0 || row >= this.BOARD_SIZE || col < 0 || col >= this.BOARD_SIZE) {
-      return {
-        success: false,
-        error: '位置超出棋盘范围',
-        errorCode: 'OUT_OF_BOUNDS',
-      };
-    }
 
     // Check if cell is empty
     if (s.board[row][col] !== 0) {

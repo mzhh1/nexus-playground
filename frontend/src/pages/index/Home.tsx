@@ -19,10 +19,10 @@ interface Game {
 interface Room {
   room_id: string;
   owner_uid: string;
+  room_name: string;
   game_id: string | null;
-  room_status: 'open' | 'playing' | 'paused';
+  room_status: 'lobby' | 'playing' | 'paused' | 'finished';
   is_public: boolean;
-  player_count: number;
   created_at: string;
 }
 
@@ -93,12 +93,14 @@ function HomeContent() {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'open':
+      case 'lobby':
         return '等待中';
       case 'playing':
         return '游戏中';
       case 'paused':
         return '已暂停';
+      case 'finished':
+        return '已结束';
       default:
         return status;
     }
@@ -106,11 +108,13 @@ function HomeContent() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'open':
+      case 'lobby':
         return 'status-open';
       case 'playing':
         return 'status-playing';
       case 'paused':
+        return 'status-paused';
+      case 'finished':
         return 'status-paused';
       default:
         return '';
@@ -224,7 +228,7 @@ function HomeContent() {
                   <div className="room-card-content">
                     <div className="room-info">
                       <div className="room-header">
-                        <h3 className="room-id">房间 #{room.room_id.slice(0, 8)}</h3>
+                        <h3 className="room-id">{room.room_name || `房间 #${room.room_id.slice(0, 8)}`}</h3>
                         <span className={`room-status ${getStatusColor(room.room_status)}`}>
                           {getStatusText(room.room_status)}
                         </span>
@@ -233,10 +237,6 @@ function HomeContent() {
                         <div className="room-detail-item">
                           <span className="detail-label">游戏：</span>
                           <span className="detail-value">{getGameName(room.game_id)}</span>
-                        </div>
-                        <div className="room-detail-item">
-                          <span className="detail-label">玩家：</span>
-                          <span className="detail-value">{room.player_count} 人</span>
                         </div>
                       </div>
                     </div>

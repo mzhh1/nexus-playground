@@ -4,6 +4,8 @@ export interface IRoomContext {
     roomId: string;
     ownerId: string;
     ownerDisplayName: string;
+    name: string;
+    isPublic: boolean;
     phase: RoomPhase;
     players: Record<string, PlayerInfo>;
     gameConfig: GameConfig | null;
@@ -27,9 +29,11 @@ export interface IRoomContext {
     // Some methods that managers might call on each other via the room
     handleMessage(userId: string, msg: any): Promise<void>;
     fetchPerspective(roleId: string): Promise<any | null>;
+    fetchStatePrompt(perspective: any): Promise<string | null>;
     getCurrentRole(): Promise<string | null>;
     submitActionToGameWorker(roleId: string, action: any): Promise<any>;
     checkAndTriggerNextTurn(): Promise<void>;
+    syncRoomMeta(): Promise<void>;
     waitUntil(promise: Promise<unknown>): void;
 
     broadcastSyncState(): void;

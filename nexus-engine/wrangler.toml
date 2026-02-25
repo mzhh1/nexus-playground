@@ -47,14 +47,14 @@ database_name = "np-engine-monitor-db"
 database_id = "40e1e5aa-e360-4701-85d0-62716ce9ef3b"
 
 [vars]
-# Admin secret for backend->engine auth
-ADMIN_SECRET = "dev-secret-123"
+# Admin secret for backend/monitor->engine auth
+#ADMIN_SECRET = "dev-admin-secret"
 # HS256 shared secret for JWT verification (must match backend NEXUS_ENGINE_JWT_SECRET)
 #JWT_SECRET = "dev-jwt-secret-change-me"
 # Backend LLM webhook endpoint
-#LLM_WEBHOOK_URL = "https://nexus.mzhh.xyz/api/v1/webhook/llm"
+#LLM_WEBHOOK_URL = "https://{base_url}/api/v1/webhook/llm"
 # Shared secret for Engine -> Backend webhook auth
-#LLM_WEBHOOK_SECRET = "dev-secret-123"
+#LLM_WEBHOOK_SECRET = "dev-llm-secret"
 
 [observability]
 enabled = true

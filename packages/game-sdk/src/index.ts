@@ -62,11 +62,11 @@ export interface HistoryEvent {
     timestamp: number;
 }
 
-export interface RolePerspective {
+export interface RolePerspective<TState = any> {
     global_rules: string;
     whole_history: HistoryEvent[];
     diff_history: HistoryEvent[];
-    current_state: any;
+    current_state: TState;
     your_role: {
         identity: string;
         goal: string;
@@ -77,6 +77,8 @@ export interface RolePerspective {
 }
 
 export interface GameLogic<TState extends GameState = GameState> {
+    /** Optional: define Zod action schemas to enable automatic parameter validation */
+    actionSchemas?: ActionSchemaMap;
     getMetadata(): Promise<GameMetadata> | GameMetadata;
     initState(ctx: InitContext): Promise<TState> | TState;
     getCurrentRole(state: TState): Promise<string> | string;
@@ -89,8 +91,8 @@ export interface GameLogic<TState extends GameState = GameState> {
         roleId: string,
         wholeHistory: HistoryEvent[],
         diffHistory: HistoryEvent[]
-    ): Promise<RolePerspective> | RolePerspective;
-    generateStatePrompt(perspective: RolePerspective): string;
+    ): Promise<RolePerspective<TState>> | RolePerspective<TState>;
+    generateStatePrompt(perspective: RolePerspective<TState>): string;
 }
 
 // ============ Player & Room Types (Restored) ============
@@ -122,6 +124,13 @@ export type PlayerList = Record<string, Player>;
 
 export type RoleMapping = Record<string, string>;
 
+export interface RoleDisplay {
+    name: string;
+    // ... future extensions like avatar could go here
+}
+
+export type RoleDisplayMapping = Record<string, RoleDisplay>;
+
 export interface RoomInfo {
     room_id: string;
     owner_uid: string;
@@ -148,6 +157,9 @@ export type JsonSchemaProperty = any; // Placeholder
 // ============ Base Implementation ============
 
 export abstract class BaseGameLogic<TState extends GameState> implements GameLogic<TState> {
+    /** Optional: define Zod action schemas to enable automatic parameter validation */
+    actionSchemas?: ActionSchemaMap;
+
     abstract getMetadata(): GameMetadata;
     abstract initState(ctx: InitContext): TState;
     abstract getCurrentRole(state: TState): string;
@@ -160,7 +172,19 @@ export abstract class BaseGameLogic<TState extends GameState> implements GameLog
         roleId: string,
         wholeHistory: HistoryEvent[],
         diffHistory: HistoryEvent[]
-    ): RolePerspective;
+    ): RolePerspective<TState>;
+
+    /** Wrapper that validates action params via Zod before calling applyAction */
+    validateAndApply(state: TState, action: Action): ActionResult<TState> {
+        if (this.actionSchemas) {
+            const validation = validateActionParams(this.actionSchemas, action);
+            if (!validation.success) {
+                return { success: false, error: validation.error };
+            }
+            action = { ...action, params: validation.params };
+        }
+        return this.applyAction(state, action) as ActionResult<TState>;
+    }
 
     serializeState(state: TState): string {
         return JSON.stringify(state);
@@ -170,7 +194,7 @@ export abstract class BaseGameLogic<TState extends GameState> implements GameLog
         return JSON.parse(data);
     }
 
-    generateStatePrompt(perspective: RolePerspective): string {
+    generateStatePrompt(perspective: RolePerspective<TState>): string {
         return defaultStatePromptGenerator(perspective);
     }
 
@@ -232,6 +256,55 @@ export const stateSerializer = {
     stringify<T>(value: T): string { return JSON.stringify(value); },
     parse<T>(text: string): T { return JSON.parse(text); }
 };
+
+// ============ Action Schema & Validation (Zod) ============
+
+/** Action Schema map: action_id → Zod schema for params */
+export type ActionSchemaMap = Record<string, z.ZodType<any>>;
+
+/** Infer strong-typed Action union from an ActionSchemaMap */
+export type InferAction<T extends ActionSchemaMap> = {
+    [K in keyof T & string]: {
+        action_id: K;
+        role_id: string;
+        params: z.infer<T[K]>;
+    };
+}[keyof T & string];
+
+/** Validate action params against a Zod schema map */
+export function validateActionParams<T extends ActionSchemaMap>(
+    schemas: T,
+    action: Action,
+): { success: true; params: any } | { success: false; error: string } {
+    const schema = schemas[action.action_id];
+    if (!schema) {
+        return { success: false, error: `未知的 action_id: ${action.action_id}` };
+    }
+    const result = schema.safeParse(action.params);
+    if (!result.success) {
+        return { success: false, error: `参数校验失败: ${result.error.issues.map(i => i.message).join('; ')}` };
+    }
+    return { success: true, params: result.data };
+}
+
+// ============ Game UI Props (Standard Interface) ============
+
+/** Standard metadata passed from iframe host to game UI */
+export interface GameUIMetadata {
+    roomId: string;
+    roleId: string;
+    playerId?: string;
+    roleDisplayMapping?: RoleDisplayMapping;
+}
+
+/** Standard props interface for all game UI components */
+export interface GameUIProps<TState = any> {
+    perspective: RolePerspective<TState>;
+    onAction: (action: Action) => void;
+    isMyTurn: boolean;
+    readonly: boolean;
+    metadata?: GameUIMetadata;
+}
 
 // Export dependencies
 export { z };

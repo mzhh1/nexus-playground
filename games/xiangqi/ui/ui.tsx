@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { XiangqiLogic } from '../logic/index';
 import styles from './ui.module.css';
+import type { GameUIProps } from '@nexus/game-sdk';
 
 interface Piece {
   type: string;
@@ -12,31 +13,6 @@ interface BoardState {
   board: (Piece | null)[][];
   myColor: 'red' | 'black';
   lastMove: { from: [number, number]; to: [number, number] } | null;
-}
-
-interface Action {
-  action_id: string;
-  role_id: string;
-  params?: any;
-}
-
-interface GameUIProps {
-  perspective: {
-    current_state: BoardState;
-    your_role: {
-      identity: string;
-      goal: string;
-      is_current: boolean;
-    };
-    action_space_definition: {
-      actions: { action_id: string; description: string; params_schema?: any }[];
-    };
-    [key: string]: any;
-  };
-  onAction: (action: Action) => void;
-  isMyTurn: boolean;
-  readonly: boolean;
-  metadata?: any;
 }
 
 type AttackCounts = Record<string, number>;
@@ -196,9 +172,8 @@ const XiangqiUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, rea
                 return (
                   <div
                     key={`${displayRow}-${displayCol}`}
-                    className={`${styles['position']} ${isSelected(displayRow, displayCol) ? styles['selected'] : ''} ${
-                      isLegalMove(displayRow, displayCol) ? styles['legal-move'] : ''
-                    } ${isLastMove(displayRow, displayCol) ? styles['last-move'] : ''}`}
+                    className={`${styles['position']} ${isSelected(displayRow, displayCol) ? styles['selected'] : ''} ${isLegalMove(displayRow, displayCol) ? styles['legal-move'] : ''
+                      } ${isLastMove(displayRow, displayCol) ? styles['last-move'] : ''}`}
                     style={{ left: `${x}%`, top: `${y}%` }}
                     onClick={() => handlePositionClick(displayRow, displayCol)}
                   >
@@ -213,9 +188,8 @@ const XiangqiUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, rea
 
                     {piece && (
                       <div
-                        className={`${styles['piece']} ${styles[piece.color]} ${
-                          !isMyTurn || readonly || piece.color !== myColor ? styles['not-my-turn'] : ''
-                        }`}
+                        className={`${styles['piece']} ${styles[piece.color]} ${!isMyTurn || readonly || piece.color !== myColor ? styles['not-my-turn'] : ''
+                          }`}
                       >
                         <span className={styles['piece-char']}>{piece.char}</span>
                         {isLegalMove(displayRow, displayCol) && attackCounts[`${logicRow},${logicCol}`] > 0 && (

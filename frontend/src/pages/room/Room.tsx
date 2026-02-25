@@ -58,7 +58,10 @@ const Room: React.FC = () => {
     requestJoin: engineRequestJoin,
     approveJoin: engineApproveJoin,
     backtrackState: engineBacktrackState,
+    updateRoomMeta,
     isOwner: isOwnerEngine,
+    roomName,
+    isPublic,
     myRole: myRoleEngine,
     myUserId: myUserIdEngine,
     isConnecting,
@@ -426,7 +429,18 @@ const Room: React.FC = () => {
     return getRoleIdsForPlayerCount(currentGameMetadata.roleIds, effectivePlayerCount ?? undefined);
   }, [currentGameMetadata, effectivePlayerCount]);
 
-  const isMappingComplete = roleIds.length > 0 && roleIds.every(roleId => roleMapping[roleId]);
+  const isMappingComplete = roleIds.length > 0 && roleIds.every(roleId => effectiveRoleMapping[roleId]);
+
+  const roleDisplayMapping = useMemo(() => {
+    const mapping: Record<string, { name: string }> = {};
+    for (const [roleId, userId] of Object.entries(effectiveRoleMapping)) {
+      const player = currentPlayers[userId];
+      if (player) {
+        mapping[roleId] = { name: player.displayName || userId };
+      }
+    }
+    return mapping;
+  }, [effectiveRoleMapping, currentPlayers]);
 
   // ========== Early Returns (AFTER all hooks) ==========
 
@@ -582,6 +596,9 @@ const Room: React.FC = () => {
       {/* Control Bar */}
       {shouldShowControlBar && <NexusControlBar
         roomId={roomId!}
+        roomName={roomName === null ? undefined : roomName}
+        isPublic={isPublic === null ? true : isPublic}
+        onUpdateRoomMeta={updateRoomMeta}
         players={currentPlayers}
         isOwner={isOwner}
         gameName={gameName}
@@ -876,6 +893,7 @@ const Room: React.FC = () => {
                     roomId: engineState.roomId,
                     roleId: currentRoleId,
                     playerId: playerId || undefined,
+                    roleDisplayMapping,
                   }}
                   uiUrl={currentGameMetadata?.ui?.url}
                 />

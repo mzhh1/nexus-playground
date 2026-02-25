@@ -402,9 +402,8 @@ export default app;
 ### 7.2 LLM AI 玩家支持
 
 为了使 LLM (例如 GPT-4, Claude) 可以像人类一样流畅游玩，请注意：
-1. **良好的提示词**：在 `generateStatePrompt` 中，尽量将复杂的矩阵或数组状态转化成**人类易读的文本**（如画出 ASCII 棋盘，描述最后一步落点）。
+1. **良好的提示词**：在 `generateStatePrompt` 中，按照游戏逻辑处理转换游戏状态，提高LLM做出正确决策的能力。
 2. **多模态扩展**：若是推演步骤繁杂或注重推理策略的游戏，在 `getMetadata` 中设置 `enable_llm_memory: true`，引擎将自动为 LLM 提供记忆摘要功能。
-3. **参数化 Action**：合理使用 JSON Schema 定义行动参数（限制 `minimum/maximum`），以避免 LLM 产生非法的坐标请求。
 
 ### 7.3 多人数动态配置
 

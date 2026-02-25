@@ -80,7 +80,9 @@ app.post('/legal-actions', async (c) => {
 app.post('/action', async (c) => {
   const body = await c.req.json<{ state: GameState; action: Action }>();
   try {
-    return c.json(logic.applyAction(body.state, body.action));
+    return c.json(('validateAndApply' in logic)
+      ? (logic as any).validateAndApply(body.state, body.action)
+      : logic.applyAction(body.state, body.action));
   } catch (error: any) {
     return c.json({ error: error.message }, 400);
   }
@@ -111,11 +113,20 @@ app.post('/perspective', async (c) => {
       body.wholeHistory || [],
       body.diffHistory || []
     );
+    return c.json(perspective);
+  } catch (error: any) {
+    return c.json({ error: error.message }, 400);
+  }
+});
+
+app.post('/state-prompt', async (c) => {
+  const body = await c.req.json<{ perspective: any }>();
+  try {
     const statePrompt =
       typeof logic.generateStatePrompt === 'function'
-        ? logic.generateStatePrompt(perspective)
+        ? logic.generateStatePrompt(body.perspective)
         : undefined;
-    return c.json({ ...perspective, statePrompt });
+    return c.json({ statePrompt });
   } catch (error: any) {
     return c.json({ error: error.message }, 400);
   }

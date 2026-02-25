@@ -54,6 +54,7 @@ export interface PlayerInfo {
 /** A single history event recording an action */
 export interface HistoryEvent {
     turn: number;
+    stateIndex: number;
     roleId: string;
     action: { action_id: string; params: Record<string, any> };
     timestamp: number;
@@ -64,6 +65,8 @@ export interface EngineRoomState {
     roomId: string;
     ownerId: string;
     ownerDisplayName: string;
+    name: string;
+    isPublic: boolean;
     phase: RoomPhase;
     players: Record<string, PlayerInfo>; // key = userId
     gameConfig: GameConfig | null;
@@ -74,6 +77,7 @@ export interface EngineRoomState {
     runtimeId: string;
     stateIndex: number;
     llmWebhookUrl: string | null;
+    roomMetaHookUrl?: string | null;
 }
 
 // ─── Client-facing State (sanitised, pushed via WS) ─────────
@@ -93,6 +97,8 @@ export interface ClientEngineState {
     roomId: string;
     ownerId: string;
     ownerDisplayName: string;
+    name: string;
+    isPublic: boolean;
     phase: RoomPhase;
     players: Record<string, ClientPlayerInfo>;
     gameConfig: {
@@ -142,6 +148,7 @@ export type ClientMessage =
     | { type: 'ADMIN_PAUSE_GAME' }
     | { type: 'ADMIN_RESUME_GAME' }
     | { type: 'ADMIN_BACKTRACK_STATE'; payload: { index: number } }
+    | { type: 'ADMIN_UPDATE_ROOM_META'; payload: { name: string; isPublic: boolean } }
     // Game action
     | { type: 'ACT'; payload: { action_id: string; params?: Record<string, any> } };
 
@@ -314,8 +321,8 @@ export interface GameWorkerIsTerminalRequest {
 
 export interface Env {
     GAME_DO: DurableObjectNamespace;
-    MONITOR_DO: DurableObjectNamespace;
-    DB: D1Database;
+    MONITOR_DO?: DurableObjectNamespace;
+    DB?: D1Database;
     ADMIN_SECRET: string;
     JWT_SECRET: string;
     LLM_WEBHOOK_URL?: string;

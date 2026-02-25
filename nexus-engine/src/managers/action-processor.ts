@@ -35,6 +35,7 @@ export async function applySuccessfulAction(opts: {
     room.gameState = nextState;
     room.history.push({
         turn: room.history.length,
+        stateIndex: room.stateIndex,
         roleId,
         action: {
             action_id: action.action_id,
