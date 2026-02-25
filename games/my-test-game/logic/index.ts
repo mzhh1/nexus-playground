@@ -2,7 +2,7 @@ import {
   GameLogic, GameMetadata, GameState, InitContext, ActionSpec,
   Action, ActionResult, HistoryEvent, RolePerspective,
   isSpectator
-} from '@nexus/game-sdk';
+} from '@nexusgame/game-sdk';
 
 interface MyGameState extends GameState {
   currentRole: string;

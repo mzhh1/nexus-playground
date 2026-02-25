@@ -5,7 +5,7 @@ export default defineConfig({
     format: ['esm'],
     dts: false,
     clean: true,
-    external: ['@nexus/game-sdk'], // SDK provided by host
+    external: ['@nexusgame/game-sdk'], // SDK provided by host
     outDir: 'dist',
     target: 'node18',
     noExternal: [], // Bundle everything else EXCEPT external

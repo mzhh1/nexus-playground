@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import type { GameUIProps, Action } from '@nexus/game-sdk';
+import type { GameUIProps, Action } from '@nexusgame/game-sdk';
 import styles from './ui.module.css';
 
 type GenericRecord = Record<string, any>;

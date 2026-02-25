@@ -120,7 +120,7 @@ export interface YourGameResult extends GameResult {
 在 `game-logic/src/YourGame.ts` 中实现游戏类：
 
 ```typescript
-import { GameLoop } from '@nexus/game-sdk';
+import { GameLoop } from '@nexusgame/game-sdk';
 import type {
   RoleMapping,
   ActionValidationResult,

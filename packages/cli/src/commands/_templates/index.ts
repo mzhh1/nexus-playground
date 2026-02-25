@@ -1,6 +1,6 @@
 export const workerIndexTemplate = `import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { GameState, Action, InitContext } from '@nexus/game-sdk';
+import { GameState, Action, InitContext } from '@nexusgame/game-sdk';
 import logic from '../../logic/index';
 
 type AssetFetcher = { fetch: (request: Request) => Promise<Response> };
@@ -171,8 +171,8 @@ export const packageJsonTemplate = (gameId: string) => `{
     "build": "pnpm build:logic && pnpm build:ui",
     "build:logic": "tsup",
     "build:ui": "vite build -c vite.config.ui.ts",
-    "dev": "wrangler dev",
-    "deploy": "cd worker && wrangler deploy"
+    "dev": "wrangler dev -c worker/wrangler.toml",
+    "deploy": "wrangler deploy -c worker/wrangler.toml"
   },
   "dependencies": {
     "hono": "^4.0.0",
@@ -180,7 +180,7 @@ export const packageJsonTemplate = (gameId: string) => `{
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@nexus/game-sdk": "workspace:*",
+    "@nexusgame/game-sdk": "workspace:*",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^4.2.1",
@@ -515,7 +515,7 @@ export const logicTemplate = (gameId: string, gameName: string, minPlayers: numb
   GameLogic, GameMetadata, GameState, InitContext, ActionSpec,
   Action, ActionResult, HistoryEvent, RolePerspective,
   isSpectator
-} from '@nexus/game-sdk';
+} from '@nexusgame/game-sdk';
 
 interface MyGameState extends GameState {
   currentRole: string;

@@ -5,7 +5,7 @@
 
 import React from 'react';
 import styles from './ui.module.css';
-import type { GameUIProps, Action } from '@nexus/game-sdk';
+import type { GameUIProps, Action } from '@nexusgame/game-sdk';
 import type { GomokuState } from '../logic';
 
 const GomokuUI: React.FC<GameUIProps<GomokuState>> = ({

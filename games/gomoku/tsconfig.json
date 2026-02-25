@@ -22,7 +22,7 @@
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
         "paths": {
-            "@nexus/game-sdk": [
+            "@nexusgame/game-sdk": [
                 "../../packages/game-sdk/src/index.ts"
             ]
         }

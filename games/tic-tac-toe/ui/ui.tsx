@@ -1,6 +1,6 @@
 import React from 'react';
 import styles from './ui.module.css';
-import type { GameUIProps, Action } from '@nexus/game-sdk';
+import type { GameUIProps, Action } from '@nexusgame/game-sdk';
 
 const TicTacToeUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonly }) => {
   const { current_state, your_role, action_space_definition } = perspective;

@@ -9,7 +9,7 @@ import {
   InitContext,
   RolePerspective,
   isSpectator as isSpectatorRole,
-} from '@nexus/game-sdk';
+} from '@nexusgame/game-sdk';
 
 type UnoColor = 'red' | 'yellow' | 'green' | 'blue';
 type UnoCardType = 'number' | 'skip' | 'reverse' | 'draw2' | 'wild' | 'wild_draw4';

@@ -9,7 +9,7 @@ import {
   InitContext,
   RolePerspective,
   isSpectator as isSpectatorRole,
-} from '@nexus/game-sdk';
+} from '@nexusgame/game-sdk';
 
 import type { Identity, WerewolfState } from './types';
 import { PLAYER_COUNT_RANGE, PLAYER_ROLE_IDS_BY_COUNT, ROLE_DISTRIBUTIONS, PLAYER_COUNT_LABELS } from './config';

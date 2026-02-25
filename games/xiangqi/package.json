@@ -7,11 +7,11 @@
     "build": "npm run build:logic && npm run build:ui",
     "build:logic": "tsup",
     "build:ui": "vite build -c vite.config.ui.ts",
-    "deploy": "cd worker && wrangler deploy",
+    "deploy": "pnpm exec wrangler deploy -c worker/wrangler.toml",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@nexus/game-sdk": "workspace:*"
+    "@nexusgame/game-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",

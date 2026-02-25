@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { XiangqiLogic } from '../logic/index';
 import styles from './ui.module.css';
-import type { GameUIProps } from '@nexus/game-sdk';
+import type { GameUIProps } from '@nexusgame/game-sdk';
 
 interface Piece {
   type: string;

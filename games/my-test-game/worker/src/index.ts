@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { GameState, Action, InitContext } from '@nexus/game-sdk';
+import { GameState, Action, InitContext } from '@nexusgame/game-sdk';
 import logic from '../../logic/index';
 
 type AssetFetcher = { fetch: (request: Request) => Promise<Response> };

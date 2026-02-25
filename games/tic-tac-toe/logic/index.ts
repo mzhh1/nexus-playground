@@ -14,7 +14,7 @@ import {
   HistoryEvent,
   RolePerspective,
   isSpectator as isSpectatorRole,
-} from '@nexus/game-sdk';
+} from '@nexusgame/game-sdk';
 
 interface TicTacToeState extends GameState {
   board: (string | null)[][];

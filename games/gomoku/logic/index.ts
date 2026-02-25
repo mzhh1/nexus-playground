@@ -15,7 +15,7 @@ import {
   RolePerspective,
   isSpectator as isSpectatorRole,
   z,
-} from '@nexus/game-sdk';
+} from '@nexusgame/game-sdk';
 
 // ============ Gomoku State ============
 

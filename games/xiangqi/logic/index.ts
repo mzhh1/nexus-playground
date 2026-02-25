@@ -14,7 +14,7 @@ import {
   HistoryEvent,
   RolePerspective,
   isSpectator as isSpectatorRole,
-} from '@nexus/game-sdk';
+} from '@nexusgame/game-sdk';
 
 type PieceType = 'chariot' | 'horse' | 'elephant' | 'advisor' | 'general' | 'cannon' | 'soldier';
 type PieceColor = 'red' | 'black';

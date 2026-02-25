@@ -15,7 +15,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@nexus/game-sdk": ["../../packages/game-sdk/src/index.ts"]
+      "@nexusgame/game-sdk": ["../../packages/game-sdk/src/index.ts"]
     }
   },
   "include": ["logic/**/*.ts", "ui/**/*.tsx"],

@@ -99,7 +99,7 @@ export default {
   build: {
     rollupOptions: {
       external: [
-        '@nexus/game-sdk',  // 类型、基类、工具函数
+        '@nexusgame/game-sdk',  // 类型、基类、工具函数
         'react',            // 仅 UI Bundle
         'react-dom',        // 仅 UI Bundle
       ]
@@ -116,7 +116,7 @@ export default {
 
 ```typescript
 // 每个游戏的 logic/index.ts 必须默认导出 GameLogic 实例
-import { BaseGameLogic, z } from '@nexus/game-sdk';
+import { BaseGameLogic, z } from '@nexusgame/game-sdk';
 
 class MyGameLogic extends BaseGameLogic<MyState> {
   getMetadata(): GameMetadata { ... }
@@ -140,7 +140,7 @@ export default new MyGameLogic();
 #### 前端 UI (ui.mjs)
 
 ```tsx
-import type { GameUIProps } from '@nexus/game-sdk';
+import type { GameUIProps } from '@nexusgame/game-sdk';
 
 const GameUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonly }) => {
   return <div>...</div>;
@@ -219,7 +219,7 @@ CREATE VIEW active_games AS
 // backend/src/games/asset-loader.ts
 
 import path from 'path';
-import { GameLogic } from '@nexus/game-sdk';
+import { GameLogic } from '@nexusgame/game-sdk';
 
 const ASSETS_DIR = process.env.GAME_ASSETS_DIR || '/data/game-assets';
 const loadedGames = new Map<string, { logic: GameLogic; version: string }>();
@@ -275,7 +275,7 @@ function validateGameLogic(logic: any, gameId: string): void {
 | 安全性 | Node.js 官方明确声明不安全 | 原生模块系统，与普通代码一致 |
 | 性能 | 无法 JIT 优化 | V8 完整优化 |
 | 调试 | 无 Source Map 支持 | 完整堆栈追踪 |
-| 依赖解析 | 需手动注入 `require` | Node.js 自动解析 `@nexus/game-sdk` |
+| 依赖解析 | 需手动注入 `require` | Node.js 自动解析 `@nexusgame/game-sdk` |
 | 适用场景 | 第三方不可信代码 | 内部团队可信代码 ✅ |
 
 > **注**：若未来开放第三方开发者，可升级为 `isolated-vm` 或 `Worker Threads` 提供真正的内存隔离。

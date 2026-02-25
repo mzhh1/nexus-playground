@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import styles from './ui.module.css';
-import type { GameUIProps, Action } from '@nexus/game-sdk';
+import type { GameUIProps, Action } from '@nexusgame/game-sdk';
 
 type UnoColor = 'red' | 'yellow' | 'green' | 'blue';
 type UnoCardType = 'number' | 'skip' | 'reverse' | 'draw2' | 'wild' | 'wild_draw4';

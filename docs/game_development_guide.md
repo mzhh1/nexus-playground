@@ -62,7 +62,7 @@ games/my-game/
 要接入一款新游戏，你需要完成以下步骤：
 
 1. **环境准备**：在 `games/` 目录下创建你的游戏文件夹。
-2. **编写 Logic**：实现 `@nexus/game-sdk` 提供的 `GameLogic` 接口。
+2. **编写 Logic**：实现 `@nexusgame/game-sdk` 提供的 `GameLogic` 接口。
 3. **编写 UI**：创建一个接收 `GameUIProps` 的 React 组件。
 4. **包装 Worker**：使用 Hono 暴露标准的 API 路由（元数据、初始化、行动验证、推演等）。
 5. **本地联调与部署**：使用 Makefile 一键部署到 Cloudflare。
@@ -71,7 +71,7 @@ games/my-game/
 
 ## 4. 核心：游戏逻辑层 (Logic)
 
-游戏逻辑层负责规则推演、验证合法性及视角过滤，**必须是纯函数**。依赖 `@nexus/game-sdk`。
+游戏逻辑层负责规则推演、验证合法性及视角过滤，**必须是纯函数**。依赖 `@nexusgame/game-sdk`。
 
 ### 4.1 定义游戏状态与接口
 
@@ -80,7 +80,7 @@ import {
   GameLogic, GameMetadata, GameState, InitContext, ActionSpec,
   Action, ActionResult, HistoryEvent, RolePerspective,
   isSpectator
-} from '@nexus/game-sdk';
+} from '@nexusgame/game-sdk';
 
 // 1. 定义你的游戏专属状态（会被平台持久化存储）
 interface MyGameState extends GameState {
@@ -394,7 +394,7 @@ export default app;
 ### 7.1 观战者系统 (Spectator)
 
 平台会向不在游戏内参与的玩家下发保留的 `roleId`：`nexus_reserved_specator`。
-- **必须**使用 `@nexus/game-sdk` 提供的 `isSpectator(roleId)` 辅助函数检查是否是观战者。
+- **必须**使用 `@nexusgame/game-sdk` 提供的 `isSpectator(roleId)` 辅助函数检查是否是观战者。
 - 观战者的 `getLegalActions` 必须返回空数组 `[]`。
 - 观战者的提示消息应该前缀 `👀 观战模式 - ...` 以示区别。
 - **不完美信息游戏**：开发者需要决定观战者是否可以拥有"上帝视角"（全明牌），或"公平视角"（只能看公共牌）。

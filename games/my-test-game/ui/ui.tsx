@@ -1,6 +1,6 @@
 import React from 'react';
 import styles from './ui.module.css';
-import type { GameUIProps } from '@nexus/game-sdk';
+import type { GameUIProps } from '@nexusgame/game-sdk';
 
 const helloUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonly, metadata }) => {
   const { current_state, your_role } = perspective;

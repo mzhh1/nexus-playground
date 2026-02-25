@@ -1,4 +1,4 @@
-import type { RolePerspective, HistoryEvent } from '@nexus/game-sdk';
+import type { RolePerspective, HistoryEvent } from '@nexusgame/game-sdk';
 import type { Identity, Camp, NightSubPhase, WerewolfState } from './types';
 import { WEREWOLF_RULES } from './config';
 import { getAlivePlayers, getWerewolfTeammates, getSeerHistory, getCamp } from './utils';

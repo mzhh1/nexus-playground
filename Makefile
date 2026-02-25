@@ -1,4 +1,4 @@
-.PHONY: help build-engine build-backend build-frontend build-monitor build-game build-games d1-migrate deploy-engine deploy-backend deploy-frontend deploy-monitor deploy-game deploy-games typecheck set-engine-secret set-backend-secret
+.PHONY: help build-engine build-backend build-frontend build-monitor build-game build-games build-cli-engine d1-migrate deploy-engine deploy-backend deploy-frontend deploy-monitor deploy-game deploy-games typecheck set-engine-secret set-backend-secret publish-sdk publish-cli
 
 .DEFAULT_GOAL := help
 
@@ -44,6 +44,13 @@ build-games: ## 构建所有游戏
 		game=$$(basename $$dir); \
 		$(MAKE) build-game G=$$game; \
 	done
+
+build-cli-engine: ## 编译 nexus-engine 为单文件并同步到 cli/dist
+	@echo "$(BLUE)🔨 正在编译 nexus-engine 并同步到 cli...$(NC)"
+	cd nexus-engine && pnpm run build:bundle
+	mkdir -p packages/cli/dist
+	cp nexus-engine/dist/engine-worker.js packages/cli/dist/engine-worker.js
+	@echo "$(GREEN)✅ Engine 已成功同步到 packages/cli/dist/engine-worker.js$(NC)"
 
 typecheck: ## 运行核心项目类型检查
 	@echo "$(BLUE)🧪 Typecheck frontend...$(NC)"
@@ -108,3 +115,12 @@ d1-migrate: ## 应用 hono_backend 的 D1 迁移（本地）
 d1-migrate-remote: ## 应用 hono_backend 的 D1 迁移（线上）
 	@echo "$(BLUE)🗄️ 应用 D1 线上迁移...$(NC)"
 	cd hono_backend && pnpm exec wrangler d1 execute np-hono-backend-db --remote --file=./migrations/0001_rooms.sql
+
+##@ 发布
+publish-sdk: ## 构建并发布 game-sdk (npm)
+	@echo "$(BLUE)📦 正在发布 @nexusgame/game-sdk...$(NC)"
+	cd packages/game-sdk && pnpm run build && pnpm publish --no-git-checks --access public $(if $(OTP),--otp=$(OTP),)
+
+publish-cli: build-cli-engine ## 构建并发布 cli (npm)
+	@echo "$(BLUE)📦 正在发布 @nexusgame/cli...$(NC)"
+	cd packages/cli && pnpm run build && pnpm publish --no-git-checks --access public $(if $(OTP),--otp=$(OTP),)

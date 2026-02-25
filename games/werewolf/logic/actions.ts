@@ -1,4 +1,4 @@
-import type { Action, ActionResult, ActionSpec } from '@nexus/game-sdk';
+import type { Action, ActionResult, ActionSpec } from '@nexusgame/game-sdk';
 import type { DeathRecord, WerewolfState } from './types';
 import { getAlivePlayers, getCamp, calculateWerewolfTarget, normalizeTargetFromAction } from './utils';
 

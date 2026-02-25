@@ -173,7 +173,7 @@ nexus-playground/
 
 ### 游戏逻辑插件（GameLogic 接口）
 
-游戏开发者提供的**无状态纯函数**集合，定义于 `@nexus/game-sdk`：
+游戏开发者提供的**无状态纯函数**集合，定义于 `@nexusgame/game-sdk`：
 
 ```typescript
 export interface GameLogic<TState extends GameState = GameState> {
@@ -261,7 +261,7 @@ export interface GameLogic<TState extends GameState = GameState> {
   - 服务端消息：`SYNC_STATE`、`ERROR`、`KICKED`
   - 客户端消息：`ACT`、`ADMIN_SET_GAME`、`ADMIN_START_GAME`、`LOBBY_SELECT_ROLE` 等
 
-### 5. Game SDK（`@nexus/game-sdk`）
+### 5. Game SDK（`@nexusgame/game-sdk`）
 
 游戏开发的核心 SDK，提供：
 - `GameLogic<TState>` 接口定义
@@ -487,7 +487,7 @@ mkdir -p games/my-game/{logic,ui,worker}
 2. **实现游戏逻辑**（`games/my-game/logic/index.ts`）
 
 ```typescript
-import { BaseGameLogic, type GameMetadata, ... } from '@nexus/game-sdk';
+import { BaseGameLogic, type GameMetadata, ... } from '@nexusgame/game-sdk';
 
 class MyGameLogic extends BaseGameLogic<MyState> {
     getMetadata(): GameMetadata { /* ... */ }
