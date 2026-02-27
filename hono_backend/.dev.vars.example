@@ -1,21 +1,23 @@
 # Copy to .dev.vars for local `wrangler dev`. Do not commit .dev.vars.
+
+WORKER_URL=
+
+NEXUS_ENGINE_URL=
+NEXUS_ENGINE_JWT_SECRET=
+NEXUS_ENGINE_ADMIN_SECRET=
+
+LLM_WEBHOOK_SECRET=
+OPENAI_API_BASE=
+OPENAI_API_KEY=
+
+#Varibles for Paper Core Oauth Service
+
 AUTH_BASE_URL=https://your-auth-api.example/api
-JWT_ALG=HS256
+JWT_ALG = "HS256"
 JWT_ACCESS_SECRET=your-access-secret-min-32-chars
-# JWT_ALG=RS256
-# JWKS_URL=https://your-auth/.well-known/jwks.json
+OAUTH_USERINFO_PATH = "/oauth/userinfo"
 AUTH_ISSUER=
 OAUTH_USERINFO_PATH=/oauth/userinfo
 OAUTH_USERINFO_TIMEOUT_MS=2000
 REQUEST_CLIENT_ID_REQUIRED=true
 ALLOW_REQUEST_CLIENT_ID=
-CORS_ALLOW_ORIGINS=http://localhost:3000,https://nexus.mzhh.xyz,https://np.mzhh.xyz
-NEXUS_ENGINE_URL=https://your-engine.example.workers.dev
-NEXUS_ENGINE_ADMIN_SECRET=replace-with-engine-admin-secret
-NEXUS_ENGINE_JWT_SECRET=replace-with-engine-jwt-secret
-# 本地联调示例（多个 worker 用逗号分隔）:
-# WORKER_URL=http://127.0.0.1:8787,http://127.0.0.1:8788
-WORKER_URL=
-LLM_WEBHOOK_SECRET=
-OPENAI_API_BASE=https://api.openai.com/v1
-OPENAI_API_KEY=

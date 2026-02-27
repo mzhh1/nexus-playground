@@ -1,16 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import styles from './ui.module.css';
 import type { GameUIProps, Action } from '@nexusgame/game-sdk';
-
-type UnoColor = 'red' | 'yellow' | 'green' | 'blue';
-type UnoCardType = 'number' | 'skip' | 'reverse' | 'draw2' | 'wild' | 'wild_draw4';
-
-interface UnoCard {
-  id: string;
-  type: UnoCardType;
-  color: UnoColor | null;
-  value?: number;
-}
+import { UnoColor, UnoCard, UnoPerspectiveState } from '../logic';
 
 const COLOR_MAP: Record<UnoColor, string> = {
   red: '#ef4444',
@@ -19,7 +10,7 @@ const COLOR_MAP: Record<UnoColor, string> = {
   blue: '#3b82f6',
 };
 
-const UnoUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, readonly, metadata }) => {
+const UnoUI: React.FC<GameUIProps<UnoPerspectiveState>> = ({ perspective, onAction, isMyTurn, readonly, metadata }) => {
   const { current_state, action_space_definition } = perspective;
   const {
     players,

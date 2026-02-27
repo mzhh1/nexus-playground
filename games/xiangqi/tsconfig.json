@@ -1,9 +1,14 @@
 {
   "compilerOptions": {
+    "jsx": "react",
     "target": "ES2020",
     "useDefineForClassFields": true,
     "module": "ESNext",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -15,9 +20,19 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@nexusgame/game-sdk": ["../../packages/game-sdk/src/index.ts"]
+      "@nexusgame/game-sdk": [
+        "../../packages/game-sdk/src/index.ts"
+      ]
     }
   },
-  "include": ["logic/**/*.ts", "ui/**/*.tsx"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": [
+    "logic/**/*.ts",
+    "ui/**/*.tsx",
+    "ui/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ]
 }

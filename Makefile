@@ -73,7 +73,7 @@ deploy-backend: ## 部署 hono_backend 到 Cloudflare
 
 deploy-frontend: ## 部署 frontend 到 Vercel
 	@echo "$(BLUE)🚀 部署 frontend 到 Vercel...$(NC)"
-	vercel --prod --yes --token $$VERCEL_TOKENN
+	cd frontend && vercel --prod --yes --token $$VERCEL_TOKENN
 
 deploy-monitor: ## 部署 monitor 到 Vercel
 	@echo "$(BLUE)🚀 部署 monitor 到 Vercel...$(NC)"

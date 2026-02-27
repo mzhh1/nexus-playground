@@ -16,7 +16,7 @@ import {
   isSpectator as isSpectatorRole,
 } from '@nexusgame/game-sdk';
 
-interface TicTacToeState extends GameState {
+export interface TicTacToeState extends GameState {
   board: (string | null)[][];
   currentRole: string;
   turn: number;

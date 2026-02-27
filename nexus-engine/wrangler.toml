@@ -20,7 +20,7 @@ new_sqlite_classes = ["GameDO"]
 tag = "v2"
 new_sqlite_classes = ["MonitorDO"]
 
-# Service Bindings for internal game workers
+# Service Bindings for internal game workers (Optional for boost efficiency)
 [[services]]
 binding = "GAME_GOMOKU"
 service = "gomoku-worker"
@@ -49,7 +49,7 @@ database_id = "40e1e5aa-e360-4701-85d0-62716ce9ef3b"
 [vars]
 # Admin secret for backend/monitor->engine auth
 #ADMIN_SECRET = "dev-admin-secret"
-# HS256 shared secret for JWT verification (must match backend NEXUS_ENGINE_JWT_SECRET)
+# HS256 shared secret for JWT verification
 #JWT_SECRET = "dev-jwt-secret-change-me"
 # Backend LLM webhook endpoint
 #LLM_WEBHOOK_URL = "https://{base_url}/api/v1/webhook/llm"

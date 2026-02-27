@@ -11,18 +11,18 @@ import {
   isSpectator as isSpectatorRole,
 } from '@nexusgame/game-sdk';
 
-type UnoColor = 'red' | 'yellow' | 'green' | 'blue';
-type UnoCardType = 'number' | 'skip' | 'reverse' | 'draw2' | 'wild' | 'wild_draw4';
-type TurnStage = 'play_or_draw' | 'must_resolve_drawn';
+export type UnoColor = 'red' | 'yellow' | 'green' | 'blue';
+export type UnoCardType = 'number' | 'skip' | 'reverse' | 'draw2' | 'wild' | 'wild_draw4';
+export type TurnStage = 'play_or_draw' | 'must_resolve_drawn';
 
-interface UnoCard {
+export interface UnoCard {
   id: string;
   type: UnoCardType;
   color: UnoColor | null;
   value?: number;
 }
 
-interface UnoState extends GameState {
+export interface UnoState extends GameState {
   players: string[];
   hands: Record<string, UnoCard[]>;
   drawPile: UnoCard[];
@@ -32,6 +32,22 @@ interface UnoState extends GameState {
   turn: number;
   winner: string | null;
   currentColor: UnoColor;
+  turnStage: TurnStage;
+  drawnCardId: string | null;
+}
+
+export interface UnoPerspectiveState {
+  players: string[];
+  currentRole: string;
+  direction: 1 | -1;
+  turn: number;
+  winner: string | null;
+  currentColor: UnoColor;
+  topCard: UnoCard;
+  drawPileCount: number;
+  discardPileCount: number;
+  handCounts: Record<string, number>;
+  yourHand: UnoCard[];
   turnStage: TurnStage;
   drawnCardId: string | null;
 }
@@ -296,7 +312,7 @@ export class UnoLogic implements GameLogic {
     roleId: string,
     wholeHistory: HistoryEvent[],
     diffHistory: HistoryEvent[]
-  ): RolePerspective {
+  ): RolePerspective<UnoPerspectiveState> {
     const s = state as UnoState;
     const isSpectator = isSpectatorRole(roleId);
     const topCard = s.discardPile[s.discardPile.length - 1];

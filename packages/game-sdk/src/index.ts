@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { nanoid } from 'nanoid';
 
 // ============ Types ============
 
@@ -219,7 +218,7 @@ export function cloneState<T>(state: T): T {
     return JSON.parse(JSON.stringify(state));
 }
 
-export function validateAction(action: Action, spec: ActionSpec): ValidationResult {
+export function validateAction(_action: Action, _spec: ActionSpec): ValidationResult {
     // Placeholder validation
     return { valid: true };
 }

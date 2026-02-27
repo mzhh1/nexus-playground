@@ -5,17 +5,17 @@ compatibility_date = "2024-02-01"
 # Env vars for production: set in Cloudflare dashboard or via wrangler secret.
 # Local: use .dev.vars (see .dev.vars.example)
 [vars]
+
 # Optional: LOG_LEVEL = "info"
-JWT_ALG = "HS256"
-OAUTH_USERINFO_PATH = "/oauth/userinfo"
-# Comma-separated list of allowed browser origins for CORS.
-CORS_ALLOW_ORIGINS = "https://nexus.mzhh.xyz,https://np.mzhh.xyz"
+CORS_ALLOW_ORIGINS = "frontend.url"
+
+
 
 [[d1_databases]]
 binding = "DB"
 database_name = "np-hono-backend-db"
 # Replace with real id after `wrangler d1 create`
-database_id = "1e19cf71-e415-47af-9f15-01af85b4cebb"
+# database_id = "your id"
 
 [observability]
 enabled = true
