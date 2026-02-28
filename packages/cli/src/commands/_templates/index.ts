@@ -180,7 +180,7 @@ export const packageJsonTemplate = (gameId: string) => `{
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@nexusgame/game-sdk": "workspace:*",
+    "@nexusgame/game-sdk": "^1.0.0",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^4.2.1",
@@ -271,16 +271,39 @@ export default defineConfig({
 `;
 
 export const gameUiHtmlTemplate = `<!DOCTYPE html>
-<html lang="en">
-  <head>
+<html lang="zh-CN">
+
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nexus Game UI</title>
-  </head>
-  <body>
+    <title>Game UI</title>
+    <link rel="stylesheet" href="/style.css" />
+    <style>
+        /* Reset for iframe */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body,
+        #root {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+        }
+    </style>
+</head>
+
+<body>
     <div id="root"></div>
-    <script type="module" src="./iframe-entry.tsx"></script>
-  </body>
+    <script src="/_ui.js"></script>
+</body>
+
 </html>
 `;
 

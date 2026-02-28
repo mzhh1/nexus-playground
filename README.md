@@ -14,6 +14,14 @@
 
 星枢沙盒是一个高度可扩展的在线回合制游戏平台，将大型语言模型（LLM）作为原生玩家深度集成到游戏逻辑中。平台采用 **"运行时 + 纯逻辑插件"** 的架构，让开发者只需编写无状态的游戏规则函数，即可快速构建可供人类与 AI 共同参与的在线游戏。
 
+项目的核心为游戏引擎与游戏worker。游戏worker可以独立开发和部署，我们在`@nexusgame/game-sdk`和`@nexusgame/cli`提供了完善的本地开发链路。
+
+开发游戏是贡献的主要方式。欢迎开发自己的游戏使用我们的平台运行。
+
+请参照[游戏开发文档](docs/game_development_guide.md)。
+
+项目的后端仅用于鉴权，代理LLM调用和房间管理，依赖于我们自己的Paper Core的鉴权服务，可以自行替换。
+
 ### 核心特性
 
 | 特性 | 说明 |
@@ -31,31 +39,33 @@
 
 项目采用 **全 Serverless** 架构，所有服务部署于 Cloudflare Workers 与 Vercel，彻底移除了 Docker、Nginx、Redis 和自托管 PostgreSQL 的依赖。
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         用户浏览器                               │
-│   ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐  │
-│   │  frontend    │    │ llm-monitor  │    │  game UI (iframe)│  │
-│   │  (Vercel)    │    │  (Vercel)    │    │  (CF Worker)     │  │
-│   └──────┬───────┘    └──────┬───────┘    └────────┬─────────┘  │
-└──────────┼───────────────────┼─────────────────────┼────────────┘
-           │ REST              │ REST/SSE            │ postMessage
-           ▼                   │                     │
-┌──────────────────┐           │                     │
-│  hono_backend    │◄──────────┘                     │
-│  (CF Worker+D1)  │                                 │
-│  房间管理/鉴权    │                                 │
-│  LLM 代理        │──── webhook ──┐                 │
-└────────┬─────────┘               │                 │
-         │ Admin API               ▼                 │
-         ▼                ┌──────────────────┐       │
-┌──────────────────┐      │  game workers    │◄──────┘
-│  nexus-engine    │◄────►│  (各游戏独立     │
-│  (CF Worker+DO)  │ HTTP │  CF Worker)      │
-│  GameDO 游戏状态  │      └──────────────────┘
-│  MonitorDO 日志   │
-│  WebSocket 通信   │
-└──────────────────┘
+### 交互逻辑
+
+框架将游戏生命周期分为 **准备 (Prepare)** 与 **运行 (Play)** 两个核心阶段：
+
+1.  **准备阶段 (Prepare)**：前端通过 `backend`利用Paper Core认证完成 OAuth 2.0 鉴权，并获取带有签名的 JWT，用于后续与引擎的安全通信。
+2.  **运行阶段 (Play)**：前端通过 WebSocket 连接 `nexus-engine`（或本地包装了 `nexus-engine`的 CLI 沙盒），进行房间配置与游戏推演。引擎根据需要调用 `game-worker` 的逻辑接口，而前端渲染 `game-worker`提供的 UI。
+
+```mermaid
+graph TD
+    subgraph "Prepare Phase (Auth)"
+        F[Frontend] -- "1. Auth Request" --> B[Hono Backend]
+        B -- "2. Sign JWT" --> F
+    end
+
+    subgraph "Play Phase (Runtime)"
+        F -- "3. Room/Game Config (WS)" --> E[Nexus Engine]
+        E -- "4. Game Logic (HTTP)" --> GW[Game Worker]
+        F -- "5. UI Assets (Iframe)" --> GW
+        E -- "6. Logging" --> M[Monitor]
+    end
+
+    subgraph "Game Component"
+        GW -- "Logic / API" --> E
+        GW -- "UI / Assets" --> F
+    end
+
+    style GW fill:#f9f,stroke:#333,stroke-width:2px
 ```
 
 ### 技术栈
@@ -63,11 +73,12 @@
 | 层级 | 技术 | 说明 |
 |------|------|------|
 | **前端** | React 18 + TypeScript + Vite | MPA 架构，托管于 Vercel |
-| **LLM 监控** | React + Vite | 独立 SPA，托管于 Vercel |
+| **监控面板** | React + Vite | `monitor` 独立 SPA，LLM 监控与后台室管理，托管于 Vercel |
 | **业务后端** | Hono + Cloudflare Workers + D1 | 房间管理、鉴权、LLM webhook 代理 |
-| **游戏引擎** | Hono + Cloudflare Workers + Durable Objects | 游戏状态管理、WebSocket 实时通信 |
+| **游戏引擎** | Hono + Cloudflare Workers / Node | 云端利用 DO 存储状态，本地提供 CLI 轻量沙盒引擎 |
+| **开发者工具** | Node CLI | `@nexusgame/cli` 脚手架，提供本地沙盒开发联调支持 |
 | **游戏逻辑** | 独立 CF Worker（每游戏一个） | 无状态 HTTP API，托管游戏 UI 资源 |
-| **游戏 SDK** | TypeScript 库（workspace 内部包） | `GameLogic` 接口定义与基础工具 |
+| **游戏 SDK** | TypeScript 库 | `@nexusgame/game-sdk` 提供 `GameLogic` 接口定义与基础工具 |
 | **鉴权** | AutoLab OAuth SDK | OAuth 2.0 + PKCE + JWT |
 | **包管理** | pnpm workspace + Turborepo | monorepo 管理 |
 
@@ -95,7 +106,7 @@ nexus-playground/
 │   ├── vercel.json            # Vercel 路由重写配置
 │   └── vite.config.ts         # Vite 多页构建配置
 │
-├── llm-monitor/               # 📊 LLM 交互监控面板（Vercel 托管）
+├── monitor/                   # 📊 平台后台与 LLM 监控面板（Vercel 托管）
 │   ├── src/                   # React SPA
 │   └── vercel.json
 │
@@ -128,19 +139,17 @@ nexus-playground/
 │   └── wrangler.toml          # CF Worker 配置（含 DO 绑定）
 │
 ├── packages/
-│   └── game-sdk/              # 📦 游戏开发 SDK
-│       └── src/index.ts       # GameLogic 接口、类型定义、基础工具
+│   ├── game-sdk/              # 📦 游戏开发 SDK（@nexusgame/game-sdk）
+│   │   └── src/index.ts       # GameLogic 接口、类型定义、基础工具
+│   └── cli/                   # 🧰 开发者脚手架与本地沙盒引擎（@nexusgame/cli）
+│       ├── src/               # CLI 命令实现
+│       └── dist/              # 预编译的单机引擎 worker
 │
 ├── games/                     # 🎲 游戏目录（每个游戏独立部署）
 │   └── gomoku/                # 五子棋（已迁移）
 │       ├── logic/             #   纯函数游戏逻辑（实现 GameLogic 接口）
 │       ├── ui/                #   React 游戏 UI（构建为独立 JS/CSS）
 │       └── worker/            #   CF Worker（托管逻辑 API + 静态 UI 资源）
-│
-├── games-old/                 # 📦 未迁移的旧游戏
-│   ├── tic-tac-toe/           #   井字棋
-│   ├── xiangqi/               #   象棋
-│   └── werewolf/              #   狼人杀
 │
 ├── Makefile                   # 开发与部署命令
 ├── pnpm-workspace.yaml        # pnpm workspace 配置
@@ -214,15 +223,15 @@ export interface GameLogic<TState extends GameState = GameState> {
 - `useAction`：封装行动提交逻辑
 - `useRoom`：房间数据管理
 
-### 2. LLM Monitor（LLM 监控面板）
+### 2. Monitor（平台后台与监控面板）
 
 | 项 | 说明 |
 |-----|------|
 | 框架 | React + Vite |
 | 部署 | Vercel |
-| 数据源 | `nexus-engine` 的 Monitor API（D1 + SSE） |
+| 数据源 | `nexus-engine` 的 Monitor API（D1 + SSE）及后端 Room API |
 
-独立的监控面板 SPA，用于实时查看和分析 LLM 玩家的交互日志，包括 Prompt 内容、响应、Token 使用量等。支持 SSE 实时流推送和历史日志查询。
+独立的监控面板与后台管理 SPA，用于实时查看和分析 LLM 玩家的交互日志（包括 Prompt 内容、响应、Token 使用量等），以及管理后端的房间状态。支持 SSE 实时流推送和历史日志查询。
 
 ### 3. Hono Backend（业务后端）
 
@@ -245,10 +254,10 @@ export interface GameLogic<TState extends GameState = GameState> {
 | 项 | 说明 |
 |-----|------|
 | 框架 | Hono |
-| 运行时 | Cloudflare Workers + Durable Objects |
-| 数据库 | DO SQLite（内置持久化） + D1（监控日志） |
+| 运行时 | Cloudflare Workers + Durable Objects / Node.js (本地 CLI) |
+| 数据库 | DO SQLite（内置持久化） + D1（监控日志） / 内存 (本地 CLI) |
 
-这是平台的核心运行时，采用 **Heavy Engine** 设计，承担所有游戏执行逻辑：
+这是平台的核心运行时，采用 **Heavy Engine** 设计，承担所有游戏执行逻辑。它不仅可以部署到云端，也可以被打包为 `engine-worker.js` 在本地通过 CLI 运行：
 
 - **GameDO**（Durable Object）：每个房间绑定一个 DO 实例
   - 管理完整的游戏生命周期（open → playing → paused）
@@ -261,7 +270,14 @@ export interface GameLogic<TState extends GameState = GameState> {
   - 服务端消息：`SYNC_STATE`、`ERROR`、`KICKED`
   - 客户端消息：`ACT`、`ADMIN_SET_GAME`、`ADMIN_START_GAME`、`LOBBY_SELECT_ROLE` 等
 
-### 5. Game SDK（`@nexusgame/game-sdk`）
+### 5. Game CLI（`@nexusgame/cli`）
+
+开发者本地脚手架与调试工具链，提供：
+- `create-game`：脚手架生成标准三层结构的开发模板
+- `start`：启动包含 HTTP 的本地轻量级沙盒引擎
+- `setup` / `state` / `action` / `perspective`：模拟房间连接与全链路动作交互打通，便于完全单机调试
+
+### 6. Game SDK（`@nexusgame/game-sdk`）
 
 游戏开发的核心 SDK，提供：
 - `GameLogic<TState>` 接口定义
@@ -269,7 +285,7 @@ export interface GameLogic<TState extends GameState = GameState> {
 - 通用类型：`GameState`、`Action`、`ActionSpec`、`RolePerspective`、`Player`、`RoomInfo` 等
 - 工具函数：`validateAction`、`cloneState`、`stateSerializer` 等
 
-### 6. 游戏（`games/`）
+### 7. 游戏（`games/`）
 
 每个游戏包含三个独立部分，均可独立构建和部署：
 
@@ -297,10 +313,6 @@ Game Worker 暴露的 HTTP API：
 | `/perspective` | POST | 生成角色视角 |
 | `/current-role` | POST | 获取当前行动角色 |
 | `/game-ui.html` | GET | 游戏 UI 页面（iframe 加载） |
-
-### 7. 旧游戏（`games-old/`）
-
-尚未迁移到新架构的游戏，包括井字棋（tic-tac-toe）、象棋（xiangqi）、狼人杀（werewolf）。待后续逐步迁移为独立 Worker 部署。
 
 ---
 
@@ -406,14 +418,17 @@ cp frontend/.env frontend/.env.local
 ### 3. 本地开发
 
 ```bash
-# 启动 Workers（hono_backend + nexus-engine）
+# (云端模式) 启动 Workers（hono_backend + nexus-engine）
 pnpm run dev:workers
+
+# (单机联调模式模式) 启动本地轻量级沙盒引擎
+# npx @nexusgame/cli start
 
 # 启动前端（另一个终端）
 cd frontend && pnpm run dev
 
-# 启动 LLM Monitor（另一个终端，可选）
-cd llm-monitor && pnpm run dev
+# 启动监控面板 Monitor（另一个终端，可选）
+cd monitor && pnpm run dev
 
 # 启动游戏 Worker（另一个终端）
 cd games/gomoku/worker && pnpm run dev
@@ -446,9 +461,9 @@ make d1-migrate
 
 ## 🌐 部署
 
-### 前端 & LLM Monitor → Vercel
+### 前端 & Monitor → Vercel
 
-通过 Vercel 连接 GitHub 仓库，分别配置 `frontend/` 和 `llm-monitor/` 为项目根目录：
+通过 Vercel 连接 GitHub 仓库，分别配置 `frontend/` 和 `monitor/` 为项目根目录：
 
 - **Framework**：Vite
 - **Build Command**：`pnpm run build`
@@ -513,7 +528,7 @@ export default new MyGameLogic();
 make deploy-game G=my-game
 ```
 
-详细的游戏接入规范请参考 [`game_integration_guide.md`](./docs/old/game_integration_guide.md)。
+详细的游戏接入规范请参考 [`game_development_guide.md`](./docs/game_development_guide.md)。
 
 ---
 

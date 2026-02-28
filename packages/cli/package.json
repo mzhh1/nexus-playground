@@ -1,6 +1,6 @@
 {
     "name": "@nexusgame/cli",
-    "version": "0.1.0",
+    "version": "0.1.2",
     "type": "module",
     "description": "Nexus Game Engine - Local development CLI tool",
     "bin": {

@@ -1,7 +1,7 @@
 # 星枢沙盒游戏开发指南
 
-**版本**: 2.0  
-**适用架构**: 新版 Serverless 架构 (Cloudflare Workers + Vercel)
+**版本**: 3.0  
+**适用架构**: 新版 Serverless 架构 (Cloudflare Workers + Vercel) + `@nexusgame/cli` 开发者工具链
 
 ---
 
@@ -13,8 +13,9 @@
 4. [核心：游戏逻辑层 (Logic)](#4-核心游戏逻辑层-logic)
 5. [表现：游戏 UI 层 (UI)](#5-表现游戏-ui-层-ui)
 6. [服务：Worker API 层 (Worker)](#6-服务worker-api-层-worker)
-7. [进阶系统：观战者、LLM与动态配置](#7-进阶系统观战者llm与动态配置)
-8. [部署与测试](#8-部署与测试)
+7. [本地联调与 CLI 交互](#7-本地联调与-cli-交互)
+8. [进阶系统：观战者、LLM与动态配置](#8-进阶系统观战者llm与动态配置)
+9. [部署与发布](#9-部署与发布)
 
 ---
 
@@ -22,7 +23,7 @@
 
 **核心理念：游戏 = 无状态纯逻辑 + 声明式沙箱 UI**
 
-在星枢沙盒中，平台彻底接管了所有的运行时服务（WebSocket、持久化状态存储、鉴权、LLM 自动调度、回合控制等）。游戏开发者只需专注于：
+在星枢沙盒中，平台彻底接管了所有的运行时服务（WebSocket、持久化状态存储、鉴权、LLM 自动调度、回合控制等）。平台使用全新发布的 `@nexusgame/cli` 脚手架生成标准的模版结构并使用 `@nexusgame/game-sdk` 定义类型和辅助函数，游戏开发者只需专注于：
 1. **定义规则**：实现 `GameLogic` 接口的推演逻辑。
 2. **渲染视角**：编写基于 React 的沙箱 UI 组件，展示游戏画面并响应用户操作。
 
@@ -35,10 +36,10 @@
 
 ## 2. 新版架构总览
 
-每个接入星枢沙盒的游戏都是一个 **独立的微服务**，部署在 Cloudflare Workers 上，游戏项目采用典型的三层结构：
+每个接入星枢沙盒的游戏都是一个 **独立的微服务**，部署在 Cloudflare Workers 上，通过 `@nexusgame/cli` 脚手架生成的游戏项目采用典型的三层结构：
 
 ```
-games/my-game/
+<your-game-id>/
 ├── logic/                  # 🧠 纯函数游戏逻辑（实现 GameLogic 接口）
 │   └── index.ts            
 ├── ui/                     # 🎨 独立构建的 React 游戏 UI
@@ -50,22 +51,35 @@ games/my-game/
 ```
 
 ### 数据交互流
-1. **引擎调度**：平台核心引擎 (`nexus-engine`) 负责维护权威状态，当需要行动或状态更新时，通过 HTTP 请求调用该游戏的独立 Worker API。
+1. **引擎调度**：平台核心引擎 (`nexus-engine`) 或本地调试节点负责维护权威状态，当需要行动或状态更新时，通过 HTTP 请求调用该游戏的独立 Worker API。
 2. **视角分发**：引擎获取游戏逻辑过滤后的 `RolePerspective`（角色视角），通过 WebSocket 下发给客户端浏览器。
 3. **UI 渲染**：客户端平台将 `RolePerspective` 传递给 Iframe 内部的游戏 UI 组件。
-4. **行动提交**：玩家在 UI 中点击操作，触发 `onAction`，由平台负责校验并提交回引擎进行下一轮推演。
+4. **行动提交**：玩家在 UI 中点击操作，触发 `onAction`，由引擎负责校验并提交进行下一轮推演。
 
 ---
 
 ## 3. 开发流程概览
 
-要接入一款新游戏，你需要完成以下步骤：
+要接入一款新游戏，借助 `@nexusgame/cli`，你可以极速完成环境搭建与调试：
 
-1. **环境准备**：在 `games/` 目录下创建你的游戏文件夹。
-2. **编写 Logic**：实现 `@nexusgame/game-sdk` 提供的 `GameLogic` 接口。
-3. **编写 UI**：创建一个接收 `GameUIProps` 的 React 组件。
-4. **包装 Worker**：使用 Hono 暴露标准的 API 路由（元数据、初始化、行动验证、推演等）。
-5. **本地联调与部署**：使用 Makefile 一键部署到 Cloudflare。
+### 3.1 创建新游戏脚手架
+我们推荐使用 `npx` 直接运行 CLI，这样可以确保你始终使用的是最新版本：
+```bash
+npx @nexusgame/cli create-game
+```
+按照提示输入游戏 ID、展示名称等信息，CLI 将会自动为你生成完整的游戏开发脚手架。
+
+### 3.2 初始开发准备
+```bash
+cd <your-game-id>
+pnpm install
+```
+
+### 3.3 核心步骤
+1. **编写 Logic**：实现 `@nexusgame/game-sdk` 提供的 `GameLogic` 接口。
+2. **编写 UI**：创建一个接收 `GameUIProps` 的 React 组件。
+3. **本地开发调试**：启动并连接本地轻量级引擎模拟运行。
+4. **一键部署发布**：通过 `pnpm run deploy` 部署至边缘节点。
 
 ---
 
@@ -131,16 +145,13 @@ export class MyGameLogic implements GameLogic {
 
   // 4. 返回合法行动空间 (ActionSpec)
   getLegalActions(state: GameState, roleId: string): ActionSpec {
-    // 若不是当前角色，或者游戏结束，返回空
     if ((state as MyGameState).currentRole !== roleId || (state as MyGameState).winner) {
       return { actions: [] };
     }
 
     return {
       actions: [
-        // 固定行动示例
         { action_id: 'pass', description: '跳过', params_schema: null },
-        // 参数化行动示例
         { 
           action_id: 'place', 
           description: '落子', 
@@ -161,7 +172,6 @@ export class MyGameLogic implements GameLogic {
       return { success: false, error: '不是你的回合' };
     }
 
-    // 处理行动逻辑...
     if (action.action_id === 'place') {
       s.board[action.params.row][action.params.col] = 1;
       s.turn += 1;
@@ -259,14 +269,13 @@ const MyGameUI: React.FC<GameUIProps> = ({ perspective, onAction, isMyTurn, read
     
     onAction({
       action_id: 'place',
-      role_id: your_role.identity, // 'player_1' or 'player_2' 
+      role_id: your_role.identity,
       params: { row, col }
     });
   };
 
   return (
     <div className={styles.container}>
-      {/* 渲染你的游戏画面 */}
       <div className={styles.board}>
         {current_state.board.map((rowArr: number[], row: number) => 
            rowArr.map((cell: number, col: number) => (
@@ -300,7 +309,6 @@ export default MyGameUI;
 }
 
 .board {
-  /* 自动占满容器的最大正方形 */
   width: min(calc(100cqw - 2rem), calc(100cqh - 2rem));
   height: min(calc(100cqw - 2rem), calc(100cqh - 2rem));
   background-color: #f0f0f0;
@@ -311,104 +319,76 @@ export default MyGameUI;
 
 游戏 UI 运行在受限 Iframe（默认仅允许脚本执行）的沙盒环境中。为确保安全隔离，开发时请遵循以下约束：
 
-- **不要使用 `<form>` / 原生表单提交流程**（包括 `onSubmit`、`type="submit"`、`form.submit()`）。
-- **推荐使用普通容器 + 按钮点击**：通过 `onClick` 收集参数后直接调用 `onAction(...)`。
-- 如需支持回车提交，请在输入控件上使用 `onKeyDown` 监听 Enter，并调用同一套 `onAction(...)` 逻辑。
-
-> 说明：在沙盒中使用原生表单提交会触发浏览器拦截（例如 `Blocked form submission ... sandboxed and the 'allow-forms' permission is not set`）。平台默认不建议为游戏 UI 打开 `allow-forms` 权限。
+- **不要使用 `<form>` / 原生表单提交流程**。
+- **推荐使用普通容器 + 按钮点击**：收集参数后直接调用 `onAction(...)`。
+- 如需支持回车提交，请在输入控件上使用 `onKeyDown` 监听 Enter。
 
 ---
 
 ## 6. 服务：Worker API 层 (Worker)
 
-每个游戏作为一个独立的 Cloudflare Worker，通过标准的 HTTP 接口对外提供逻辑服务，并托管静态 UI 资源。
+`@nexusgame/cli` 脚手架在 `worker/src/index.ts` 中已经自动为你处理了 API 包裹与静态资源托管。你**绝大部分情况不需要手动修改**该文件，即使修改，只需更改暴露或处理的新路由即可。
 
-### 6.1 Worker 包装 (Hono)
-
-在 `games/my-game/worker/src/index.ts` 中，使用 `Hono` 对上述 `logic` 进行包裹，平台引擎会通过这些端点来驱动游戏。
-
-> ⚠️ **强烈建议**：对于所有新接入的游戏，可以直接拷贝复用 `games/gomoku/worker/src/index.ts` 作为模板，并只需修改 import 的 `logic` 指向即可，几乎不需要修改业务代码。
->
-> 引擎在连接新游戏时，**必须**通过 `/__nexus_worker_verify` 接口获取到字符串 `NEXUS_GAME_WORKER_VERIFIED_V1` 进行安全握手校验，这在复用的 `index.ts` 中已经自动处理。
-
-```typescript
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import logic from '../../logic/index';
-
-const app = new Hono<{ Bindings: { ASSETS: Fetcher; UI_BASE_URL?: string } }>();
-
-// 必须启用 CORS 确保引擎可调用
-app.use('/*', cors());
-
-// 返回校验签名（引擎安全握手，必须为 NEXUS_GAME_WORKER_VERIFIED_V1）
-app.get('/__nexus_worker_verify', (c) => c.text('NEXUS_GAME_WORKER_VERIFIED_V1'));
-
-// 静态资源托管路由（配置正确的 Headers）
-app.get('/game-ui.html', async (c) => {
-    const response = await c.env.ASSETS.fetch(new Request(new URL(c.req.url), c.req.raw));
-    const newResponse = new Response(response.body, response);
-    newResponse.headers.set('Access-Control-Allow-Origin', '*');
-    newResponse.headers.set('Content-Type', 'text/html');
-    return newResponse;
-});
-// (对 /_ui.js, /style.css 同理处理... 详见 gomoku/worker/src/index.ts)
-
-// 游戏逻辑标准端点
-app.get('/metadata', (c) => {
-    const metadata = logic.getMetadata();
-    const uiBaseUrl = c.env.UI_BASE_URL || new URL(c.req.url).origin;
-    return c.json({
-        ...metadata,
-        ui: { mode: 'url', url: `${uiBaseUrl}/game-ui.html` },
-    });
-});
-
-app.post('/init', async (c) => c.json(logic.initState(await c.req.json())));
-app.post('/legal-actions', async (c) => {
-    const { state, roleId } = await c.req.json();
-    return c.json(logic.getLegalActions(state, roleId));
-});
-app.post('/action', async (c) => {
-    const { state, action } = await c.req.json();
-    return c.json(logic.applyAction(state, action));
-});
-app.post('/is-terminal', async (c) => {
-    const { state } = await c.req.json();
-    const isTerminal = logic.isTerminal(state);
-    return c.json({ isTerminal, winners: isTerminal ? logic.getWinners(state) : null });
-});
-app.post('/perspective', async (c) => {
-    const body = await c.req.json();
-    const perspective = logic.toRolePerspective(body.state, body.roleId, body.wholeHistory, body.diffHistory);
-    return c.json({ ...perspective, statePrompt: logic.generateStatePrompt(perspective) });
-});
-
-export default app;
-```
+内置自动包装通过 `Hono` 暴露出以下标准逻辑端点：
+- `/__nexus_worker_verify`: 安全握手
+- `/metadata`: 获取游戏基本配置和 UI 入口地址
+- `/init`, `/legal-actions`, `/action`, `/is-terminal`, `/perspective`: 标准状态机路由交互
+- `/game-ui.html` 及相关静态资源解析
 
 ---
 
-## 7. 进阶系统：观战者、LLM与动态配置
+## 7. 本地联调与 CLI 交互
 
-### 7.1 观战者系统 (Spectator)
+新版工具链允许你在本地直接启动轻量级引擎 (`npx @nexusgame/cli start`) 并无缝进行沙盒行为的完全模拟。
+
+**本地全链路调试工作流**：
+
+1. **在一个终端启动轻量级引擎**:
+   ```bash
+   npx @nexusgame/cli start
+   ```
+
+2. **在另一个终端运行你的开发 Worker 并 Setup**:
+   ```bash
+   # 首先启动你的游戏 Worker (通常是运行脚手架中的 pnpm run dev)
+   # 在另外的会话运行 setup 连接引擎并创建独立房间
+   npx @nexusgame/cli setup --worker-url http://localhost:8788
+   ```
+
+3. **通过 CLI 即时查看与提交行动**:
+   ```bash
+   # 1. 查看房间全局综合状态
+   npx @nexusgame/cli state
+   
+   # 2. 拉取特定角色的视角，并获取一个用于调试页面 UI 的独立 Local URL！
+   npx @nexusgame/cli perspective player_1
+   
+   # 3. 模拟对应角色执行落子/行动
+   npx @nexusgame/cli action player_1 '{"action_id":"place","params":{"row":0,"col":0}}'
+   ```
+这种方式免去了配置庞大后端、主网数据库等繁复流程。你能够彻底验证你的 Logic 与 UI 行为的一致性后再上线。
+
+---
+
+## 8. 进阶系统：观战者、LLM与动态配置
+
+### 8.1 观战者系统 (Spectator)
 
 平台会向不在游戏内参与的玩家下发保留的 `roleId`：`nexus_reserved_specator`。
 - **必须**使用 `@nexusgame/game-sdk` 提供的 `isSpectator(roleId)` 辅助函数检查是否是观战者。
 - 观战者的 `getLegalActions` 必须返回空数组 `[]`。
-- 观战者的提示消息应该前缀 `👀 观战模式 - ...` 以示区别。
+- 观战者的提示消息应该含有明显的前缀（如：`👀 观战模式 - ...`）。
 - **不完美信息游戏**：开发者需要决定观战者是否可以拥有"上帝视角"（全明牌），或"公平视角"（只能看公共牌）。
 
-### 7.2 LLM AI 玩家支持
+### 8.2 LLM AI 玩家支持
 
 为了使 LLM (例如 GPT-4, Claude) 可以像人类一样流畅游玩，请注意：
-1. **良好的提示词**：在 `generateStatePrompt` 中，按照游戏逻辑处理转换游戏状态，提高LLM做出正确决策的能力。
+1. **良好的提示词**：在 `generateStatePrompt` 中精确输出纯文字的状态解释。
 2. **多模态扩展**：若是推演步骤繁杂或注重推理策略的游戏，在 `getMetadata` 中设置 `enable_llm_memory: true`，引擎将自动为 LLM 提供记忆摘要功能。
 
-### 7.3 多人数动态配置
+### 8.3 多人数动态配置
 
-部分游戏（如狼人杀）在不同人数下角色配置不同。你可以在 `metadata` 的 `roleIds` 中提供对象映射结构：
-
+部分游戏在不同人数下角色配置不同。你可以在 `metadata` 的 `roleIds` 中提供对象映射结构：
 ```typescript
 getMetadata(): GameMetadata {
   return {
@@ -423,26 +403,18 @@ getMetadata(): GameMetadata {
   };
 }
 ```
-平台会在创建房间时自动识别并展示人数选择下拉框。
 
 ---
 
-## 8. 部署与测试
+## 9. 部署与发布
 
-使用项目的 monorepo 根目录下提供的指令，可以极速部署和测试新游戏。
+在彻底完成本地联调并确认业务代码通过测试后，通过脚手架预置的命令发布：
 
-1. **配置 Wrangler**：在 `games/my-game/worker/wrangler.toml` 定义你的 Worker 名称。
-2. **构建与运行开发服务**：
-   ```bash
-   cd games/my-game/worker
-   pnpm run dev
-   ```
-   游戏 Worker 将在本地跑起，你可以在前台系统新建房间，并在 Admin 控制面板手动将 `gameWorkerUrl` 指向本地的 Worker 地址（如 `http://localhost:8787`）进行全链路联调。
-3. **正式发布**：
-   ```bash
-   make deploy-game G=my-game
-   ```
-   随后在主后端的 Game 注册列表中添加配置即可对外开放。
+```bash
+pnpm run deploy
+```
 
----
-*Happy Coding, 让 AI 与人类一起享受游戏的乐趣！*
+> [!TIP]
+> 部署过程会根据 `worker/wrangler.toml` 中的配置，利用 Wrangler 工具链，直接将你的游戏逻辑发布为正式的 Cloudflare Workers 边缘函数！
+
+发布完成后，主网或中心化调度服务器即可注册并安全引入你的新游戏。
