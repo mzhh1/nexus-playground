@@ -53,10 +53,12 @@ export interface ClientEngineState {
 
 interface UseNexusEngineProps {
     roomId: string | null;
+    /** Logto 认证是否仍在加载中。为 true 时不会发起连接，避免以访客身份连接。 */
+    isAuthLoading?: boolean;
     onJoinRequest?: (userId: string, displayName: string) => void;
 }
 
-export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
+export function useNexusEngine({ roomId, isAuthLoading = false, onJoinRequest }: UseNexusEngineProps) {
     // Unified state (from SYNC_STATE)
     const [engineState, setEngineState] = useState<ClientEngineState | null>(null);
     const lastEngineStateRef = useRef<ClientEngineState | null>(null);
@@ -224,7 +226,8 @@ export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
     // ─── Initial Connect & Cleanup ────────────────────────────────
 
     useEffect(() => {
-        if (!roomId) return;
+        // 等待 Logto 认证加载完成再发起连接，避免以访客身份连接后被引擎拒绝
+        if (!roomId || isAuthLoading) return;
 
         void connectToEngine();
 
@@ -244,7 +247,7 @@ export function useNexusEngine({ roomId, onJoinRequest }: UseNexusEngineProps) {
                 wsRef.current = null;
             }
         };
-    }, [roomId, connectToEngine]);
+    }, [roomId, isAuthLoading, connectToEngine]);
 
     // ─── Manual Reconnect ────────────────────────────────
 

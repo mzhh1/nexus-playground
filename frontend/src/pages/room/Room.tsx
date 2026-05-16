@@ -37,6 +37,7 @@ const Room: React.FC = () => {
 
   // Hooks
   const { games: AVAILABLE_GAMES } = useGamesMetadata();
+  const { user, isLoading: isAuthLoading } = useCurrentUser();
 
   // Nexus Engine WebSocket connection (handles both lobby and game state)
   const {
@@ -68,6 +69,7 @@ const Room: React.FC = () => {
     retry: handleRetryEngine,
   } = useNexusEngine({
     roomId,
+    isAuthLoading,
     onJoinRequest: (userId, displayName) => {
       const requestId = Math.random().toString(36).substring(7);
       setPendingJoinRequests(prev => [...prev, { userId, displayName, id: requestId }]);
@@ -90,8 +92,6 @@ const Room: React.FC = () => {
       return { success: false };
     }
   };
-  const { user } = useCurrentUser();
-
   const accountDisplayName = useMemo(() => {
     if (!user) return '';
     const u = user as Record<string, unknown>;

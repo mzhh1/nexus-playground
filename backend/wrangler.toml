@@ -17,7 +17,7 @@ DEBUG = "false"
 WORKER_URL = "https://uno.npgames.autolab-server.site/"
 
 # 逗号分隔的允许 CORS 来源
-CORS_ALLOW_ORIGINS = "http://localhost:5173"
+CORS_ALLOW_ORIGINS = "http://localhost:5173,https://np.mzhh.xyz"
 # CORS_ALLOW_ORIGINS = "http://localhost:3004,https://your-frontend.vercel.app"
 
 # 以下敏感变量通过 wrangler secret put 或 .dev.vars 配置：
