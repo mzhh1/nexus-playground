@@ -4,11 +4,14 @@
  */
 
 import React, { useEffect } from 'react';
+import { useLogto } from '@logto/react';
 import { useRoom } from '../../hooks/useRoom';
+import { LOGTO_REDIRECT_URI, LOGTO_POST_LOGOUT_REDIRECT_URI } from '../../lib/logto';
 import '../../styles/global.css';
 
 export const MyNexus: React.FC = () => {
-  const { room, loading, error, fetchMyNexus } = useRoom();
+  const { signIn, signOut } = useLogto();
+  const { room, loading, error, shouldReauth, fetchMyNexus } = useRoom();
 
   // Load my nexus on mount
   useEffect(() => {
@@ -22,6 +25,13 @@ export const MyNexus: React.FC = () => {
       window.location.replace(target);
     }
   }, [room?.room_id]);
+
+  // 认证错误时清除登录态
+  useEffect(() => {
+    if (shouldReauth) {
+      signOut(LOGTO_POST_LOGOUT_REDIRECT_URI);
+    }
+  }, [shouldReauth, signOut]);
 
   if (loading || room) {
     return (
@@ -38,7 +48,15 @@ export const MyNexus: React.FC = () => {
         <div className="error-message">
           <h2>错误</h2>
           <p>{error}</p>
-          <button onClick={fetchMyNexus}>重试</button>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+            <button onClick={fetchMyNexus}>重试</button>
+            <button onClick={() => {
+              signOut(LOGTO_POST_LOGOUT_REDIRECT_URI);
+              setTimeout(() => void signIn(LOGTO_REDIRECT_URI), 200);
+            }}>
+              重新登录
+            </button>
+          </div>
         </div>
       </div>
     );

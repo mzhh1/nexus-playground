@@ -1,6 +1,7 @@
 packages:
   - 'packages/*'
   - 'hono_backend'
+  - 'backend'
   - 'frontend'
   - 'monitor'
   - 'games/*'

@@ -8,6 +8,7 @@
 
 import { useState, useCallback } from 'react';
 import { useGameAPI } from '../lib/api-client';
+import { describeError, needsReauthentication } from '../lib/auth-errors';
 
 export interface RoomBasicInfo {
   room_id: string;
@@ -27,6 +28,7 @@ export function useRoom() {
   const [room, setRoom] = useState<RoomBasicInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shouldReauth, setShouldReauth] = useState(false);
   const gameApi = useGameAPI();
 
   /**
@@ -36,32 +38,31 @@ export function useRoom() {
   const fetchMyNexus = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setShouldReauth(false);
     try {
       const data = await gameApi.getMyNexus();
       setRoom(data as any);
       return data;
-    } catch (e: any) {
-      const msg = e?.response?.data?.error || e.message || 'Failed to fetch room';
-      setError(msg);
+    } catch (e) {
+      setError(describeError(e));
+      setShouldReauth(needsReauthentication(e));
       throw e;
     } finally {
       setLoading(false);
     }
   }, [gameApi]);
 
-  /**
-   * Fetch room info by ID (public info)
-   */
   const fetchRoom = useCallback(async (roomId: string) => {
     setLoading(true);
     setError(null);
+    setShouldReauth(false);
     try {
       const data = await gameApi.getRoomInfo(roomId);
       setRoom(data as any);
       return data;
-    } catch (e: any) {
-      const msg = e?.response?.data?.error || e.message || 'Failed to fetch room';
-      setError(msg);
+    } catch (e) {
+      setError(describeError(e));
+      setShouldReauth(needsReauthentication(e));
       throw e;
     } finally {
       setLoading(false);
@@ -72,8 +73,10 @@ export function useRoom() {
     room,
     loading,
     error,
+    shouldReauth,
     fetchMyNexus,
     fetchRoom,
+    clearError: () => { setError(null); setShouldReauth(false); },
     roomId: room?.room_id ?? null,
   };
 }

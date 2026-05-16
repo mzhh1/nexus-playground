@@ -4,7 +4,10 @@
  */
 
 import React, { useState } from 'react';
-import { AuthAvatar } from '@autolabz/oauth-sdk';
+import { useLogto } from '@logto/react';
+import { UserAvatar } from './UserAvatar';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { LOGTO_REDIRECT_URI } from '../lib/logto';
 import type { RoleMapping } from '../lib/types';
 import '../styles/control-bar.css';
 
@@ -49,6 +52,18 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
   const [showRoomMetaModal, setShowRoomMetaModal] = useState(false);
   const [editRoomName, setEditRoomName] = useState(roomName || roomId);
   const [editIsPublic, setEditIsPublic] = useState(isPublic ?? true);
+
+  // Auth hooks
+  const { signIn, signOut } = useLogto();
+  const { user: userAvatarUser, isAuthenticated: userAvatarIsAuth } = useCurrentUser(true);
+
+  const handleAvatarSignIn = () => {
+    void signIn(LOGTO_REDIRECT_URI);
+  };
+
+  const handleAvatarSignOut = () => {
+    void signOut(import.meta.env.VITE_LOGTO_POST_LOGOUT_REDIRECT_URI || window.location.origin + '/');
+  };
 
   // Sync state when props change
   React.useEffect(() => {
@@ -244,10 +259,11 @@ export const NexusControlBar: React.FC<NexusControlBarProps> = ({
 
           {/* 头像组件 */}
           <div className="avatar-container">
-            <AuthAvatar
-              redirectUri={import.meta.env.VITE_OAUTH_REDIRECT_URI}
-              scope={import.meta.env.VITE_OAUTH_SCOPE || 'openid profile email llmapi'}
-              profileUrl={import.meta.env.VITE_OAUTH_PROFILE_URL}
+            <UserAvatar
+              user={userAvatarUser}
+              isAuthenticated={userAvatarIsAuth}
+              onSignIn={handleAvatarSignIn}
+              onSignOut={handleAvatarSignOut}
             />
           </div>
         </div>

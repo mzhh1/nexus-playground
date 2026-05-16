@@ -4,8 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useOAuth } from '@autolabz/oauth-sdk';
-import '@autolabz/oauth-sdk/dist/style.css';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useNexusEngine } from '../../hooks/useNexusEngine';
 import { useGamesMetadata, getGameName } from '../../hooks/useGamesMetadata';
 import type { RoleMapping } from '../../lib/types';
@@ -91,18 +90,18 @@ const Room: React.FC = () => {
       return { success: false };
     }
   };
-  const { user } = useOAuth();
+  const { user } = useCurrentUser();
 
   const accountDisplayName = useMemo(() => {
     if (!user) return '';
-
-    const nickname = user.nickname?.trim();
+    const u = user as Record<string, unknown>;
+    const name = typeof u.name === 'string' ? u.name.trim() : '';
+    if (name) return name;
+    const nickname = typeof u.nickname === 'string' ? u.nickname.trim() : '';
     if (nickname) return nickname;
-
-    const email = user.email?.trim();
+    const email = typeof u.email === 'string' ? u.email.trim() : '';
     if (email) return email;
-
-    return user.id;
+    return typeof u.sub === 'string' ? u.sub : '';
   }, [user]);
 
   useEffect(() => {

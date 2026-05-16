@@ -59,3 +59,9 @@ frontend/.vite/
 *.sqlite3
 .vercel
 .env*.local
+
+# Reference
+reference/
+
+# CLAUDE
+CLAUDE.MD

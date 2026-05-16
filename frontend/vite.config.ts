@@ -23,7 +23,6 @@ export default defineConfig({
       strict: false,
     },
     hmr: {
-      clientPort: 443,
     },
     allowedHosts: [
       'nexus.mzhh.xyz',

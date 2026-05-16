@@ -1,20 +1,14 @@
 /**
- * Type-safe API Client for Game Backend — v4.0 Simplified
- *
- * After the Heavy Engine refactoring, this client only provides:
- *   - getMyNexus() — get/create user's room + Engine JWT
- *   - getRoomInfo() — get public room info
- *   - getEngineConnection() — get WebSocket URL + JWT
- *
- * All game operations (select game, add/remove players, start/stop,
- * actions, perspectives) are now handled via WebSocket to the Engine DO.
+ * Type-safe API Client for Game Backend — v4.1
  */
 
-import { useOAuth } from '@autolabz/oauth-sdk';
-import { useMemo } from 'react';
+import { useLogto } from '@logto/react';
+import { useMemo, useRef } from 'react';
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
 import type { RoomInfo, EngineConnectionResponse } from './types';
+import { BACKEND_RESOURCE } from './logto';
+import { ApiHttpError, TokenAcquisitionError } from './auth-errors';
 
 /**
  * Get or create a stable guest ID for unauthenticated users
@@ -57,8 +51,10 @@ export class GameAPI {
  * Hook: Get game API client
  */
 export function useGameAPI() {
-  const { apiClient, getAccessToken, isAuthenticated } = useOAuth();
-  let AuthenticatedState = isAuthenticated;
+  const { getAccessToken, isAuthenticated } = useLogto();
+  const authRef = useRef(isAuthenticated);
+  authRef.current = isAuthenticated;
+
   const gameAxios = useMemo(() => {
     const instance = axios.create({
       baseURL: import.meta.env.VITE_BACKEND_BASE_URL,
@@ -71,59 +67,71 @@ export function useGameAPI() {
     // Request interceptor: Add authorization
     instance.interceptors.request.use(
       async (config) => {
-        const token = await getAccessToken();
-        console.log('isAuthenticated:', isAuthenticated, AuthenticatedState, config.url);
-        if (AuthenticatedState && token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        if (authRef.current) {
+          try {
+            const token = await getAccessToken(BACKEND_RESOURCE);
+            if (!token) {
+              throw new TokenAcquisitionError('无法获取访问令牌，请重新登录后重试。');
+            }
+            config.headers.Authorization = `Bearer ${token}`;
+          } catch (err) {
+            if (err instanceof TokenAcquisitionError) throw err;
+            throw new TokenAcquisitionError(
+              err instanceof Error ? err.message : '获取访问令牌失败',
+            );
+          }
         } else {
-          // For guests, send a stable ID from localStorage
           const guestId = getOrCreateGuestId();
           config.headers['X-Guest-Id'] = guestId;
         }
-
-        const clientId = import.meta.env.VITE_OAUTH_CLIENT_ID;
-        if (clientId) {
-          config.headers['X-Client-Id'] = clientId;
-        }
-
         return config;
       },
-      (error) => Promise.reject(error)
+      (error) => Promise.reject(error),
     );
 
-    // Response interceptor: Handle 401 by refreshing token
+    // Response interceptor: 401 (non-insufficient_scope) → retry once
     instance.interceptors.response.use(
       (response) => response,
       async (error) => {
-        const originalRequest = error.config;
-        console.log('error.response?.status:', error.response?.status, originalRequest._retry);
-        if (error.response?.status === 401 && !originalRequest._retry) {
-          AuthenticatedState = false;
-          originalRequest._retry = true;
-
-          try {
-            await apiClient.refreshAccessToken();
-            const newToken = await getAccessToken();
-            if (newToken) {
-              originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            }
-            return instance(originalRequest);
-          } catch (refreshError) {
-            console.error('Refresh token failed:', refreshError);
-            delete originalRequest.headers.Authorization;
-            const guestId = getOrCreateGuestId();
-            originalRequest.headers['X-Guest-Id'] = guestId;
-            return instance(originalRequest);
-          }
+        // TokenAcquisitionError from request interceptor — propagate immediately
+        if (error instanceof TokenAcquisitionError) {
+          return Promise.reject(error);
         }
 
-        console.error('API request error:', error);
+        if (axios.isAxiosError(error) && error.response) {
+          const apiError = new ApiHttpError(
+            error.response.status,
+            error.response.data?.error as string | undefined,
+            error.response.data?.error_description as string | undefined,
+            typeof error.response.data === 'object'
+              ? JSON.stringify(error.response.data)
+              : String(error.response.data),
+          );
+
+          const origConfig = error.config;
+          // 仅 insufficent_scope 尝试刷新 token 重试一次
+          if (apiError.isInsufficientScope && origConfig && !(origConfig as any)._retry) {
+            (origConfig as any)._retry = true;
+            try {
+              const newToken = await getAccessToken(BACKEND_RESOURCE);
+              if (newToken) {
+                origConfig.headers.Authorization = `Bearer ${newToken}`;
+                return instance(origConfig);
+              }
+            } catch {
+              // 刷新失败，抛出原始错误
+            }
+          }
+
+          return Promise.reject(apiError);
+        }
+
         return Promise.reject(error);
-      }
+      },
     );
 
     return instance;
-  }, [getAccessToken, isAuthenticated, apiClient]);
+  }, [getAccessToken]);
 
   return useMemo(() => new GameAPI(gameAxios), [gameAxios]);
 }

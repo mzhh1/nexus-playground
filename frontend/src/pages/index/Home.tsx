@@ -4,7 +4,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { OAuthProvider, useOAuth } from '@autolabz/oauth-sdk';
+import { LogtoAuthProvider } from '../../components/providers/LogtoAuthProvider';
+import { useLogto } from '@logto/react';
 import './home.css';
 import '../../styles/global.css';
 
@@ -36,7 +37,7 @@ function HomeContent() {
   const [gamesError, setGamesError] = useState<string | null>(null);
   const [roomsError, setRoomsError] = useState<string | null>(null);
 
-  const { isAuthenticated, isInitialized } = useOAuth();
+  const { isAuthenticated, isLoading } = useLogto();
 
   // 获取游戏列表
   useEffect(() => {
@@ -140,7 +141,7 @@ function HomeContent() {
             可扩展的 LLM 原生游戏平台 · 让 AI 与人类共同游戏
           </p>
           <button className="btn-primary btn-large" onClick={handleEnterMyNexus}>
-            {isInitialized && isAuthenticated ? '进入我的星枢' : '开始使用'}
+            {!isLoading && isAuthenticated ? '进入我的星枢' : '开始使用'}
           </button>
         </div>
       </section>
@@ -270,12 +271,9 @@ function HomeContent() {
 
 export const Home: React.FC = () => {
   return (
-    <OAuthProvider
-      authServiceUrl={import.meta.env.VITE_AUTH_API_BASE_URL}
-      clientId={import.meta.env.VITE_OAUTH_CLIENT_ID}
-    >
+    <LogtoAuthProvider>
       <HomeContent />
-    </OAuthProvider>
+    </LogtoAuthProvider>
   );
 };
 

@@ -1,0 +1,38 @@
+name = "np-backend"
+main = "src/index.ts"
+compatibility_date = "2025-03-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Logto 租户 OIDC 端点
+ISSUER_ENDPOINT = "https://auth.autolab-server.site/"
+
+# API Resource Indicator（与 Logto 中注册的 API Identifier 一致）
+WORKER_RESOURCE_INDICATOR = "https://nexus-playground.apiservice.autolab-server.site"
+
+# Debug 模式开关
+DEBUG = "false"
+
+# 逗号分隔的游戏 Worker URL 列表
+WORKER_URL = "https://uno.npgames.autolab-server.site/"
+
+# 逗号分隔的允许 CORS 来源
+CORS_ALLOW_ORIGINS = "http://localhost:5173"
+# CORS_ALLOW_ORIGINS = "http://localhost:3004,https://your-frontend.vercel.app"
+
+# 以下敏感变量通过 wrangler secret put 或 .dev.vars 配置：
+NEXUS_ENGINE_URL = "https://npengine.autolab-server.site/"
+# NEXUS_ENGINE_ADMIN_SECRET
+# NEXUS_ENGINE_JWT_SECRET
+# LLM_WEBHOOK_SECRET
+# OPENAI_API_BASE
+# OPENAI_API_KEY
+
+[[d1_databases]]
+binding = "DB"
+database_name = "np-backend-db"
+database_id = "72e30032-30a8-4fdc-9c1f-b216a6d15dfd"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
